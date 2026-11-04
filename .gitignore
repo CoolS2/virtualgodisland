@@ -1,12 +1,9 @@
-node_modules/
-dist/
-.vite/
+# Godot
+.godot/
+build/
+
+# Общее
 *.log
 .DS_Store
 .env
 .env.*
-coverage/
-
-# Godot
-.godot/
-build/

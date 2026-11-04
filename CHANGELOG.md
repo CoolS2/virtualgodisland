@@ -19,7 +19,13 @@
 - sim: тесты GUT — перенос тестов прототипа, сверка с эталоном TS, JSON-roundtrip мира.
 - game: сцена `game/main.tscn` — остров, вода, свет и тени, орбитальная камера (ПКМ/колесо), рука-заглушка, HUD,
   сейв в `user://save_v1.json`. Сейвы прототипа (localStorage) не переносятся.
-- repo: CI-job на Godot (импорт + тесты на официальной сборке).
+- repo: CI на Godot (импорт, тесты, скриншот на официальной сборке); TS-job удалён.
+
+- tools: `tools/screenshot.tscn` — скриншот сцены; в CI снимается под Xvfb, превью печатается в лог.
+
+### Removed
+- repo: прототип на TypeScript + Three.js (`packages/`, pnpm, `tsconfig`, `.nvmrc`) — перенос на Godot прошёл
+  тесты против эталона. Код остаётся в истории git.
 
 ### Changed
 - repo: **решено перейти на Godot 4 + GDScript** (ADR-0005; ADR-0001 и ADR-0003 заменены).

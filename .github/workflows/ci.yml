@@ -34,17 +34,3 @@ jobs:
           name: screenshot
           path: screenshot.png
           if-no-files-found: error
-
-  # Прототип на TypeScript — эталон для переноса, удаляется вместе с packages/.
-  ts-prototype:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4 # версия pnpm берётся из packageManager в package.json
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm test
-      - run: pnpm typecheck
