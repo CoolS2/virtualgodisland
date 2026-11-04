@@ -73,7 +73,7 @@ func _process(delta: float) -> void:
 	if _since_update < HUD_INTERVAL:
 		return
 	_since_update = 0.0
-	if WorldEngine.catch_up(_world, island_map, SaveStore.now_ms()) > 0:
+	if not _is_preview() and WorldEngine.catch_up(_world, island_map, SaveStore.now_ms()) > 0:
 		items_view.sync(_world)
 		_save()
 	_render_hud()

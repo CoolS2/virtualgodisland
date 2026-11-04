@@ -1,7 +1,7 @@
 extends Node
 ## Утилита разработки (не входит в игру): показывает остров с фиксированным seed, снимает несколько ракурсов.
 ## godot --path . res://tools/screenshot.tscn -- --out=/abs/dir [--seed=42] [--log-preview]
-## Файлы: <out>/overview.png, <out>/closeup.png. Сейв игрока не читается и не пишется.
+## Файлы: <out>/<ракурс>.png. Сейв игрока не читается и не пишется, время мира в превью стоит.
 
 const WARMUP_FRAMES := 30
 const DEFAULT_OUT := "user://screenshots"
@@ -20,12 +20,19 @@ func _ready() -> void:
 	var out := _arg("out", DEFAULT_OUT)
 	DirAccess.make_dir_recursive_absolute(out)
 	var failed := false
-	var views: Array = VIEWS.duplicate()
 	var map := main.get("island_map") as IslandMap
-	for extra: Array in [_river_view(map), _waterfall_view(map), _human_view(main), _hand_view(main)]:
-		if not extra.is_empty():
-			views.append(extra)
-	for view: Array in views:
+	# Ракурсы считаются прямо перед съёмкой: некоторые меняют сцену (ставят человечка, руку).
+	var views: Array[Callable] = []
+	for view: Array in VIEWS:
+		views.append(func() -> Array: return view)
+	views.append(_river_view.bind(map))
+	views.append(_waterfall_view.bind(map))
+	views.append(_human_view.bind(main))
+	views.append(_hand_view.bind(main))
+	for make_view in views:
+		var view: Array = make_view.call()
+		if view.is_empty():
+			continue
 		var target: Vector3 = view[4] if view.size() > 4 else Vector3.ZERO
 		(main.get("camera_rig") as CameraRig).set_view(view[1], view[2], view[3], target)
 		for _i in WARMUP_FRAMES:
@@ -79,7 +86,7 @@ func _human_view(main: Node) -> Array:
 	h["action"] = "idle"
 	(main.get("human_view") as HumanView).snap()
 	var p := Vector3(spot.x, map.height_at_world(spot.x, spot.y) + 1.0, spot.y)
-	return ["human", PI, 0.2, 7.0, p]
+	return ["human", PI, 0.4, 8.0, p]
 
 
 ## Ближайшая к центру клетка поля, вокруг которой в радиусе 3 тоже поле (без деревьев у лица).
