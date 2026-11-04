@@ -11,7 +11,7 @@ const KINDS: Array[String] = ["stone", "branch", "fruit"]
 ## Сколько предметов каждого вида появляется на новом острове и в каких биомах.
 const SPAWN := {
 	"stone": [14, [IslandMap.Biome.BEACH, IslandMap.Biome.MOUNTAIN, IslandMap.Biome.FIELD]],
-	"branch": [16, [IslandMap.Biome.FOREST]],
+	"branch": [16, [IslandMap.Biome.FOREST, IslandMap.Biome.BEACH]], # на пляже — выброшенные морем
 	"fruit": [10, [IslandMap.Biome.FIELD, IslandMap.Biome.FOREST]],
 }
 const SPAWN_SALT := 0x17E5

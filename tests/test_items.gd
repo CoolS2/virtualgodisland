@@ -13,10 +13,10 @@ func _world() -> Dictionary:
 	return w
 
 
-## Предмет в глубине острова (ветка из леса) — бросок от него не улетит в море.
+## Предмет в глубине острова (ветка в лесу) — бросок от него не улетит в море.
 func _inland(w: Dictionary) -> Dictionary:
 	for item: Dictionary in w["items"]:
-		if item["kind"] == "branch":
+		if item["kind"] == "branch" and _map.biome_at_world(item["x"], item["z"]) == IslandMap.Biome.FOREST:
 			return item
 	return {}
 

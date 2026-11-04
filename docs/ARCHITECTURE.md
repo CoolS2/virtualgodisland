@@ -13,7 +13,8 @@ sim/            # детерминированная логика мира (то
   island_map.gd       class_name IslandMap       — биомы, высоты, русло реки, водопад (не сохраняется, воспроизводится из seed)
   min_heap.gd         class_name MinHeap         — двоичная куча для поиска пути
   island_generator.gd class_name IslandGenerator — остров по seed: рельеф, биомы, река
-  world_engine.gd     class_name WorldEngine     — создание мира, step, catch_up
+  world_engine.gd     class_name WorldEngine     — создание мира, step, catch_up, from_data (миграция)
+  items.gd            class_name Items           — предметы: раскладка, взять, бросок (баллистика, ADR-0006)
 game/           # всё, что видит и трогает игрок: сцены и их скрипты
   main.tscn / main.gd — сборка сцены, цикл: catch_up раз в секунду, сейв, HUD
   terrain.gd          — меш острова из карты (low-poly, цвет по биому/высоте), sample_height
@@ -23,7 +24,8 @@ game/           # всё, что видит и трогает игрок: сце
   low_poly.gd         — процедурные low-poly модели: деревья, ели, пальмы, камни, кусты, трава, облака
   decorations.gd      — расстановка растительности (MultiMesh), детерминирована по seed; только визуал
   clouds.gd           — облака, плывущие по ветру
-  hand.gd             — рука бога, ввод
+  hand.gd             — рука бога: модель с пальцами, следование за курсором, сигналы grab_pressed/grab_released
+  items_view.gd       — отображение предметов: в руке, полёт по траектории из sim, исчезновение утонувших
   camera_rig.gd       — орбитальная камера
   save_store.gd       — сейв мира в user://
 assets/         # модели, текстуры, звуки (лицензии — docs/ASSETS.md)
@@ -34,6 +36,10 @@ tools/          # утилиты разработки: screenshot.tscn — ра�
 ```
 
 Зависимости в одну сторону: `game → sim`. `sim/` не знает о сценах, узлах и `game/`.
+
+### Действия игрока
+Ввод → сигнал руки → `main.gd` вызывает функцию `sim/` (`Items.pick_up`, `Items.throw_item`) → мир изменён,
+`game/` показывает результат (траекторию). Правила (что можно взять, куда упадёт) — только в `sim/`.
 
 ### Данные мира
 Мир хранится как `Dictionary` с примитивами (JSON-совместимо), функции `sim/` — `static func` над ним:
@@ -72,6 +78,9 @@ var ticks := WorldEngine.catch_up(world, now_ms)
 
 ## Сейвы
 - Файл в `user://` (путь и имя фиксируются в `save_store.gd`), JSON, поле `version`.
+- Версии: 1 — без предметов, 2 — с предметами (`items`, `next_item_id`, `items_spawned`). Загрузка v1:
+  `WorldEngine.from_data` заполняет недостающие поля, предметы раскладываются при первом запуске.
+- Удержание предмета рукой в сейв не попадает: после загрузки рука пуста.
 - Несовместимое изменение формы мира → миграция `vN → vN+1` с тестом (предпочтительно)
   или сброс сейвов с пометкой **BREAKING** в `CHANGELOG.md`.
 - Сейвы прототипа на Three.js (`localStorage`) не переносятся.

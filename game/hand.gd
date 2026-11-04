@@ -6,7 +6,7 @@ extends Node3D
 signal grab_pressed(ground_point: Vector3)
 signal grab_released(origin: Vector3, velocity: Vector3)
 
-const SCALE := 2.0
+const SCALE := 2.6
 const HOVER := 3.5
 const HOVER_HOLDING := 3.0
 const FOLLOW := 0.25
