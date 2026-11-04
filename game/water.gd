@@ -3,8 +3,8 @@ extends RefCounted
 ## Вода вокруг острова: подразделённая плоскость с шейдером game/shaders/water.gdshader.
 
 const SHADER := preload("res://game/shaders/water.gdshader")
-const SIZE_FACTOR := 4.0
-const SUBDIVISIONS := 120
+const SIZE_FACTOR := 10.0
+const SUBDIVISIONS := 160
 const MAX_DEPTH := 2.5
 const LEVEL := -0.05
 

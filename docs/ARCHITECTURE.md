@@ -9,19 +9,25 @@
 project.godot
 sim/            # детерминированная логика мира (только скрипты, без сцен)
   rng.gd              class_name VgiRng          — mulberry32
-  noise.gd            class_name ValueNoise      — value noise
+  value_noise.gd      class_name ValueNoise      — value noise
+  island_map.gd       class_name IslandMap       — биомы и высоты (не сохраняется, воспроизводится из seed)
   island_generator.gd class_name IslandGenerator — остров по seed
   world_engine.gd     class_name WorldEngine     — создание мира, step, catch_up
 game/           # всё, что видит и трогает игрок: сцены и их скрипты
   main.tscn / main.gd — сборка сцены, цикл: catch_up раз в секунду, сейв, HUD
-  terrain.gd          — меш острова из карты, вода
+  terrain.gd          — меш острова из карты (low-poly, цвет по биому/высоте), sample_height
+  water.gd            — вода: плоскость + shaders/water.gdshader (волны, цвет по глубине, пена у берега)
+  low_poly.gd         — процедурные low-poly модели: деревья, ели, пальмы, камни, кусты, трава, облака
+  decorations.gd      — расстановка растительности (MultiMesh), детерминирована по seed; только визуал
+  clouds.gd           — облака, плывущие по ветру
   hand.gd             — рука бога, ввод
   camera_rig.gd       — орбитальная камера
   save_store.gd       — сейв мира в user://
 assets/         # модели, текстуры, звуки (лицензии — docs/ASSETS.md)
 addons/gut/     # тестовый фреймворк GUT
 tests/          # test_*.gd (GUT), fixtures/ — эталонные данные
-tools/          # утилиты разработки: screenshot.tscn (кадр сцены в PNG, в CI — ещё и превью в лог)
+tools/          # утилиты разработки: screenshot.tscn — 2 ракурса острова с фиксированным seed (сейв не трогает),
+                #   в CI — ещё и JPEG-превью в лог
 ```
 
 Зависимости в одну сторону: `game → sim`. `sim/` не знает о сценах, узлах и `game/`.
