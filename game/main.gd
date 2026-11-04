@@ -6,11 +6,17 @@ const SKY_TOP := Color("#3d8fe0")
 const SKY_HORIZON := Color("#c4e6ff")
 const SUN_POSITION := Vector3(70, 60, 40)
 const HUD_INTERVAL := 1.0
+## Бросок: скорость руки × GAIN + подброс вверх (чтобы бросок «летел», а не падал).
+const THROW_GAIN := 1.3
+const THROW_LIFT := 3.0
+const HINT := "ЛКМ — взять / бросить · ПКМ — вращать камеру · колесо — зум"
 
 ## Только для tools/screenshot: показать остров с этим seed без чтения и записи сейва.
 var preview_seed := -1
 var camera_rig: CameraRig
 var island_map: IslandMap
+var hand: Hand
+var items_view: ItemsView
 
 var _world: Dictionary
 var _offline_ticks: int
@@ -24,6 +30,7 @@ func _ready() -> void:
 	_offline_ticks = WorldEngine.catch_up(_world, now)
 	var map := IslandGenerator.generate(_world["seed"])
 	island_map = map
+	Items.spawn_initial(_world, map)
 
 	_setup_environment()
 	add_child(Terrain.build_terrain(map))
@@ -38,7 +45,14 @@ func _ready() -> void:
 	add_child(Clouds.new(_world["seed"]))
 	camera_rig = CameraRig.new()
 	add_child(camera_rig)
-	add_child(Hand.new())
+	hand = Hand.new()
+	add_child(hand)
+	hand.grab_pressed.connect(pick_item_at)
+	hand.grab_released.connect(_on_grab_released)
+	items_view = ItemsView.new()
+	items_view.hand = hand
+	add_child(items_view)
+	items_view.sync(_world)
 	_setup_hud()
 
 	_save()
@@ -58,6 +72,28 @@ func _process(delta: float) -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:
 		_save()
+
+
+## Взять предмет рядом с точкой ландшафта. true — взяли.
+func pick_item_at(point: Vector3) -> bool:
+	var id := Items.find_near(_world, point)
+	if id < 0 or not Items.pick_up(_world, id):
+		return false
+	items_view.held_id = id
+	hand.holding = true
+	return true
+
+
+func _on_grab_released(origin: Vector3, velocity: Vector3) -> void:
+	var id := Items.held_id(_world)
+	hand.holding = false
+	if id < 0:
+		return
+	var path := Items.throw_item(_world, island_map, id, origin, velocity * THROW_GAIN + Vector3.UP * THROW_LIFT)
+	items_view.held_id = -1
+	items_view.fly(id, path, Items.find(_world, id).is_empty())
+	items_view.sync(_world)
+	_save()
 
 
 func _is_preview() -> bool:
@@ -108,6 +144,11 @@ func _setup_hud() -> void:
 	var layer := CanvasLayer.new()
 	_hud = Label.new()
 	_hud.position = Vector2(8, 8)
+	var hint := Label.new()
+	hint.text = HINT
+	hint.position = Vector2(8, 30)
+	hint.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.5))
+	layer.add_child(hint)
 	_hud.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.5))
 	layer.add_child(_hud)
 	add_child(layer)

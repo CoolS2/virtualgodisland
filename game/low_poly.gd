@@ -12,6 +12,11 @@ const ROCK := Color("#9b9893")
 const BUSH := Color("#5fa84a")
 const GRASS := Color("#79bf4f")
 const CLOUD := Color("#ffffff")
+const STONE := Color("#a3a09a")
+const BRANCH := Color("#7a4e2d")
+const FRUIT := Color("#e0483e")
+const SKIN := Color("#f2c49b")
+const SLEEVE := Color("#efe9d8")
 
 
 static func round_tree(leaves: Color = LEAVES) -> ArrayMesh:
@@ -73,6 +78,43 @@ static func cloud() -> ArrayMesh:
 	_add(st, _sphere(1.6, 8, 4), _at(Vector3(2.4, -0.3, 0.3)), CLOUD)
 	_add(st, _sphere(1.7, 8, 4), _at(Vector3(-2.3, -0.2, -0.2)), CLOUD)
 	_add(st, _sphere(1.3, 7, 4), _at(Vector3(0.8, 1.1, -0.4)), CLOUD)
+	return st.commit()
+
+
+static func stone_item() -> ArrayMesh:
+	var st := _begin()
+	_add(st, _sphere(0.35, 6, 3), _at(Vector3(0, 0.2, 0), Vector3(1.2, 0.75, 1.0)), STONE)
+	return st.commit()
+
+
+static func branch_item() -> ArrayMesh:
+	var st := _begin()
+	_add(st, _cylinder(0.06, 0.09, 1.6, 5), _at(Vector3(0, 0.09, 0), Vector3.ONE, Vector3(0, 0, PI / 2)), BRANCH)
+	_add(st, _cylinder(0.03, 0.05, 0.6, 4), _at(Vector3(0.3, 0.12, 0.2), Vector3.ONE, Vector3(PI / 2, 0.8, 0)), BRANCH)
+	_add(st, _sphere(0.14, 5, 3), _at(Vector3(0.45, 0.14, 0.42)), LEAVES)
+	return st.commit()
+
+
+static func fruit_item() -> ArrayMesh:
+	var st := _begin()
+	_add(st, _sphere(0.28, 7, 4), _at(Vector3(0, 0.28, 0)), FRUIT)
+	_add(st, BoxMesh.new(), _at(Vector3(0.08, 0.58, 0), Vector3(0.2, 0.03, 0.1), Vector3(0, 0, 0.4)), LEAVES)
+	return st.commit()
+
+
+## Ладонь руки бога (смотрит вниз, пальцы вдоль -Z) с манжетой рукава.
+static func hand_palm() -> ArrayMesh:
+	var st := _begin()
+	_add(st, BoxMesh.new(), _at(Vector3.ZERO, Vector3(1.2, 0.4, 1.3)), SKIN)
+	_add(st, _cylinder(0.55, 0.6, 0.7, 8), _at(Vector3(0, 0.05, 0.95), Vector3(1.0, 1.0, 0.75), Vector3(PI / 2, 0, 0)), SLEEVE)
+	return st.commit()
+
+
+## Палец: от начала координат (сустав) вдоль -Z.
+static func hand_finger(length: float) -> ArrayMesh:
+	var st := _begin()
+	_add(st, _cylinder(0.12, 0.14, length, 6), _at(Vector3(0, 0, -length / 2.0), Vector3.ONE, Vector3(-PI / 2, 0, 0)), SKIN)
+	_add(st, _sphere(0.12, 6, 3), _at(Vector3(0, 0, -length)), SKIN)
 	return st.commit()
 
 

@@ -22,7 +22,7 @@ func _ready() -> void:
 	var failed := false
 	var views: Array = VIEWS.duplicate()
 	var map := main.get("island_map") as IslandMap
-	for extra: Array in [_river_view(map), _waterfall_view(map)]:
+	for extra: Array in [_river_view(map), _waterfall_view(map), _hand_view(main)]:
 		if not extra.is_empty():
 			views.append(extra)
 	for view: Array in views:
@@ -61,6 +61,23 @@ func _waterfall_view(map: IslandMap) -> Array:
 	var downstream: Vector3 = points[mini(map.waterfall + 8, points.size() - 1)]
 	var target := Vector3(top.x, (top.y + points[map.waterfall + 1].y) / 2.0, top.z)
 	return ["waterfall", atan2(downstream.x - top.x, downstream.z - top.z), 0.3, 24.0, target]
+
+
+## Рука держит ветку недалеко от центра острова.
+func _hand_view(main: Node) -> Array:
+	var world: Dictionary = main.get("_world")
+	var best := {}
+	for item: Dictionary in world["items"]:
+		if item["kind"] == "branch" and (best.is_empty() or Items.position_of(item).length() < Items.position_of(best).length()):
+			best = item
+	if best.is_empty():
+		return []
+	var p := Items.position_of(best)
+	var hand := main.get("hand") as Hand
+	hand.position = p + Vector3.UP * 3.0
+	hand.set_grip(true)
+	main.call("pick_item_at", p)
+	return ["hand", PI / 4.0, 0.45, 22.0, p + Vector3.UP * 1.5]
 
 
 ## Уменьшенная JPEG-копия одной строкой base64 — чтобы посмотреть кадр по логу CI, не скачивая артефакт.
