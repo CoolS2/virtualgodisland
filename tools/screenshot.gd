@@ -8,8 +8,8 @@ const DEFAULT_OUT := "user://screenshots"
 const DEFAULT_SEED := 42
 ## Имя, yaw, pitch, distance.
 const VIEWS := [
-	["overview", PI / 4.0, 0.57, 100.0],
-	["closeup", PI * 0.9, 0.32, 38.0],
+	["overview", PI / 4.0, 0.6, 190.0],
+	["closeup", PI * 0.9, 0.3, 70.0],
 ]
 
 
@@ -38,7 +38,7 @@ func _ready() -> void:
 ## Уменьшенная JPEG-копия одной строкой base64 — чтобы посмотреть кадр по логу CI, не скачивая артефакт.
 func _print_preview(view_name: String, image: Image) -> void:
 	var preview := image.duplicate() as Image
-	preview.resize(image.get_width() / 2, image.get_height() / 2, Image.INTERPOLATE_BILINEAR)
+	preview.resize(image.get_width() >> 1, image.get_height() >> 1, Image.INTERPOLATE_BILINEAR)
 	print("PREVIEW_JPEG_BASE64[%s]:%s" % [view_name, Marshalls.raw_to_base64(preview.save_jpg_to_buffer(0.8))])
 
 

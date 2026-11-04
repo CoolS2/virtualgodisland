@@ -2,10 +2,10 @@ class_name Clouds
 extends Node3D
 ## Облака над островом: медленно плывут по ветру и возвращаются с другой стороны. Только визуал.
 
-const COUNT := 9
-const HEIGHT_MIN := 60.0
-const HEIGHT_MAX := 75.0
-const RANGE := 140.0
+const COUNT := 14
+const HEIGHT_MIN := 75.0
+const HEIGHT_MAX := 95.0
+const RANGE := 260.0
 const SPEED := 1.5
 
 var _clouds: Array[Node3D] = []

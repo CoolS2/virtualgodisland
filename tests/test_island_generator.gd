@@ -37,3 +37,32 @@ func test_mountain_is_highest_point() -> void:
 		if map.heights[i] > map.heights[best]:
 			best = i
 	assert_eq(map.biomes[best], IslandMap.Biome.MOUNTAIN)
+
+
+## Высота горы — заметно выше всего остального острова.
+func test_mountain_is_tall() -> void:
+	for s in [0, 7, 42]:
+		var map := IslandGenerator.generate(s)
+		var peak := -INF
+		for h in map.heights:
+			peak = maxf(peak, h)
+		assert_gt(peak, IslandGenerator.SNOW_LINE, "seed %d: вершина ниже снеговой линии" % s)
+
+
+## Снимок генерации: ловит НЕнамеренные изменения островов (порядок RNG, формулы).
+## При намеренном изменении генератора — обновить значения и отметить в CHANGELOG (острова для seed меняются).
+const SNAPSHOT := {
+	0: ["TODO", 0],
+	7: ["TODO", 0],
+	42: ["TODO", 0],
+}
+
+
+func test_generation_snapshot() -> void:
+	for s: int in SNAPSHOT:
+		var map := IslandGenerator.generate(s)
+		var biomes_md5 := map.biomes.hex_encode().md5_text()
+		var height_sum := 0
+		for h in map.heights:
+			height_sum += roundi(h * 1000.0)
+		assert_eq([biomes_md5, height_sum], SNAPSHOT[s], "seed %d: снимок генерации" % s)

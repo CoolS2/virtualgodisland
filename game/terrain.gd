@@ -13,7 +13,9 @@ const SEA_DEEP := Color("#5f8f8a")
 const FIELD_HIGH := Color("#a3cc5c") # поле светлеет к холмам
 const ROCK_HIGH := Color("#b8b4ae")
 const SNOW := Color("#f4f6fb")
-const SNOW_HEIGHT := 7.0
+## Крутые склоны (перепад высоты к соседям, на клетку) окрашиваются камнем.
+const CLIFF_SLOPE := 1.1
+const CLIFF := Color("#8c857c")
 ## Разброс яркости между вершинами — «живой» мультяшный ландшафт вместо ровной заливки.
 const JITTER := 0.06
 
@@ -75,13 +77,26 @@ static func _color_at(map: IslandMap, c: Vector2i) -> Color:
 		IslandMap.Biome.SEA:
 			color = color.lerp(SEA_DEEP, clampf(-h / 3.0, 0.0, 1.0))
 		IslandMap.Biome.FIELD:
-			color = color.lerp(FIELD_HIGH, clampf((h - 1.0) / 3.0, 0.0, 1.0))
+			color = color.lerp(FIELD_HIGH, clampf((h - 1.0) / 4.0, 0.0, 1.0))
 		IslandMap.Biome.MOUNTAIN:
-			if h > SNOW_HEIGHT:
+			if h > IslandGenerator.SNOW_LINE:
 				return SNOW
-			color = color.lerp(ROCK_HIGH, clampf((h - 2.0) / 5.0, 0.0, 1.0))
+			color = color.lerp(ROCK_HIGH, clampf((h - IslandGenerator.ROCK_LINE) / 8.0, 0.0, 1.0))
+	if biome != IslandMap.Biome.SEA and biome != IslandMap.Biome.BEACH:
+		color = color.lerp(CLIFF, smoothstep(CLIFF_SLOPE * 0.7, CLIFF_SLOPE * 1.3, slope_at(map, c.x, c.y)))
 	var jitter := _jitter(c)
 	return color.lightened(jitter) if jitter > 0.0 else color.darkened(-jitter)
+
+
+## Наибольший перепад высоты к соседним клеткам.
+static func slope_at(map: IslandMap, x: int, y: int) -> float:
+	var h := map.height_at(x, y)
+	var result := 0.0
+	for offset: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+		var nx: int = clampi(x + offset.x, 0, map.size - 1)
+		var ny: int = clampi(y + offset.y, 0, map.size - 1)
+		result = maxf(result, absf(map.height_at(nx, ny) - h))
+	return result
 
 
 ## Детерминированный разброс -JITTER..JITTER по координатам вершины.

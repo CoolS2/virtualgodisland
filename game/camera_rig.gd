@@ -4,7 +4,7 @@ extends Node3D
 ## Левая кнопка оставлена руке бога.
 
 const MIN_DISTANCE := 20.0
-const MAX_DISTANCE := 160.0
+const MAX_DISTANCE := 280.0
 const MIN_PITCH := 0.16 # ~9°, не опускаться к горизонту
 const MAX_PITCH := 1.4 # ~80°
 const ROTATE_SPEED := 0.005
@@ -13,8 +13,8 @@ const ZOOM_STEP := 1.1
 var camera := Camera3D.new()
 
 var _yaw := PI / 4.0
-var _pitch := 0.57
-var _distance := 100.0
+var _pitch := 0.6
+var _distance := 190.0
 var _rotating := false
 
 

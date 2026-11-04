@@ -5,6 +5,7 @@ extends RefCounted
 
 const SEED_SALT := 0x5EED
 const MIN_HEIGHT := 0.15 # не ставить у самой воды
+const MAX_SLOPE := 0.9 # на крутых склонах ничего не растёт
 
 
 static func build(map: IslandMap, world_seed: int, tile: float = 1.0) -> Node3D:
@@ -30,7 +31,7 @@ static func build(map: IslandMap, world_seed: int, tile: float = 1.0) -> Node3D:
 			var fy: float = y + rng.next()
 			var yaw: float = rng.next() * TAU
 			var size: float = 0.75 + rng.next() * 0.6
-			if kind.is_empty():
+			if kind.is_empty() or Terrain.slope_at(map, x, y) > MAX_SLOPE:
 				continue
 			var h := Terrain.sample_height(map, fx, fy)
 			if h < MIN_HEIGHT:
@@ -82,11 +83,11 @@ static func _pick(map: IslandMap, x: int, y: int, roll: float, variant: float) -
 			if roll < 0.36:
 				return "rock"
 		IslandMap.Biome.MOUNTAIN:
-			if h > Terrain.SNOW_HEIGHT:
+			if h > IslandGenerator.SNOW_LINE:
 				return "rock" if roll < 0.03 else ""
 			if roll < 0.07:
 				return "rock"
-			if h < 4.0 and roll < 0.16:
+			if h < IslandGenerator.ROCK_LINE + 4.0 and roll < 0.14:
 				return "pine"
 		IslandMap.Biome.BEACH:
 			if roll < 0.035:

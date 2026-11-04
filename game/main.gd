@@ -4,7 +4,7 @@ extends Node3D
 
 const SKY_TOP := Color("#3d8fe0")
 const SKY_HORIZON := Color("#c4e6ff")
-const SUN_POSITION := Vector3(60, 70, 35)
+const SUN_POSITION := Vector3(70, 60, 40)
 const HUD_INTERVAL := 1.0
 
 ## Только для tools/screenshot: показать остров с этим seed без чтения и записи сейва.
@@ -80,7 +80,7 @@ func _setup_environment() -> void:
 	env.glow_intensity = 0.4
 	env.fog_enabled = true
 	env.fog_light_color = SKY_HORIZON
-	env.fog_density = 0.0015
+	env.fog_density = 0.0009
 	env.fog_sky_affect = 0.0
 	var world_env := WorldEnvironment.new()
 	world_env.environment = env
@@ -91,7 +91,7 @@ func _setup_environment() -> void:
 	sun.light_energy = 1.3
 	sun.shadow_enabled = true
 	sun.shadow_blur = 1.5
-	sun.directional_shadow_max_distance = 250.0
+	sun.directional_shadow_max_distance = 450.0
 	sun.transform = Transform3D(Basis.looking_at(-SUN_POSITION), SUN_POSITION)
 	add_child(sun)
 
