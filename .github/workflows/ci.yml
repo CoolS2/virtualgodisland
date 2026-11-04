@@ -28,7 +28,7 @@ jobs:
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri > /dev/null
           xvfb-run -a -s "-screen 0 1280x720x24" ./godot --path . --rendering-driver opengl3 \
-            --resolution 1280x720 res://tools/screenshot.tscn -- --out="$PWD/screenshot.png"
+            --resolution 1280x720 res://tools/screenshot.tscn -- --out="$PWD/screenshot.png" --log-preview
       - uses: actions/upload-artifact@v4
         with:
           name: screenshot
