@@ -3,7 +3,7 @@ extends Node3D
 ## Орбитальная камера вокруг центра острова: правая кнопка мыши — вращение, колесо — зум.
 ## Левая кнопка оставлена руке бога.
 
-const MIN_DISTANCE := 20.0
+const MIN_DISTANCE := 6.0
 const MAX_DISTANCE := 280.0
 const MIN_PITCH := 0.16 # ~9°, не опускаться к горизонту
 const MAX_PITCH := 1.4 # ~80°

@@ -63,15 +63,42 @@ func _waterfall_view(map: IslandMap) -> Array:
 	return ["waterfall", atan2(downstream.x - top.x, downstream.z - top.z), 0.3, 24.0, target]
 
 
-## Человечек крупным планом.
+## Человечек крупным планом, лицом к камере. Для кадра ставим его на открытое место в поле
+## (мир превью не сохраняется).
 func _human_view(main: Node) -> Array:
 	var world: Dictionary = main.get("_world")
-	var h: Dictionary = world["human"]
-	if not h["spawned"]:
-		return []
 	var map := main.get("island_map") as IslandMap
-	var p := Vector3(h["x"], map.height_at_world(h["x"], h["z"]) + 1.0, h["z"])
-	return ["human", PI * 1.1, 0.25, 20.0, p]
+	var h: Dictionary = world["human"]
+	var spot := _open_field(map)
+	if spot == Vector2.INF:
+		return []
+	h["x"] = spot.x
+	h["z"] = spot.y
+	h["tx"] = spot.x
+	h["tz"] = spot.y
+	h["action"] = "idle"
+	(main.get("human_view") as HumanView).snap()
+	var p := Vector3(spot.x, map.height_at_world(spot.x, spot.y) + 1.0, spot.y)
+	return ["human", PI, 0.2, 7.0, p]
+
+
+## Ближайшая к центру клетка поля, вокруг которой в радиусе 3 тоже поле (без деревьев у лица).
+func _open_field(map: IslandMap) -> Vector2:
+	var half := map.half_extent()
+	var best := Vector2.INF
+	for y in range(3, map.size - 3):
+		for x in range(3, map.size - 3):
+			var p := Vector2(x - half, y - half)
+			if p.length() >= best.length():
+				continue
+			var ok := true
+			for dy in range(-3, 4):
+				for dx in range(-3, 4):
+					if map.biome_at(x + dx, y + dy) != IslandMap.Biome.FIELD:
+						ok = false
+			if ok:
+				best = p
+	return best
 
 
 ## Рука держит ветку недалеко от центра острова.

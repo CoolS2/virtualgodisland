@@ -70,6 +70,11 @@ func _init() -> void:
 	add_child(_label)
 
 
+## Сразу поставить в позицию из мира (без «догоняющей» ходьбы).
+func snap() -> void:
+	_placed = false
+
+
 ## Обновить по миру (вызывать каждый кадр).
 func show_state(h: Dictionary, delta: float) -> void:
 	_time += delta
