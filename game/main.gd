@@ -119,9 +119,6 @@ func _on_grab_released(origin: Vector3, velocity: Vector3) -> void:
 	items_view.held_id = -1
 	items_view.fly(id, path, Items.find(_world, id).is_empty())
 	items_view.sync(_world)
-	human_view = HumanView.new()
-	human_view.map = map
-	add_child(human_view)
 	_save()
 
 
