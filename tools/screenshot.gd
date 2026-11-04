@@ -22,7 +22,7 @@ func _ready() -> void:
 	var failed := false
 	var views: Array = VIEWS.duplicate()
 	var map := main.get("island_map") as IslandMap
-	for extra: Array in [_river_view(map), _waterfall_view(map), _hand_view(main)]:
+	for extra: Array in [_river_view(map), _waterfall_view(map), _human_view(main), _hand_view(main)]:
 		if not extra.is_empty():
 			views.append(extra)
 	for view: Array in views:
@@ -61,6 +61,17 @@ func _waterfall_view(map: IslandMap) -> Array:
 	var downstream: Vector3 = points[mini(map.waterfall + 8, points.size() - 1)]
 	var target := Vector3(top.x, (top.y + points[map.waterfall + 1].y) / 2.0, top.z)
 	return ["waterfall", atan2(downstream.x - top.x, downstream.z - top.z), 0.3, 24.0, target]
+
+
+## Человечек крупным планом.
+func _human_view(main: Node) -> Array:
+	var world: Dictionary = main.get("_world")
+	var h: Dictionary = world["human"]
+	if not h["spawned"]:
+		return []
+	var map := main.get("island_map") as IslandMap
+	var p := Vector3(h["x"], map.height_at_world(h["x"], h["z"]) + 1.0, h["z"])
+	return ["human", PI * 1.1, 0.25, 20.0, p]
 
 
 ## Рука держит ветку недалеко от центра острова.

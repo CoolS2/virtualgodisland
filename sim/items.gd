@@ -55,6 +55,27 @@ static func spawn_initial(w: Dictionary, map: IslandMap) -> void:
 			placed += 1
 
 
+## Вырастить один фрукт в лесу или поле (случайность — из мира). true — вырос.
+static func grow_fruit(w: Dictionary, map: IslandMap) -> bool:
+	for _attempt in 50:
+		var fx: float = 1.0 + VgiRng.next_float(w) * (map.size - 3)
+		var fy: float = 1.0 + VgiRng.next_float(w) * (map.size - 3)
+		var biome := map.biome_at(roundi(fx), roundi(fy))
+		var h := map.sample_height(fx, fy)
+		if (biome == IslandMap.Biome.FIELD or biome == IslandMap.Biome.FOREST) and h > 0.1 and h <= SPAWN_MAX_HEIGHT:
+			_add(w, "fruit", Vector3(fx - map.half_extent(), h, fy - map.half_extent()))
+			return true
+	return false
+
+
+static func count_kind(w: Dictionary, kind: String) -> int:
+	var n := 0
+	for item: Dictionary in w["items"]:
+		if item["kind"] == kind:
+			n += 1
+	return n
+
+
 ## Ближайший к точке свободный предмет в радиусе radius; -1, если нет.
 static func find_near(w: Dictionary, point: Vector3, radius: float = PICK_RADIUS) -> int:
 	var best := -1

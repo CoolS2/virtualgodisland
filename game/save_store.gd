@@ -3,9 +3,9 @@ extends RefCounted
 ## Сейв мира в user:// (JSON). Единственное место с randi() и реальным временем — это game/, не sim/.
 
 const PATH := "user://save_v1.json" # имя файла не меняется; версия формата — в поле version
-const VERSION := 2
+const VERSION := 3
 ## Версии сейва, которые умеем загрузить (недостающие поля заполняет WorldEngine.from_data).
-const SUPPORTED_VERSIONS := [1, 2]
+const SUPPORTED_VERSIONS := [1, 2, 3]
 
 
 static func now_ms() -> int:

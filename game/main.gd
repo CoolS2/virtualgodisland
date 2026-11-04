@@ -9,7 +9,10 @@ const HUD_INTERVAL := 1.0
 ## Бросок: скорость руки × GAIN + подброс вверх (чтобы бросок «летел», а не падал).
 const THROW_GAIN := 1.3
 const THROW_LIFT := 3.0
-const HINT := "ЛКМ — взять / бросить · ПКМ — вращать камеру · колесо — зум"
+const HINT := "ЛКМ — взять / бросить · ПКМ — вращать камеру · колесо — зум · F — следить за человечком"
+const MOOD_LABELS := {"happy": "доволен", "ok": "спокоен", "sad": "грустит", "sleep": "спит", "dead": "погиб"}
+const FOLLOW_VIEW := [0.45, 25.0] # pitch, distance
+const ISLAND_VIEW := [0.6, 150.0]
 
 ## Только для tools/screenshot: показать остров с этим seed без чтения и записи сейва.
 var preview_seed := -1
@@ -17,6 +20,7 @@ var camera_rig: CameraRig
 var island_map: IslandMap
 var hand: Hand
 var items_view: ItemsView
+var human_view: HumanView
 
 var _world: Dictionary
 var _offline_ticks: int
@@ -27,10 +31,11 @@ var _since_update := 0.0
 func _ready() -> void:
 	var now := SaveStore.now_ms()
 	_world = WorldEngine.create_world(preview_seed, now) if _is_preview() else SaveStore.load_world(now)
-	_offline_ticks = WorldEngine.catch_up(_world, now)
 	var map := IslandGenerator.generate(_world["seed"])
 	island_map = map
-	Items.spawn_initial(_world, map)
+	_offline_ticks = WorldEngine.catch_up(_world, map, now)
+	if not _world["human"]["spawned"]:
+		WorldEngine.step(_world, map) # новый мир: человечек и предметы появляются сразу
 
 	_setup_environment()
 	add_child(Terrain.build_terrain(map))
@@ -53,6 +58,9 @@ func _ready() -> void:
 	items_view.hand = hand
 	add_child(items_view)
 	items_view.sync(_world)
+	human_view = HumanView.new()
+	human_view.map = map
+	add_child(human_view)
 	_setup_hud()
 
 	_save()
@@ -60,13 +68,31 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	human_view.show_state(_world["human"], delta)
 	_since_update += delta
 	if _since_update < HUD_INTERVAL:
 		return
 	_since_update = 0.0
-	if WorldEngine.catch_up(_world, SaveStore.now_ms()) > 0:
+	if WorldEngine.catch_up(_world, island_map, SaveStore.now_ms()) > 0:
+		items_view.sync(_world)
 		_save()
 	_render_hud()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	var key := event as InputEventKey
+	if key and key.pressed and not key.echo and key.keycode == KEY_F:
+		toggle_follow()
+
+
+## Камера: следить за человечком / вернуться к общему виду острова.
+func toggle_follow() -> void:
+	if camera_rig.follow:
+		camera_rig.follow = null
+		camera_rig.set_view(PI / 4.0, ISLAND_VIEW[0], ISLAND_VIEW[1])
+	else:
+		camera_rig.follow = human_view
+		camera_rig.set_view(PI / 4.0, FOLLOW_VIEW[0], FOLLOW_VIEW[1], human_view.global_position)
 
 
 func _notification(what: int) -> void:
@@ -93,6 +119,9 @@ func _on_grab_released(origin: Vector3, velocity: Vector3) -> void:
 	items_view.held_id = -1
 	items_view.fly(id, path, Items.find(_world, id).is_empty())
 	items_view.sync(_world)
+	human_view = HumanView.new()
+	human_view.map = map
+	add_child(human_view)
 	_save()
 
 
@@ -156,7 +185,7 @@ func _setup_hud() -> void:
 
 func _render_hud() -> void:
 	var h: Dictionary = _world["human"]
-	_hud.text = "seed %d · tick %d · офлайн +%d · голод %.0f · жажда %.0f · силы %.0f%s" % [
-		_world["seed"], _world["tick"], _offline_ticks,
-		h["hunger"], h["thirst"], h["energy"], "" if h["alive"] else " · ПОГИБ",
+	_hud.text = "seed %d · tick %d · офлайн +%d · голод %.0f · жажда %.0f · силы %.0f · %s · %s" % [
+		_world["seed"], _world["tick"], _offline_ticks, h["hunger"], h["thirst"], h["energy"],
+		HumanView.ACTION_LABELS.get(h["action"], h["action"]), MOOD_LABELS.get(Human.mood(h), ""),
 	]

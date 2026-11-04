@@ -13,11 +13,19 @@ const ZOOM_STEP := 1.1
 var camera := Camera3D.new()
 ## Точка, вокруг которой вращается камера.
 var target := Vector3.ZERO
+## Если задан — камера следит за этим узлом.
+var follow: Node3D
 
 var _yaw := PI / 4.0
 var _pitch := 0.6
 var _distance := 150.0
 var _rotating := false
+
+
+func _process(_delta: float) -> void:
+	if follow:
+		target = target.lerp(follow.global_position + Vector3.UP, 0.1)
+		_apply()
 
 
 func _ready() -> void:
