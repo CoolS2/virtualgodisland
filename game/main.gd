@@ -31,6 +31,9 @@ func _ready() -> void:
 	var river := River.build(map)
 	if river:
 		add_child(river)
+	var waterfall := Waterfall.build(map)
+	if waterfall:
+		add_child(waterfall)
 	add_child(Decorations.build(map, _world["seed"]))
 	add_child(Clouds.new(_world["seed"]))
 	camera_rig = CameraRig.new()

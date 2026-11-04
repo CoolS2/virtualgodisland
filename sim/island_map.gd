@@ -15,6 +15,8 @@ var heights := PackedFloat64Array()
 var river := PackedInt32Array()
 ## Уровень воды в реке для каждой клетки river (не возрастает от истока к устью).
 var river_levels := PackedFloat64Array()
+## Водопад: индекс в river верхней точки уступа (вода падает к river[waterfall + 1]); -1 — нет.
+var waterfall := -1
 
 
 func _init(p_seed: int, p_size: int) -> void:

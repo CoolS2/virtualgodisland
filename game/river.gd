@@ -15,17 +15,7 @@ static func build(map: IslandMap, tile: float = 1.0) -> MeshInstance3D:
 	var count := map.river.size()
 	if count < 2:
 		return null
-	var half: float = (map.size - 1) * tile / 2.0
-	var points: Array[Vector3] = []
-	for k in count:
-		var sum := Vector2.ZERO
-		var n := 0
-		for m in range(maxi(0, k - SMOOTH), mini(count, k + SMOOTH + 1)):
-			var i: int = map.river[m]
-			sum += Vector2(i % map.size, floori(float(i) / map.size))
-			n += 1
-		var p := sum / n
-		points.append(Vector3(p.x * tile - half, map.river_levels[k] + LIFT, p.y * tile - half))
+	var points := smoothed_points(map, tile)
 
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -42,7 +32,7 @@ static func build(map: IslandMap, tile: float = 1.0) -> MeshInstance3D:
 		var right := points[k] + side * width * 0.5
 		if k > 0:
 			along += points[k].distance_to(points[k - 1])
-			_quad(st, prev_left, prev_right, left, right, prev_along, along)
+			_quad(st, prev_left, prev_right, left, right, prev_along, along, k - 1 == map.waterfall)
 		prev_left = left
 		prev_right = right
 		prev_along = along
@@ -57,10 +47,28 @@ static func build(map: IslandMap, tile: float = 1.0) -> MeshInstance3D:
 	return river
 
 
-static func _quad(st: SurfaceTool, l0: Vector3, r0: Vector3, l1: Vector3, r1: Vector3, v0: float, v1: float) -> void:
+## Точки русла в мире: координаты сглажены (ломаная по клеткам сетки), высота — уровень воды.
+static func smoothed_points(map: IslandMap, tile: float = 1.0) -> Array[Vector3]:
+	var count := map.river.size()
+	var half: float = (map.size - 1) * tile / 2.0
+	var points: Array[Vector3] = []
+	for k in count:
+		var sum := Vector2.ZERO
+		var n := 0
+		for m in range(maxi(0, k - SMOOTH), mini(count, k + SMOOTH + 1)):
+			var i: int = map.river[m]
+			sum += Vector2(i % map.size, floori(float(i) / map.size))
+			n += 1
+		var p := sum / n
+		points.append(Vector3(p.x * tile - half, map.river_levels[k] + LIFT, p.y * tile - half))
+	return points
+
+
+static func _quad(st: SurfaceTool, l0: Vector3, r0: Vector3, l1: Vector3, r1: Vector3, v0: float, v1: float, fall: bool) -> void:
 	var verts: Array[Vector3] = [l0, r0, l1, r0, r1, l1]
 	var uvs: Array[Vector2] = [Vector2(0, v0), Vector2(1, v0), Vector2(0, v1), Vector2(1, v0), Vector2(1, v1), Vector2(0, v1)]
 	for i in verts.size():
 		st.set_normal(Vector3.UP)
+		st.set_color(Color.WHITE if fall else Color.BLACK)
 		st.set_uv(uvs[i])
 		st.add_vertex(verts[i])

@@ -6,7 +6,7 @@ extends Node
 const WARMUP_FRAMES := 30
 const DEFAULT_OUT := "user://screenshots"
 const DEFAULT_SEED := 42
-## Имя, yaw, pitch, distance.
+## Имя, yaw, pitch, distance[, target].
 const VIEWS := [
 	["overview", PI / 4.0, 0.75, 150.0],
 	["closeup", PI * 0.9, 0.3, 70.0],
@@ -21,11 +21,13 @@ func _ready() -> void:
 	DirAccess.make_dir_recursive_absolute(out)
 	var failed := false
 	var views: Array = VIEWS.duplicate()
-	var river_view := _river_view(main.get("island_map") as IslandMap)
-	if not river_view.is_empty():
-		views.append(river_view)
+	var map := main.get("island_map") as IslandMap
+	for extra: Array in [_river_view(map), _waterfall_view(map)]:
+		if not extra.is_empty():
+			views.append(extra)
 	for view: Array in views:
-		(main.get("camera_rig") as CameraRig).set_view(view[1], view[2], view[3])
+		var target: Vector3 = view[4] if view.size() > 4 else Vector3.ZERO
+		(main.get("camera_rig") as CameraRig).set_view(view[1], view[2], view[3], target)
 		for _i in WARMUP_FRAMES:
 			await get_tree().process_frame
 		await RenderingServer.frame_post_draw
@@ -48,6 +50,17 @@ func _river_view(map: IslandMap) -> Array:
 	var x: float = i % map.size - half
 	var z: float = floori(float(i) / map.size) - half
 	return ["river", atan2(x, z), 0.5, 75.0]
+
+
+## Ракурс на водопад снизу по течению: камера вращается вокруг середины падения.
+func _waterfall_view(map: IslandMap) -> Array:
+	if map == null or map.waterfall < 0:
+		return []
+	var points := River.smoothed_points(map)
+	var top: Vector3 = points[map.waterfall]
+	var downstream: Vector3 = points[mini(map.waterfall + 8, points.size() - 1)]
+	var target := Vector3(top.x, (top.y + points[map.waterfall + 1].y) / 2.0, top.z)
+	return ["waterfall", atan2(downstream.x - top.x, downstream.z - top.z), 0.3, 24.0, target]
 
 
 ## Уменьшенная JPEG-копия одной строкой base64 — чтобы посмотреть кадр по логу CI, не скачивая артефакт.

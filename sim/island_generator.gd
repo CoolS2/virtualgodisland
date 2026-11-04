@@ -15,7 +15,11 @@ const ROCK_LINE := 9.0
 ## Выше этой высоты — снег (используется визуалом).
 const SNOW_LINE := 17.0
 ## Река: исток на склоне горы на этой высоте.
-const RIVER_SOURCE_HEIGHT := 12.0
+const RIVER_SOURCE_HEIGHT := 15.0
+## Водопад: уступ там, где русло на склоне горы опускается до этой высоты.
+const WATERFALL_TOP := 11.0
+## Высота падения воды.
+const WATERFALL_DROP := 5.0
 ## Насколько дно реки ниже исходного рельефа.
 const RIVER_DEPTH := 0.7
 ## Глубина воды над дном.
@@ -172,6 +176,7 @@ static func _carve_river(map: IslandMap, rng: VgiRng) -> void:
 	for i in path:
 		last_bed = minf(map.heights[i] - RIVER_DEPTH, last_bed - 0.02)
 		beds.append(last_bed)
+	map.waterfall = _cut_waterfall(map, path, beds)
 
 	for k in path.size():
 		var pos := Vector2i(path[k] % size, floori(float(path[k]) / size))
@@ -190,6 +195,26 @@ static func _carve_river(map: IslandMap, rng: VgiRng) -> void:
 			map.biomes[i] = IslandMap.Biome.RIVER
 		map.river.append(i)
 		map.river_levels.append(beds[k] + RIVER_WATER_DEPTH)
+
+
+## Водопад: в первой точке русла не выше WATERFALL_TOP дно ниже по течению обрывается на WATERFALL_DROP,
+## дальше — ущелье, пока естественное дно не опустится ниже обрыва. Только понижает дно (уровень не растёт).
+## Возвращает индекс верха уступа или -1.
+static func _cut_waterfall(map: IslandMap, path: PackedInt32Array, beds: PackedFloat64Array) -> int:
+	var top := -1
+	for k in path.size():
+		if map.heights[path[k]] <= WATERFALL_TOP:
+			top = k
+			break
+	if top < 1 or top >= path.size() - 2:
+		return -1
+	var floor_bed: float = beds[top] - WATERFALL_DROP
+	for j in range(top + 1, path.size()):
+		var target: float = floor_bed - 0.02 * (j - top - 1)
+		if beds[j] <= target:
+			break
+		beds[j] = target
+	return top
 
 
 ## Идёт по лучу от (x0, y0) под углом angle, начиная с шага min_step; возвращает первую клетку,

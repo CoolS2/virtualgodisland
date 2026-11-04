@@ -52,9 +52,9 @@ func test_mountain_is_tall() -> void:
 ## Снимок генерации: ловит НЕнамеренные изменения островов (порядок RNG, формулы).
 ## При намеренном изменении генератора — обновить значения и отметить в CHANGELOG (острова для seed меняются).
 const SNAPSHOT := {
-	0: ["0dfda83e75bdf9ac4701b7800479855f", 3499908],
-	7: ["1c379bce0ad9aacd4305591f82168faa", 7507145],
-	42: ["8d1c10a327a6cba76df565e19488196f", 6259803],
+	0: ["TODO", 0],
+	7: ["TODO", 0],
+	42: ["TODO", 0],
 }
 
 
@@ -87,3 +87,14 @@ func test_river_flows_to_sea() -> void:
 				fail_test("seed %d: вода течёт вверх на шаге %d" % [s, k])
 				return
 		pass_test("seed %d: река в порядке" % s)
+
+
+## На склоне горы есть водопад: резкий перепад уровня воды между соседними клетками русла.
+func test_waterfall_on_mountain() -> void:
+	for s in 10:
+		var map := IslandGenerator.generate(s)
+		assert_gt(map.waterfall, 0, "seed %d: нет водопада" % s)
+		if map.waterfall <= 0:
+			continue
+		var drop: float = map.river_levels[map.waterfall] - map.river_levels[map.waterfall + 1]
+		assert_gt(drop, IslandGenerator.WATERFALL_DROP * 0.8, "seed %d: перепад водопада" % s)

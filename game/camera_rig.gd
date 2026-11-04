@@ -11,6 +11,8 @@ const ROTATE_SPEED := 0.005
 const ZOOM_STEP := 1.1
 
 var camera := Camera3D.new()
+## Точка, вокруг которой вращается камера.
+var target := Vector3.ZERO
 
 var _yaw := PI / 4.0
 var _pitch := 0.6
@@ -46,7 +48,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 ## Поставить камеру в заданный ракурс (используется утилитой скриншотов).
-func set_view(yaw: float, pitch: float, distance: float) -> void:
+func set_view(yaw: float, pitch: float, distance: float, new_target: Vector3 = Vector3.ZERO) -> void:
+	target = new_target
 	_yaw = yaw
 	_pitch = clampf(pitch, MIN_PITCH, MAX_PITCH)
 	_distance = clampf(distance, MIN_DISTANCE, MAX_DISTANCE)
@@ -60,4 +63,4 @@ func _zoom(factor: float) -> void:
 
 func _apply() -> void:
 	var offset := Vector3(cos(_pitch) * sin(_yaw), sin(_pitch), cos(_pitch) * cos(_yaw)) * _distance
-	camera.transform = Transform3D(Basis.looking_at(-offset), offset)
+	camera.transform = Transform3D(Basis.looking_at(-offset), target + offset)
