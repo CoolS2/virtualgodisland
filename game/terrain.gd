@@ -26,7 +26,6 @@ static func build_terrain(map: IslandMap, tile: float = 1.0) -> MeshInstance3D:
 
 	var mat := StandardMaterial3D.new()
 	mat.vertex_color_use_as_albedo = true
-	mat.vertex_color_is_srgb = true
 	mat.roughness = 1.0
 	# Рельеф виден только сверху; без отсечения граней не зависим от порядка обхода вершин.
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
@@ -61,7 +60,9 @@ static func _add_triangle(st: SurfaceTool, map: IslandMap, tile: float, half: fl
 		normal = -normal
 	for i in cells.size():
 		st.set_normal(normal)
-		st.set_color(_color_at(map, cells[i]))
+		# Цвета палитры заданы в sRGB, а цвет вершин шейдер берёт как линейный — переводим явно
+		# (флаг vertex_color_is_srgb в рендерере Compatibility на 4.7.2 видимого эффекта не дал).
+		st.set_color(_color_at(map, cells[i]).srgb_to_linear())
 		st.add_vertex(points[i])
 
 

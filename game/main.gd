@@ -50,7 +50,7 @@ func _setup_environment() -> void:
 	env.background_color = SKY_COLOR
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color("#cfe3ff")
-	env.ambient_light_energy = 0.6
+	env.ambient_light_energy = 0.4
 	var world_env := WorldEnvironment.new()
 	world_env.environment = env
 	add_child(world_env)
