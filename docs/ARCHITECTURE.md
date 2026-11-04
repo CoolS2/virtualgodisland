@@ -14,7 +14,8 @@ sim/            # детерминированная логика мира (то
   min_heap.gd         class_name MinHeap         — двоичная куча для поиска пути
   island_generator.gd class_name IslandGenerator — остров по seed: рельеф, биомы, река
   world_engine.gd     class_name WorldEngine     — создание мира, step, catch_up, from_data (миграция)
-  items.gd            class_name Items           — предметы: раскладка, взять, бросок (баллистика, ADR-0006)
+  items.gd            class_name Items           — предметы: раскладка, взять, бросок (баллистика, ADR-0006), рост фруктов
+  human.gd            class_name Human           — человечек: появление, выбор действия (utility AI), ходьба, настроение
 game/           # всё, что видит и трогает игрок: сцены и их скрипты
   main.tscn / main.gd — сборка сцены, цикл: catch_up раз в секунду, сейв, HUD
   terrain.gd          — меш острова из карты (low-poly, цвет по биому/высоте), sample_height
@@ -25,6 +26,7 @@ game/           # всё, что видит и трогает игрок: сце
   decorations.gd      — расстановка растительности (MultiMesh), детерминирована по seed; только визуал
   clouds.gd           — облака, плывущие по ветру
   hand.gd             — рука бога: модель с пальцами, следование за курсором, сигналы grab_pressed/grab_released
+  human_view.gd       — человечек: модель, анимации, лицо по настроению, подпись; догоняет позицию из мира шагом
   items_view.gd       — отображение предметов: в руке, полёт по траектории из sim, исчезновение утонувших
   camera_rig.gd       — орбитальная камера
   save_store.gd       — сейв мира в user://
@@ -46,8 +48,8 @@ tools/          # утилиты разработки: screenshot.tscn — ра�
 
 ```gdscript
 var world := WorldEngine.create_world(seed, now_ms)
-WorldEngine.step(world)
-var ticks := WorldEngine.catch_up(world, now_ms)
+WorldEngine.step(world, map)               # map = IslandGenerator.generate(world["seed"])
+var ticks := WorldEngine.catch_up(world, map, now_ms)
 ```
 Ключи мира и их смысл описаны в `world_engine.gd` (doc-комментарий) — это и есть формат сейва.
 
@@ -78,8 +80,9 @@ var ticks := WorldEngine.catch_up(world, now_ms)
 
 ## Сейвы
 - Файл в `user://` (путь и имя фиксируются в `save_store.gd`), JSON, поле `version`.
-- Версии: 1 — без предметов, 2 — с предметами (`items`, `next_item_id`, `items_spawned`). Загрузка v1:
-  `WorldEngine.from_data` заполняет недостающие поля, предметы раскладываются при первом запуске.
+- Версии: 1 — без предметов; 2 — предметы (`items`, `next_item_id`, `items_spawned`); 3 — человечек с позицией
+  и действием (`human.spawned/x/z/action/...`). Загрузка старых версий: `WorldEngine.from_data` заполняет
+  недостающие поля, предметы и человечек появляются на ближайшем тике.
 - Удержание предмета рукой в сейв не попадает: после загрузки рука пуста.
 - Несовместимое изменение формы мира → миграция `vN → vN+1` с тестом (предпочтительно)
   или сброс сейвов с пометкой **BREAKING** в `CHANGELOG.md`.
