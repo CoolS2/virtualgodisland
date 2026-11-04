@@ -10,7 +10,7 @@ project.godot
 sim/            # детерминированная логика мира (только скрипты, без сцен)
   rng.gd              class_name VgiRng          — mulberry32
   value_noise.gd      class_name ValueNoise      — value noise
-  island_map.gd       class_name IslandMap       — биомы, высоты, русло реки (не сохраняется, воспроизводится из seed)
+  island_map.gd       class_name IslandMap       — биомы, высоты, русло реки, водопад (не сохраняется, воспроизводится из seed)
   min_heap.gd         class_name MinHeap         — двоичная куча для поиска пути
   island_generator.gd class_name IslandGenerator — остров по seed: рельеф, биомы, река
   world_engine.gd     class_name WorldEngine     — создание мира, step, catch_up
@@ -18,7 +18,8 @@ game/           # всё, что видит и трогает игрок: сце
   main.tscn / main.gd — сборка сцены, цикл: catch_up раз в секунду, сейв, HUD
   terrain.gd          — меш острова из карты (low-poly, цвет по биому/высоте), sample_height
   water.gd            — вода: плоскость + shaders/water.gdshader (волны, цвет по глубине, пена у берега)
-  river.gd            — река: лента вдоль русла + shaders/river.gdshader (течение, пена у берегов)
+  river.gd            — река: лента вдоль русла + shaders/river.gdshader (течение, пена у берегов, участок водопада)
+  waterfall.gd        — подножие водопада: пенное пятно и брызги (CPUParticles3D)
   low_poly.gd         — процедурные low-poly модели: деревья, ели, пальмы, камни, кусты, трава, облака
   decorations.gd      — расстановка растительности (MultiMesh), детерминирована по seed; только визуал
   clouds.gd           — облака, плывущие по ветру
@@ -28,7 +29,7 @@ game/           # всё, что видит и трогает игрок: сце
 assets/         # модели, текстуры, звуки (лицензии — docs/ASSETS.md)
 addons/gut/     # тестовый фреймворк GUT
 tests/          # test_*.gd (GUT), fixtures/ — эталонные данные
-tools/          # утилиты разработки: screenshot.tscn — ракурсы острова (общий, крупный, река) с фиксированным seed (сейв не трогает),
+tools/          # утилиты разработки: screenshot.tscn — ракурсы острова (общий, крупный, река, водопад) с фиксированным seed (сейв не трогает),
                 #   в CI — ещё и JPEG-превью в лог
 ```
 

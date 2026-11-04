@@ -4,7 +4,7 @@ extends RefCounted
 ## Сама падающая вода — участок ленты реки (см. River, COLOR.r в шейдере).
 
 const FOAM_RADIUS := 2.0
-const MIST_AMOUNT := 48
+const MIST_AMOUNT := 80
 
 
 static func build(map: IslandMap, tile: float = 1.0) -> Node3D:
@@ -34,9 +34,9 @@ static func build(map: IslandMap, tile: float = 1.0) -> Node3D:
 	root.add_child(foam)
 
 	var puff := QuadMesh.new()
-	puff.size = Vector2.ONE * 0.7
+	puff.size = Vector2.ONE * 1.3
 	var puff_mat := StandardMaterial3D.new()
-	puff_mat.albedo_color = Color(1, 1, 1, 0.55)
+	puff_mat.albedo_color = Color(1, 1, 1, 0.7)
 	puff_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	puff_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	puff_mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
@@ -48,11 +48,11 @@ static func build(map: IslandMap, tile: float = 1.0) -> Node3D:
 	mist.lifetime = 1.6
 	mist.preprocess = 2.0
 	mist.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
-	mist.emission_sphere_radius = 0.9
+	mist.emission_sphere_radius = 1.2
 	mist.direction = Vector3.UP
 	mist.spread = 55.0
 	mist.initial_velocity_min = 1.0
-	mist.initial_velocity_max = 2.8
+	mist.initial_velocity_max = 3.5
 	mist.gravity = Vector3(0, -2.5, 0)
 	mist.scale_amount_min = 0.5
 	mist.scale_amount_max = 1.4
