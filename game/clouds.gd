@@ -3,8 +3,8 @@ extends Node3D
 ## Облака над островом: медленно плывут по ветру и возвращаются с другой стороны. Только визуал.
 
 const COUNT := 9
-const HEIGHT_MIN := 28.0
-const HEIGHT_MAX := 40.0
+const HEIGHT_MIN := 60.0
+const HEIGHT_MAX := 75.0
 const RANGE := 140.0
 const SPEED := 1.5
 
@@ -20,6 +20,7 @@ func _init(world_seed: int) -> void:
 		var cloud := MeshInstance3D.new()
 		cloud.mesh = mesh
 		cloud.material_override = mat
+		cloud.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		cloud.position = Vector3(
 			(rng.next() * 2.0 - 1.0) * RANGE,
 			lerpf(HEIGHT_MIN, HEIGHT_MAX, rng.next()),

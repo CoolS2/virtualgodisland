@@ -5,12 +5,12 @@ extends RefCounted
 const COLORS := {
 	IslandMap.Biome.SEA: Color("#e8cf8f"), # дно под водой (у берега; глубже темнеет)
 	IslandMap.Biome.BEACH: Color("#f6dc8c"),
-	IslandMap.Biome.FIELD: Color("#8cd152"),
+	IslandMap.Biome.FIELD: Color("#7cbf4a"),
 	IslandMap.Biome.FOREST: Color("#4f9e3c"),
 	IslandMap.Biome.MOUNTAIN: Color("#9a948c"),
 }
 const SEA_DEEP := Color("#5f8f8a")
-const FIELD_HIGH := Color("#b5dc5e") # поле светлеет к холмам
+const FIELD_HIGH := Color("#a3cc5c") # поле светлеет к холмам
 const ROCK_HIGH := Color("#b8b4ae")
 const SNOW := Color("#f4f6fb")
 const SNOW_HEIGHT := 7.0

@@ -5,7 +5,7 @@ extends RefCounted
 const SHADER := preload("res://game/shaders/water.gdshader")
 const SIZE_FACTOR := 4.0
 const SUBDIVISIONS := 120
-const MAX_DEPTH := 3.0
+const MAX_DEPTH := 2.5
 const LEVEL := -0.05
 
 

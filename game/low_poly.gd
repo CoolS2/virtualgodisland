@@ -10,7 +10,7 @@ const PINE := Color("#2e7d4f")
 const PALM_LEAVES := Color("#63c35a")
 const ROCK := Color("#9b9893")
 const BUSH := Color("#5fa84a")
-const GRASS := Color("#86d45a")
+const GRASS := Color("#79bf4f")
 const CLOUD := Color("#ffffff")
 
 

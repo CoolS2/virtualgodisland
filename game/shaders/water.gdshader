@@ -4,8 +4,8 @@ shader_type spatial;
 // чтобы работать в рендерере Compatibility / WebGL2).
 render_mode blend_mix, cull_back, specular_schlick_ggx;
 
-uniform vec3 deep_color : source_color = vec3(0.06, 0.36, 0.72);
-uniform vec3 shallow_color : source_color = vec3(0.25, 0.85, 0.82);
+uniform vec3 deep_color : source_color = vec3(0.02, 0.22, 0.55);
+uniform vec3 shallow_color : source_color = vec3(0.18, 0.78, 0.78);
 uniform vec3 foam_color : source_color = vec3(1.0, 1.0, 1.0);
 uniform sampler2D depth_map : filter_linear, repeat_disable;
 uniform vec2 map_origin = vec2(0.0);
@@ -26,7 +26,7 @@ void fragment() {
 	vec2 uv = (world_pos.xz - map_origin) / map_size;
 	float depth01 = texture(depth_map, uv).r;
 	float depth = depth01 * max_depth;
-	vec3 col = mix(shallow_color, deep_color, smoothstep(0.0, 0.8, depth01));
+	vec3 col = mix(shallow_color, deep_color, smoothstep(0.0, 0.5, depth01));
 
 	// Полосы пены, бегущие к берегу, и сплошная кромка у самой суши.
 	float band = 1.0 - smoothstep(0.0, 0.6, depth);
@@ -35,7 +35,8 @@ void fragment() {
 	float foam = clamp(band * ripple * 0.7 + edge, 0.0, 1.0);
 
 	ALBEDO = mix(col, foam_color, foam);
-	ALPHA = mix(0.7, 0.93, smoothstep(0.0, 0.6, depth01)) + foam * 0.3;
+	// Глубокая вода непрозрачна — не видно края морского дна.
+	ALPHA = mix(0.6, 1.0, smoothstep(0.0, 0.45, depth01)) + foam * 0.3;
 	ROUGHNESS = 0.12;
 	SPECULAR = 0.6;
 }
