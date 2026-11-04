@@ -22,8 +22,10 @@ func test_rng_sequences_match_typescript() -> void:
 		var rng := VgiRng.new(int(seed_key))
 		var expected: Array = sequences[seed_key]
 		for i in expected.size():
-			# Числа вида k / 2^32 представимы в double точно — сравниваем строго.
-			assert_eq(rng.next(), float(expected[i]), "seed %s, число #%d" % [seed_key, i])
+			# Каждое число — k / 2^32. JSON.parse в Godot читает 17-значные дроби с ошибкой в последних битах,
+			# поэтому сравниваем точное целое k (ошибка разбора на порядки меньше 0.5 после умножения).
+			var expected_k := roundi(float(expected[i]) * 4294967296.0)
+			assert_eq(int(rng.next() * 4294967296.0), expected_k, "seed %s, число #%d" % [seed_key, i])
 
 
 func test_islands_match_typescript() -> void:

@@ -73,7 +73,7 @@
 - Версия Godot меняется только осознанно: запись в CHANGELOG, обновление §6 и CI.
 
 ## 6. Команды
-Версия Godot: **4.7.2-stable** (рендерер Compatibility — нужен для Web). GUT: **9.6.1** (`docs/ASSETS.md`).
+Версия Godot: **4.7.2-stable** (рендерер Compatibility — нужен для Web). GUT: **9.7.1** (`docs/ASSETS.md`).
 ```bash
 godot --version                                              # проверить версию
 godot --headless --path . --import                           # импорт проекта (ошибки парсера видны в выводе)

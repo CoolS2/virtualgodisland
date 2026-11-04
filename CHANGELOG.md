@@ -13,7 +13,7 @@
 - repo: эталон TypeScript-версии для проверки порта на Godot — `tests/fixtures/ts_reference.json`
   (последовательности RNG, карты островов 64×64 для seed 0/7/42, мир после 300 тиков).
 
-- repo: проект Godot 4.7.2 (`project.godot`, рендерер Compatibility), GUT 9.6.1 в `addons/gut/`, `docs/ASSETS.md`.
+- repo: проект Godot 4.7.2 (`project.godot`, рендерер Compatibility), GUT 9.7.1 в `addons/gut/`, `docs/ASSETS.md`.
 - sim: порт на GDScript — `VgiRng` (mulberry32), `ValueNoise`, `IslandMap`, `IslandGenerator`, `WorldEngine`
   (`create_world`, `step`, `catch_up`, `from_data` для загрузки из JSON).
 - sim: тесты GUT — перенос тестов прототипа, сверка с эталоном TS, JSON-roundtrip мира.

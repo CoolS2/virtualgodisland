@@ -7,7 +7,7 @@
 
 | Аддон | Версия | Где | Источник | Лицензия |
 |---|---|---|---|---|
-| GUT (Godot Unit Test) | 9.6.1 | `addons/gut/` | https://github.com/bitwes/Gut (тег `v9.6.1`) | MIT (`addons/gut/LICENSE.md`) |
+| GUT (Godot Unit Test) | 9.7.1 | `addons/gut/` | https://github.com/bitwes/Gut (тег `v9.7.1`, ветка 9.7 — совместимость с Godot 4.7) | MIT (`addons/gut/LICENSE.md`) |
 
 ## Модели, текстуры, звуки
 
