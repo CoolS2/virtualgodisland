@@ -10,13 +10,15 @@ project.godot
 sim/            # детерминированная логика мира (только скрипты, без сцен)
   rng.gd              class_name VgiRng          — mulberry32
   value_noise.gd      class_name ValueNoise      — value noise
-  island_map.gd       class_name IslandMap       — биомы и высоты (не сохраняется, воспроизводится из seed)
-  island_generator.gd class_name IslandGenerator — остров по seed
+  island_map.gd       class_name IslandMap       — биомы, высоты, русло реки (не сохраняется, воспроизводится из seed)
+  min_heap.gd         class_name MinHeap         — двоичная куча для поиска пути
+  island_generator.gd class_name IslandGenerator — остров по seed: рельеф, биомы, река
   world_engine.gd     class_name WorldEngine     — создание мира, step, catch_up
 game/           # всё, что видит и трогает игрок: сцены и их скрипты
   main.tscn / main.gd — сборка сцены, цикл: catch_up раз в секунду, сейв, HUD
   terrain.gd          — меш острова из карты (low-poly, цвет по биому/высоте), sample_height
   water.gd            — вода: плоскость + shaders/water.gdshader (волны, цвет по глубине, пена у берега)
+  river.gd            — река: лента вдоль русла + shaders/river.gdshader (течение, пена у берегов)
   low_poly.gd         — процедурные low-poly модели: деревья, ели, пальмы, камни, кусты, трава, облака
   decorations.gd      — расстановка растительности (MultiMesh), детерминирована по seed; только визуал
   clouds.gd           — облака, плывущие по ветру
@@ -26,7 +28,7 @@ game/           # всё, что видит и трогает игрок: сце
 assets/         # модели, текстуры, звуки (лицензии — docs/ASSETS.md)
 addons/gut/     # тестовый фреймворк GUT
 tests/          # test_*.gd (GUT), fixtures/ — эталонные данные
-tools/          # утилиты разработки: screenshot.tscn — 2 ракурса острова с фиксированным seed (сейв не трогает),
+tools/          # утилиты разработки: screenshot.tscn — ракурсы острова (общий, крупный, река) с фиксированным seed (сейв не трогает),
                 #   в CI — ещё и JPEG-превью в лог
 ```
 
@@ -49,8 +51,9 @@ var ticks := WorldEngine.catch_up(world, now_ms)
 3. `catch_up` ≡ N вызовов `step` (покрыто тестом). Максимум — `MAX_OFFLINE_TICKS` (сутки).
 4. Карта острова не хранится в мире: воспроизводится из `seed` через `IslandGenerator`. Изменения ландшафта
    (кратеры) хранятся в мире как **дельта** относительно сгенерированной карты.
-5. Порт должен совпадать с эталоном TypeScript: `tests/fixtures/ts_reference.json`
-   (последовательности RNG, карты островов, мир после 300 тиков).
+5. RNG и тик совпадают с эталоном TypeScript (`tests/fixtures/ts_reference.json`). Генерация острова
+   с тех пор намеренно изменена; её фиксирует снимок `test_generation_snapshot` (md5 биомов + сумма высот).
+   Любое изменение генератора меняет острова для всех seed — обновить снимок и отметить в CHANGELOG.
 
 ### Особенности GDScript, важные для детерминизма
 - `int` в GDScript — 64-битный. mulberry32 требует 32-битной арифметики: маскировать `& 0xFFFFFFFF`,
