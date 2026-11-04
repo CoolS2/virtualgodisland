@@ -24,6 +24,16 @@ jobs:
           ! grep -E "SCRIPT ERROR|Parse Error|ERROR:" import.log
       - name: Tests (GUT)
         run: ./godot --headless --path . -s addons/gut/gut_cmdln.gd -gexit
+      - name: Screenshot (Xvfb + software OpenGL)
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri > /dev/null
+          xvfb-run -a -s "-screen 0 1280x720x24" ./godot --path . --rendering-driver opengl3 \
+            --resolution 1280x720 res://tools/screenshot.tscn -- --out="$PWD/screenshot.png"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screenshot
+          path: screenshot.png
+          if-no-files-found: error
 
   # Прототип на TypeScript — эталон для переноса, удаляется вместе с packages/.
   ts-prototype:
