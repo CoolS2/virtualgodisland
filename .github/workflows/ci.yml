@@ -4,8 +4,29 @@ on:
   push:
   pull_request:
 
+env:
+  GODOT_VERSION: 4.7.2
+
 jobs:
-  check:
+  godot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Godot
+        run: |
+          curl -sSfL -o godot.zip "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q godot.zip
+          mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" godot
+          ./godot --version
+      - name: Import project (fails on script errors)
+        run: |
+          ./godot --headless --path . --import 2>&1 | tee import.log
+          ! grep -E "SCRIPT ERROR|Parse Error|ERROR:" import.log
+      - name: Tests (GUT)
+        run: ./godot --headless --path . -s addons/gut/gut_cmdln.gd -gexit
+
+  # Прототип на TypeScript — эталон для переноса, удаляется вместе с packages/.
+  ts-prototype:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,4 +38,3 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
       - run: pnpm typecheck
-      - run: pnpm build
