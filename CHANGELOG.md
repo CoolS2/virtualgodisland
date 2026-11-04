@@ -10,6 +10,13 @@
   правила документации (`docs/DOCUMENTATION.md`), описание архитектуры (`docs/ARCHITECTURE.md`).
 - repo: журнал архитектурных решений `docs/decisions/` (ADR 0001–0004 по уже принятым решениям).
 - repo: CI на GitHub Actions (install, test, typecheck, build), шаблон PR, `.nvmrc`, `engines.node >= 22`.
+- repo: эталон TypeScript-версии для проверки порта на Godot — `tests/fixtures/ts_reference.json`
+  (последовательности RNG, карты островов 64×64 для seed 0/7/42, мир после 300 тиков).
+
+### Changed
+- repo: **решено перейти на Godot 4 + GDScript** (ADR-0005; ADR-0001 и ADR-0003 заменены).
+  Правила (`CLAUDE.md`, `AGENTS.md`), `docs/ARCHITECTURE.md`, `docs/CONVENTIONS.md`, `docs/ROADMAP.md` (этап 0.5),
+  `docs/GAME_DESIGN.md`, шаблон PR обновлены под Godot. Код в `packages/` пока остаётся эталоном для переноса.
 
 ## [0.0.0] — 2026-11-04 — Этап 0: каркас
 
