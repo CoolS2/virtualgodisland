@@ -2,8 +2,10 @@ class_name SaveStore
 extends RefCounted
 ## Сейв мира в user:// (JSON). Единственное место с randi() и реальным временем — это game/, не sim/.
 
-const PATH := "user://save_v1.json"
-const VERSION := 1
+const PATH := "user://save_v1.json" # имя файла не меняется; версия формата — в поле version
+const VERSION := 2
+## Версии сейва, которые умеем загрузить (недостающие поля заполняет WorldEngine.from_data).
+const SUPPORTED_VERSIONS := [1, 2]
 
 
 static func now_ms() -> int:
@@ -15,7 +17,7 @@ static func load_world(now: int) -> Dictionary:
 		var data: Variant = JSON.parse_string(FileAccess.get_file_as_string(PATH))
 		if typeof(data) == TYPE_DICTIONARY:
 			var d: Dictionary = data
-			if int(d.get("version", 0)) == VERSION:
+			if SUPPORTED_VERSIONS.has(int(d.get("version", 0))):
 				var w := WorldEngine.from_data(d.get("world"))
 				if not w.is_empty():
 					return w

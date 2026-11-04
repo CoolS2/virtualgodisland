@@ -33,7 +33,7 @@ static func build(map: IslandMap, world_seed: int, tile: float = 1.0) -> Node3D:
 			var size: float = 0.75 + rng.next() * 0.6
 			if kind.is_empty() or Terrain.slope_at(map, x, y) > MAX_SLOPE or _near_river(map, x, y):
 				continue
-			var h := Terrain.sample_height(map, fx, fy)
+			var h := map.sample_height(fx, fy)
 			if h < MIN_HEIGHT:
 				continue
 			var basis := Basis(Vector3.UP, yaw).scaled(Vector3.ONE * size)

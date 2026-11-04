@@ -59,17 +59,6 @@ static func _add_triangle(st: SurfaceTool, map: IslandMap, tile: float, half: fl
 		st.add_vertex(points[i])
 
 
-## Высота поверхности в дробной точке сетки (билинейно) — для расстановки объектов.
-static func sample_height(map: IslandMap, fx: float, fy: float) -> float:
-	var x0: int = clampi(floori(fx), 0, map.size - 2)
-	var y0: int = clampi(floori(fy), 0, map.size - 2)
-	var tx: float = clampf(fx - x0, 0.0, 1.0)
-	var ty: float = clampf(fy - y0, 0.0, 1.0)
-	var top: float = lerpf(map.height_at(x0, y0), map.height_at(x0 + 1, y0), tx)
-	var bottom: float = lerpf(map.height_at(x0, y0 + 1), map.height_at(x0 + 1, y0 + 1), tx)
-	return lerpf(top, bottom, ty)
-
-
 static func _color_at(map: IslandMap, c: Vector2i) -> Color:
 	var biome := map.biome_at(c.x, c.y)
 	var h := map.height_at(c.x, c.y)

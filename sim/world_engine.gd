@@ -9,6 +9,9 @@ extends RefCounted
 ##   rng_state: int    — состояние VgiRng (int32)
 ##   human: Dictionary — hunger: float (0 сыт .. 100 смерть), thirst: float, energy: float (100 бодр .. 0), alive: bool
 ##   log: Array[String] — события для экрана «Пока тебя не было…»
+##   items: Array        — предметы (формат — sim/items.gd)
+##   next_item_id: int   — следующий свободный id предмета
+##   items_spawned: bool — стартовые предметы уже разложены (Items.spawn_initial)
 
 ## 1 тик = 1 реальная минута.
 const TICK_MS := 60_000
@@ -29,6 +32,9 @@ static func create_world(world_seed: int, now_ms: int) -> Dictionary:
 		"rng_state": VgiRng.to_i32(world_seed),
 		"human": {"hunger": 0.0, "thirst": 0.0, "energy": 100.0, "alive": true},
 		"log": [],
+		"items": [],
+		"next_item_id": 1,
+		"items_spawned": false,
 	}
 
 
@@ -63,6 +69,7 @@ static func catch_up(w: Dictionary, now_ms: int) -> int:
 
 
 ## Мир после JSON.parse: все числа там float — возвращаем целым полям тип int и проверяем структуру.
+## Поля, которых не было в старых сейвах (items и др.), получают значения по умолчанию — это и есть миграция.
 ## Возвращает пустой словарь, если данные не похожи на мир.
 static func from_data(data: Variant) -> Dictionary:
 	if typeof(data) != TYPE_DICTIONARY:
@@ -89,4 +96,7 @@ static func from_data(data: Variant) -> Dictionary:
 			"alive": bool(h.get("alive", true)),
 		},
 		"log": entries,
+		"items": Items.from_data(d.get("items", [])),
+		"next_item_id": int(d.get("next_item_id", 1)),
+		"items_spawned": bool(d.get("items_spawned", false)),
 	}
