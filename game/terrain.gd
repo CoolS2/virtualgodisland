@@ -3,15 +3,19 @@ extends RefCounted
 ## Меши острова и воды из IslandMap. Low-poly: плоская нормаль на треугольник, цвет по биому.
 
 const COLORS := {
-	IslandMap.Biome.SEA: Color("#c9b27a"), # дно под водой
-	IslandMap.Biome.BEACH: Color("#f2d27a"),
-	IslandMap.Biome.FIELD: Color("#8fd14f"),
-	IslandMap.Biome.FOREST: Color("#2f8f3a"),
-	IslandMap.Biome.MOUNTAIN: Color("#8a8f99"),
+	IslandMap.Biome.SEA: Color("#e8cf8f"), # дно под водой (у берега; глубже темнеет)
+	IslandMap.Biome.BEACH: Color("#f6dc8c"),
+	IslandMap.Biome.FIELD: Color("#8cd152"),
+	IslandMap.Biome.FOREST: Color("#4f9e3c"),
+	IslandMap.Biome.MOUNTAIN: Color("#9a948c"),
 }
+const SEA_DEEP := Color("#5f8f8a")
+const FIELD_HIGH := Color("#b5dc5e") # поле светлеет к холмам
+const ROCK_HIGH := Color("#b8b4ae")
 const SNOW := Color("#f4f6fb")
 const SNOW_HEIGHT := 7.0
-const WATER_COLOR := Color("#2a6fdb", 0.85)
+## Разброс яркости между вершинами — «живой» мультяшный ландшафт вместо ровной заливки.
+const JITTER := 0.06
 
 
 ## Меш ландшафта с коллизией (по ней рука находит точку под курсором).
@@ -37,20 +41,6 @@ static func build_terrain(map: IslandMap, tile: float = 1.0) -> MeshInstance3D:
 	return mesh_instance
 
 
-static func build_water(map: IslandMap, tile: float = 1.0) -> MeshInstance3D:
-	var plane := PlaneMesh.new()
-	plane.size = Vector2.ONE * map.size * tile * 4.0
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = WATER_COLOR
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.roughness = 0.3
-	plane.material = mat
-	var water := MeshInstance3D.new()
-	water.mesh = plane
-	water.position.y = -0.05
-	return water
-
-
 static func _add_triangle(st: SurfaceTool, map: IslandMap, tile: float, half: float, cells: Array[Vector2i]) -> void:
 	var points: Array[Vector3] = []
 	for c in cells:
@@ -66,8 +56,35 @@ static func _add_triangle(st: SurfaceTool, map: IslandMap, tile: float, half: fl
 		st.add_vertex(points[i])
 
 
+## Высота поверхности в дробной точке сетки (билинейно) — для расстановки объектов.
+static func sample_height(map: IslandMap, fx: float, fy: float) -> float:
+	var x0: int = clampi(floori(fx), 0, map.size - 2)
+	var y0: int = clampi(floori(fy), 0, map.size - 2)
+	var tx: float = clampf(fx - x0, 0.0, 1.0)
+	var ty: float = clampf(fy - y0, 0.0, 1.0)
+	var top: float = lerpf(map.height_at(x0, y0), map.height_at(x0 + 1, y0), tx)
+	var bottom: float = lerpf(map.height_at(x0, y0 + 1), map.height_at(x0 + 1, y0 + 1), tx)
+	return lerpf(top, bottom, ty)
+
+
 static func _color_at(map: IslandMap, c: Vector2i) -> Color:
 	var biome := map.biome_at(c.x, c.y)
-	if biome == IslandMap.Biome.MOUNTAIN and map.height_at(c.x, c.y) > SNOW_HEIGHT:
-		return SNOW
-	return COLORS[biome]
+	var h := map.height_at(c.x, c.y)
+	var color: Color = COLORS[biome]
+	match biome:
+		IslandMap.Biome.SEA:
+			color = color.lerp(SEA_DEEP, clampf(-h / 3.0, 0.0, 1.0))
+		IslandMap.Biome.FIELD:
+			color = color.lerp(FIELD_HIGH, clampf((h - 1.0) / 3.0, 0.0, 1.0))
+		IslandMap.Biome.MOUNTAIN:
+			if h > SNOW_HEIGHT:
+				return SNOW
+			color = color.lerp(ROCK_HIGH, clampf((h - 2.0) / 5.0, 0.0, 1.0))
+	var jitter := _jitter(c)
+	return color.lightened(jitter) if jitter > 0.0 else color.darkened(-jitter)
+
+
+## Детерминированный разброс -JITTER..JITTER по координатам вершины.
+static func _jitter(c: Vector2i) -> float:
+	var hash_value: int = ((c.x * 73856093) ^ (c.y * 19349663)) & 0xFFFF
+	return (hash_value / 65535.0 * 2.0 - 1.0) * JITTER

@@ -24,13 +24,15 @@ jobs:
           ! grep -E "SCRIPT ERROR|Parse Error|ERROR:" import.log
       - name: Tests (GUT)
         run: ./godot --headless --path . -s addons/gut/gut_cmdln.gd -gexit
-      - name: Screenshot (Xvfb + software OpenGL)
+      - name: Screenshots (Xvfb + software OpenGL)
         run: |
+          set -o pipefail
           sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri > /dev/null
           xvfb-run -a -s "-screen 0 1280x720x24" ./godot --path . --rendering-driver opengl3 \
-            --resolution 1280x720 res://tools/screenshot.tscn -- --out="$PWD/screenshot.png" --log-preview
+            --resolution 1280x720 res://tools/screenshot.tscn -- --out="$PWD/screenshots" --log-preview 2>&1 | tee shot.log
+          ! grep -E "SCRIPT ERROR|SHADER ERROR|Parse Error" shot.log
       - uses: actions/upload-artifact@v4
         with:
-          name: screenshot
-          path: screenshot.png
+          name: screenshots
+          path: screenshots/
           if-no-files-found: error

@@ -45,6 +45,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		_apply()
 
 
+## Поставить камеру в заданный ракурс (используется утилитой скриншотов).
+func set_view(yaw: float, pitch: float, distance: float) -> void:
+	_yaw = yaw
+	_pitch = clampf(pitch, MIN_PITCH, MAX_PITCH)
+	_distance = clampf(distance, MIN_DISTANCE, MAX_DISTANCE)
+	_apply()
+
+
 func _zoom(factor: float) -> void:
 	_distance = clampf(_distance * factor, MIN_DISTANCE, MAX_DISTANCE)
 	_apply()
