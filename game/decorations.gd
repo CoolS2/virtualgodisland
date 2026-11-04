@@ -31,7 +31,7 @@ static func build(map: IslandMap, world_seed: int, tile: float = 1.0) -> Node3D:
 			var fy: float = y + rng.next()
 			var yaw: float = rng.next() * TAU
 			var size: float = 0.75 + rng.next() * 0.6
-			if kind.is_empty() or Terrain.slope_at(map, x, y) > MAX_SLOPE:
+			if kind.is_empty() or Terrain.slope_at(map, x, y) > MAX_SLOPE or _near_river(map, x, y):
 				continue
 			var h := Terrain.sample_height(map, fx, fy)
 			if h < MIN_HEIGHT:
@@ -60,6 +60,17 @@ static func build(map: IslandMap, world_seed: int, tile: float = 1.0) -> Node3D:
 			inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		root.add_child(inst)
 	return root
+
+
+## Рядом с руслом (в радиусе 2 клеток) ничего не ставим — не загораживать воду.
+static func _near_river(map: IslandMap, x: int, y: int) -> bool:
+	for dy in range(-2, 3):
+		for dx in range(-2, 3):
+			var nx: int = clampi(x + dx, 0, map.size - 1)
+			var ny: int = clampi(y + dy, 0, map.size - 1)
+			if map.biome_at(nx, ny) == IslandMap.Biome.RIVER:
+				return true
+	return false
 
 
 ## Что растёт в клетке. roll и variant — случайные 0..1.

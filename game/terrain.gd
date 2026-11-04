@@ -8,6 +8,7 @@ const COLORS := {
 	IslandMap.Biome.FIELD: Color("#7cbf4a"),
 	IslandMap.Biome.FOREST: Color("#4f9e3c"),
 	IslandMap.Biome.MOUNTAIN: Color("#9a948c"),
+	IslandMap.Biome.RIVER: Color("#b8a97c"), # дно реки
 }
 const SEA_DEEP := Color("#5f8f8a")
 const FIELD_HIGH := Color("#a3cc5c") # поле светлеет к холмам
@@ -82,7 +83,7 @@ static func _color_at(map: IslandMap, c: Vector2i) -> Color:
 			if h > IslandGenerator.SNOW_LINE:
 				return SNOW
 			color = color.lerp(ROCK_HIGH, clampf((h - IslandGenerator.ROCK_LINE) / 8.0, 0.0, 1.0))
-	if biome != IslandMap.Biome.SEA and biome != IslandMap.Biome.BEACH:
+	if biome != IslandMap.Biome.SEA and biome != IslandMap.Biome.BEACH and biome != IslandMap.Biome.RIVER:
 		color = color.lerp(CLIFF, smoothstep(CLIFF_SLOPE * 0.7, CLIFF_SLOPE * 1.3, slope_at(map, c.x, c.y)))
 	var jitter := _jitter(c)
 	return color.lightened(jitter) if jitter > 0.0 else color.darkened(-jitter)

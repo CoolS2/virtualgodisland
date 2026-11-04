@@ -26,6 +26,9 @@ func _ready() -> void:
 	_setup_environment()
 	add_child(Terrain.build_terrain(map))
 	add_child(Water.build(map))
+	var river := River.build(map)
+	if river:
+		add_child(river)
 	add_child(Decorations.build(map, _world["seed"]))
 	add_child(Clouds.new(_world["seed"]))
 	camera_rig = CameraRig.new()

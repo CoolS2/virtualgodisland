@@ -8,7 +8,7 @@ const DEFAULT_OUT := "user://screenshots"
 const DEFAULT_SEED := 42
 ## Имя, yaw, pitch, distance.
 const VIEWS := [
-	["overview", PI / 4.0, 0.6, 190.0],
+	["overview", PI / 4.0, 0.75, 150.0],
 	["closeup", PI * 0.9, 0.3, 70.0],
 ]
 

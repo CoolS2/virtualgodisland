@@ -14,7 +14,7 @@ var camera := Camera3D.new()
 
 var _yaw := PI / 4.0
 var _pitch := 0.6
-var _distance := 190.0
+var _distance := 150.0
 var _rotating := false
 
 
