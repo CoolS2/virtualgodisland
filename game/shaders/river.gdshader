@@ -3,7 +3,7 @@ shader_type spatial;
 // Бегущие вниз по течению блики и пена у берегов.
 render_mode blend_mix, cull_disabled, specular_schlick_ggx;
 
-uniform vec3 water_color : source_color = vec3(0.16, 0.6, 0.8);
+uniform vec3 water_color : source_color = vec3(0.2, 0.72, 0.82);
 uniform vec3 foam_color : source_color = vec3(1.0, 1.0, 1.0);
 uniform float flow_speed = 1.2;
 

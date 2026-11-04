@@ -20,7 +20,11 @@ func _ready() -> void:
 	var out := _arg("out", DEFAULT_OUT)
 	DirAccess.make_dir_recursive_absolute(out)
 	var failed := false
-	for view: Array in VIEWS:
+	var views: Array = VIEWS.duplicate()
+	var river_view := _river_view(main.get("island_map") as IslandMap)
+	if not river_view.is_empty():
+		views.append(river_view)
+	for view: Array in views:
 		(main.get("camera_rig") as CameraRig).set_view(view[1], view[2], view[3])
 		for _i in WARMUP_FRAMES:
 			await get_tree().process_frame
@@ -33,6 +37,17 @@ func _ready() -> void:
 		if "--log-preview" in OS.get_cmdline_user_args():
 			_print_preview(view[0], image)
 	get_tree().quit(1 if failed else 0)
+
+
+## Ракурс со стороны середины реки (камера вращается вокруг центра острова).
+func _river_view(map: IslandMap) -> Array:
+	if map == null or map.river.is_empty():
+		return []
+	var i: int = map.river[map.river.size() >> 1]
+	var half: float = (map.size - 1) / 2.0
+	var x: float = i % map.size - half
+	var z: float = floori(float(i) / map.size) - half
+	return ["river", atan2(x, z), 0.5, 75.0]
 
 
 ## Уменьшенная JPEG-копия одной строкой base64 — чтобы посмотреть кадр по логу CI, не скачивая артефакт.

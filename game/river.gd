@@ -6,7 +6,9 @@ const SHADER := preload("res://game/shaders/river.gdshader")
 const WIDTH_SOURCE := 2.2
 const WIDTH_MOUTH := 3.6
 ## Сглаживание ломаной по клеткам сетки: соседей с каждой стороны.
-const SMOOTH := 2
+const SMOOTH := 3
+## Лента чуть выше расчётного уровня, чтобы не прятаться за неровностями берега.
+const LIFT := 0.12
 
 
 static func build(map: IslandMap, tile: float = 1.0) -> MeshInstance3D:
@@ -23,7 +25,7 @@ static func build(map: IslandMap, tile: float = 1.0) -> MeshInstance3D:
 			sum += Vector2(i % map.size, floori(float(i) / map.size))
 			n += 1
 		var p := sum / n
-		points.append(Vector3(p.x * tile - half, map.river_levels[k], p.y * tile - half))
+		points.append(Vector3(p.x * tile - half, map.river_levels[k] + LIFT, p.y * tile - half))
 
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)

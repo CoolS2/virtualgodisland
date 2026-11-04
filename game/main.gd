@@ -10,6 +10,7 @@ const HUD_INTERVAL := 1.0
 ## Только для tools/screenshot: показать остров с этим seed без чтения и записи сейва.
 var preview_seed := -1
 var camera_rig: CameraRig
+var island_map: IslandMap
 
 var _world: Dictionary
 var _offline_ticks: int
@@ -22,6 +23,7 @@ func _ready() -> void:
 	_world = WorldEngine.create_world(preview_seed, now) if _is_preview() else SaveStore.load_world(now)
 	_offline_ticks = WorldEngine.catch_up(_world, now)
 	var map := IslandGenerator.generate(_world["seed"])
+	island_map = map
 
 	_setup_environment()
 	add_child(Terrain.build_terrain(map))
