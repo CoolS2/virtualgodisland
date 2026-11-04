@@ -28,6 +28,8 @@ const RIVER_UPHILL_COST := 40.0
 const RIVER_MEANDER := 5.0
 ## Устье — клетка моря не дальше этого радиуса от выбранной точки дальнего берега.
 const RIVER_MOUTH_RADIUS := 6
+## Длина диагонального шага (√2).
+const DIAGONAL := 1.4142135623730951
 const NEIGHBORS_8: Array[Vector2i] = [
 	Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1),
 	Vector2i(1, 1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(-1, -1),
@@ -150,7 +152,7 @@ static func _carve_river(map: IslandMap, rng: VgiRng) -> void:
 			# В море можно войти только у выбранного устья.
 			if map.biomes[j] == IslandMap.Biome.SEA and (np - mouth_pos).length_squared() > RIVER_MOUTH_RADIUS * RIVER_MOUTH_RADIUS:
 				continue
-			var step: float = 1.0 if offset.x == 0 or offset.y == 0 else SQRT2
+			var step: float = 1.0 if offset.x == 0 or offset.y == 0 else DIAGONAL
 			var cost: float = step * (1.0 + meander.sample(np.x, np.y) * RIVER_MEANDER) \
 				+ maxf(0.0, map.heights[j] - map.heights[i]) * RIVER_UPHILL_COST
 			if d + cost < dist[j]:
