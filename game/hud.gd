@@ -155,7 +155,7 @@ func update_card(h: Dictionary, world: Dictionary) -> void:
 		var value := float(h["skills"][skill])
 		lines.append("%s: %s (%.1f)" % [SKILL_NAMES[skill], _grade(value), value])
 	_card_skills.text = "\n".join(lines)
-	var known: Array = h["knows"]
+	var known: Array = world["knowledge"]
 	var names := PackedStringArray()
 	for kind: String in known:
 		names.append({"fruit": "фрукты", "fish": "рыба"}.get(kind, kind))

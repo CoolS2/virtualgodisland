@@ -15,6 +15,7 @@ sim/            # детерминированная логика мира (то
   island_generator.gd class_name IslandGenerator — остров по seed: рельеф, биомы, река
   world_engine.gd     class_name WorldEngine     — создание мира, step, catch_up, from_data (миграция)
   items.gd            class_name Items           — предметы: раскладка, взять, бросок (баллистика, ADR-0006), рост фруктов
+  family.gd           class_name Family          — прибытие второго человека, привязанность, пары, беременность, дети
   human.gd            class_name Human           — человечек: появление, выбор действия (utility AI), ходьба, настроение,
                                                    вера/любовь/страх, взять/бросить/погладить/шлёпнуть
   miracles.gd         class_name Miracles        — мана, чудеса (дождь, рыба, молния), кто видел
@@ -99,7 +100,9 @@ var ticks := WorldEngine.catch_up(world, map, now_ms)
   и действием (`human.spawned/x/z/action/...`); 4 — мана, кратеры, вера/любовь/страх (`mana`, `craters`,
   `human.faith/love/fear/touch_tick`); 5 — тайны (`mysteries`, `fire/camp/shrine/cave/raft`, `fish_eaten`,
   `human.build_kind/work`); 6 — дом, знание еды (`house`, `human.knows`; старые сейвы — еда уже известна);
-  7 — параметры человека (`human.name/sex/born_tick/start_age/lifespan/skills/cause`). Загрузка старых версий: `WorldEngine.from_data` заполняет
+  7 — параметры человека (`human.name/sex/born_tick/start_age/lifespan/skills/cause`); 8 — несколько людей
+  (`people[]` с `id/mother_id/father_id/partner_id/pregnant_until`, `next_person_id`, `knowledge`, `bonds`,
+  `newcomer_due/arrived`; из v≤7 `human` → `people[0]`, ADR-0007). Загрузка старых версий: `WorldEngine.from_data` заполняет
   недостающие поля, предметы и человечек появляются на ближайшем тике.
 - Удержание предмета рукой в сейв не попадает: после загрузки рука пуста.
 - Несовместимое изменение формы мира → миграция `vN → vN+1` с тестом (предпочтительно)
