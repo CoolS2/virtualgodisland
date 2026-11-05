@@ -170,7 +170,9 @@ static func first_impact(map: IslandMap, path: PackedVector3Array) -> Dictionary
 	for i in range(1, path.size()):
 		var p := path[i]
 		if p.y <= map.height_at_world(p.x, p.z) + 0.0001 and map.height_at_world(p.x, p.z) >= IslandMap.SEA_LEVEL:
-			return {"at": p, "speed": (path[i] - path[i - 1]).length() / DT}
+			# Последний отрезок обрезан землёй — скорость берём по предыдущему полному шагу.
+			var before: int = maxi(1, i - 1)
+			return {"at": p, "speed": (path[before] - path[before - 1]).length() / DT}
 	return {}
 
 
