@@ -20,8 +20,8 @@ PACKS = {
 }
 GREEN_FROM, GREEN_TO = 75 / 360, 200 / 360  # что считаем «зелёным»
 TARGET_HUE = 92 / 360  # оливково-травяной
-SATURATION = 0.72
-VALUE = 0.86
+SATURATION = 0.85
+VALUE = 0.74
 
 
 def recolor(img: Image.Image) -> Image.Image:
