@@ -27,7 +27,10 @@ var camera_rig: CameraRig
 var island_map: IslandMap
 var hand: Hand
 var items_view: ItemsView
-var human_view: HumanView
+## id человека → его вид.
+var people_views := {}
+## Выделенный игроком человек (карточка, кольцо, слежение камерой), -1 — никто.
+var selected_id := -1
 var structures_view: StructuresView
 var hints_view: HintsView
 var daylight: Daylight
@@ -37,8 +40,9 @@ var _world: Dictionary
 var _terrain: Node3D
 var _decorations: Node3D
 var hud: Hud
-var _pending_human := false
+var _pending_person := -1
 var _press_time := 0.0
+var _people_seen := 0
 var _offline_ticks: int
 var _since_update := 0.0
 var _mysteries_seen := 0
@@ -59,9 +63,10 @@ func _ready() -> void:
 	island_map = map
 	var before := _world.duplicate(true)
 	_offline_ticks = WorldEngine.catch_up(_world, map, now)
-	if not _world["human"]["spawned"]:
-		WorldEngine.step(_world, map) # новый мир: человечек и предметы появляются сразу
+	if not _world["people"][0]["spawned"]:
+		WorldEngine.step(_world, map) # новый мир: человек и предметы появляются сразу
 	_mysteries_seen = (_world["mysteries"] as Array).size()
+	_people_seen = (_world["people"] as Array).size()
 
 	daylight = Daylight.new()
 	add_child(daylight)
@@ -87,9 +92,7 @@ func _ready() -> void:
 	items_view.hand = hand
 	add_child(items_view)
 	items_view.sync(_world)
-	human_view = HumanView.new()
-	human_view.map = map
-	add_child(human_view)
+	_sync_people()
 	structures_view = StructuresView.new()
 	structures_view.map = map
 	add_child(structures_view)
@@ -100,7 +103,8 @@ func _ready() -> void:
 	hud = Hud.new()
 	add_child(hud)
 	hud.mysteries_pressed.connect(func() -> void: ui.toggle_mysteries(_world))
-	hud.card_closed.connect(func() -> void: human_view.set_selected(false))
+	hud.card_closed.connect(func() -> void: select_person(-1))
+	hud.person_selected.connect(select_person)
 	ui = GameUi.new()
 	add_child(ui)
 	ui.new_game_requested.connect(_new_game)
@@ -112,12 +116,14 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	if _pending_human:
+	if _pending_person >= 0:
 		_press_time += delta
 		if _press_time >= HOLD_TO_GRAB and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
-			_pending_human = false
-			_grab_human()
-	human_view.show_state(_world["human"], delta, Human.age(_world["human"], int(_world["tick"])))
+			_grab_person(_pending_person)
+			_pending_person = -1
+	for h: Dictionary in _world["people"]:
+		if people_views.has(h["id"]):
+			(people_views[h["id"]] as HumanView).show_state(h, delta, Human.age(h, int(_world["tick"])))
 	if WorldEngine.is_game_over(_world) and not _game_over_shown:
 		_show_game_over()
 	var tick := float(_world["tick"])
@@ -125,7 +131,7 @@ func _process(delta: float) -> void:
 		tick += clampf(float(SaveStore.now_ms() - int(_world["last_seen"])) / WorldEngine.TICK_MS, 0.0, 0.999)
 	daylight.set_hour(WorldClock.hour(tick))
 	structures_view.night = WorldClock.is_night(tick)
-	hud.update_card(_world["human"], int(_world["tick"]))
+	_update_card()
 	_since_update += delta
 	if _since_update < HUD_INTERVAL:
 		return
@@ -136,23 +142,54 @@ func _process(delta: float) -> void:
 	_render_hud()
 
 
-## После изменения мира: предметы, постройки, сообщение о новой тайне.
+## После изменения мира: предметы, постройки, люди, сообщения о тайнах и новых людях.
 func refresh_world_view() -> void:
 	items_view.sync(_world)
 	structures_view.sync(_world)
+	_sync_people()
 	var solved: Array = _world["mysteries"]
 	if solved.size() > _mysteries_seen:
 		_show_message("Тайна раскрыта: %s! (%d/%d)" % [Mysteries.name_of(solved.back()), solved.size(), Mysteries.LIST.size()])
-		human_view.popup("Тайна!", Color("#9ff0ff"))
+		_popup_all("Тайна!", Color("#9ff0ff"))
 		_mysteries_seen = solved.size()
+	var people: Array = _world["people"]
+	if people.size() > _people_seen:
+		var newest: Dictionary = people.back()
+		_show_message(("Родился ребёнок: %s!" if int(newest["mother_id"]) >= 0 else "На острове новый человек: %s!") % newest["name"])
+		_people_seen = people.size()
+
+
+## Виды для появившихся людей (прибытие, рождение).
+func _sync_people() -> void:
+	for h: Dictionary in _world["people"]:
+		if h["spawned"] and not people_views.has(h["id"]):
+			var view := HumanView.new()
+			view.map = island_map
+			add_child(view)
+			people_views[h["id"]] = view
+
+
+func view_of(h: Dictionary) -> HumanView:
+	return people_views.get(h["id"]) as HumanView
+
+
+func _popup_all(text: String, color: Color) -> void:
+	for h: Dictionary in Human.living(_world):
+		view_of(h).popup(text, color)
 
 
 func _show_game_over() -> void:
 	_game_over_shown = true
-	var h: Dictionary = _world["human"]
+	var people: Array = _world["people"]
+	var h: Dictionary = people.back()
+	for p: Dictionary in people:
+		if str(p["cause"]) != "":
+			h = p # последний умерший — последний в порядке появления с причиной
 	var age := int(Human.age(h, int(_world["tick"])))
-	ui.show_game_over("%s %s в %d %s (%s).\n\nНа острове больше никого нет — игра окончена.\nЧтобы жизнь продолжилась, первому человеку нужно успеть построить дом, встретить пару и основать поселение.\n\nПрожито дней: %d · открытий: %d/%d" % [
-		h["name"], "умерла" if h["sex"] == "f" else "умер", age, Hud.years(age), h["cause"],
+	var hint := "Чтобы жизнь продолжилась, первому человеку нужно успеть построить дом, встретить пару и основать поселение." \
+		if people.size() == 1 else "Поселение не выжило — людей было %d." % people.size()
+	ui.show_game_over("%s %s в %d %s (%s).\n\nНа острове больше никого нет — игра окончена.\n%s\n\nПрожито дней: %d · открытий: %d/%d" % [
+		h["name"], "умерла" if h["sex"] == "f" else "умер", age, Hud.years(age), h["cause"], hint,
 		WorldClock.day(int(_world["tick"])), (_world["mysteries"] as Array).size(), Mysteries.LIST.size()])
 
 
@@ -162,29 +199,62 @@ func _new_game() -> void:
 	get_tree().change_scene_to_file(MENU_SCENE)
 
 
-## Выделить человека: кольцо под ногами и карточка с параметрами.
-func select_human() -> void:
-	human_view.set_selected(true)
+## Выделить человека (id; -1 — снять выделение): кольцо под ногами и карточка с параметрами.
+func select_person(id: int) -> void:
+	for view: HumanView in people_views.values():
+		view.set_selected(false)
+	selected_id = id
+	var h := Human.find_person(_world, id)
+	if h.is_empty():
+		hud.show_card(false)
+		return
+	view_of(h).set_selected(true)
 	hud.show_card(true)
-	hud.update_card(_world["human"], int(_world["tick"]))
+	_update_card()
+	if camera_rig.follow:
+		camera_rig.follow = view_of(h)
 
 
-func _grab_human() -> void:
-	if Human.grab(_world):
-		human_view.held_by = hand
-		human_view.popup("Ой!", Color("#ffd166"))
+## Совместимость: выделить первого живого (утилита скриншотов).
+func select_human() -> void:
+	var people := Human.living(_world)
+	if not people.is_empty():
+		select_person(people[0]["id"])
+
+
+func _update_card() -> void:
+	var h := Human.find_person(_world, selected_id)
+	if not h.is_empty():
+		hud.update_card(h, _world)
+
+
+func _grab_person(id: int) -> void:
+	var h := Human.find_person(_world, id)
+	if not h.is_empty() and Human.grab(_world, h):
+		view_of(h).held_by = hand
+		view_of(h).popup("Ой!", Color("#ffd166"))
 		hand.holding = true
 
 
 func _welcome_text(before: Dictionary) -> String:
 	var minutes := _offline_ticks
 	var lines := PackedStringArray(["Пока тебя не было (%d ч %02d мин)…" % [floori(minutes / 60.0), minutes % 60], ""])
-	var h0: Dictionary = before["human"]
-	var h: Dictionary = _world["human"]
-	if not h["alive"]:
-		lines.append("Человечек погиб.")
-	lines.append("Голод %.0f → %.0f · жажда %.0f → %.0f · силы %.0f → %.0f" % [
-		h0["hunger"], h["hunger"], h0["thirst"], h["thirst"], h0["energy"], h["energy"]])
+	for h: Dictionary in _world["people"]:
+		if not h["spawned"]:
+			continue
+		var h0: Dictionary = {}
+		for old: Dictionary in before["people"]:
+			if int(old["id"]) == int(h["id"]):
+				h0 = old
+		if not h["alive"]:
+			if h0.is_empty() or h0["alive"]:
+				lines.append("%s %s (%s)." % [h["name"], "умерла" if h["sex"] == "f" else "умер", h["cause"]])
+			continue
+		if h0.is_empty() or not h0["spawned"]:
+			lines.append("%s — новый человек на острове." % h["name"])
+			continue
+		lines.append("%s: голод %.0f → %.0f · жажда %.0f → %.0f · силы %.0f → %.0f" % [
+			h["name"], h0["hunger"], h["hunger"], h0["thirst"], h["thirst"], h0["energy"], h["energy"]])
 	var old_log: Array = before["log"]
 	var new_log: Array = _world["log"]
 	var start := 0
@@ -237,29 +307,37 @@ func cast_miracle(kind: String, point: Vector2) -> Dictionary:
 		_rebuild_terrain()
 	refresh_world_view()
 	if result["seen"]:
-		human_view.popup("Чудо!", Color("#ffe066"))
-	_show_message(MIRACLE_NAMES[kind] + (" — человечек видел, вера растёт" if result["seen"] else " — человечек не видел"))
+		for h: Dictionary in Human.living(_world):
+			if Human.position_of(h).distance_to(point) <= Miracles.SEE_RADIUS:
+				view_of(h).popup("Чудо!", Color("#ffe066"))
+	_show_message(MIRACLE_NAMES[kind] + (" — люди видели, вера растёт" if result["seen"] else " — никто не видел"))
 	_save()
 	_render_hud()
 	return result
 
 
-## Погладить ("pet") или шлёпнуть ("slap") человечка рукой.
+## Погладить ("pet") или шлёпнуть ("slap") ближайшего к руке человека.
 func touch_human(kind: String) -> void:
-	var ok := Human.pet(_world) if kind == "pet" else Human.slap(_world)
+	var h := _person_near_hand()
+	if h.is_empty():
+		return
+	var ok := Human.pet(_world, h) if kind == "pet" else Human.slap(_world, h)
 	hand.gesture(kind)
 	if ok:
-		human_view.popup("Приятно!" if kind == "pet" else "Ай!", Color("#ff8fb1") if kind == "pet" else Color("#ff5a4a"))
+		view_of(h).popup("Приятно!" if kind == "pet" else "Ай!", Color("#ff8fb1") if kind == "pet" else Color("#ff5a4a"))
 		_save()
 		_render_hud()
 
 
 func _hand_near_human() -> bool:
-	var h: Dictionary = _world["human"]
-	if not hand.has_ground() or not h["spawned"]:
-		return false
+	return not _person_near_hand().is_empty()
+
+
+func _person_near_hand() -> Dictionary:
+	if not hand.has_ground():
+		return {}
 	var p := hand.ground_point()
-	return Vector2(p.x, p.z).distance_to(Human.position_of(h)) <= TOUCH_RADIUS
+	return Human.nearest(_world, Vector2(p.x, p.z), TOUCH_RADIUS)
 
 
 ## После кратера: новый меш и коллизия ландшафта, растительность без кратеров.
@@ -276,14 +354,20 @@ func _show_message(text: String) -> void:
 	hud.toast(text)
 
 
-## Камера: следить за человечком / вернуться к общему виду острова.
+## Камера: следить за выделенным (или первым живым) человеком / вернуться к общему виду острова.
 func toggle_follow() -> void:
 	if camera_rig.follow:
 		camera_rig.follow = null
 		camera_rig.set_view(PI / 4.0, ISLAND_VIEW[0], ISLAND_VIEW[1])
-	else:
-		camera_rig.follow = human_view
-		camera_rig.set_view(PI / 4.0, FOLLOW_VIEW[0], FOLLOW_VIEW[1], human_view.global_position)
+		return
+	var h := Human.find_person(_world, selected_id)
+	if h.is_empty() or not h["alive"]:
+		var people := Human.living(_world)
+		if people.is_empty():
+			return
+		h = people[0]
+	camera_rig.follow = view_of(h)
+	camera_rig.set_view(PI / 4.0, FOLLOW_VIEW[0], FOLLOW_VIEW[1], view_of(h).global_position)
 
 
 func _notification(what: int) -> void:
@@ -296,9 +380,9 @@ func pick_item_at(point: Vector3) -> bool:
 	if Vector2(point.x, point.z).distance_to(hints_view.obelisk_position) <= OBELISK_RADIUS:
 		ui.show_mysteries(_world)
 		return false
-	var h: Dictionary = _world["human"]
-	if h["spawned"] and Vector2(point.x, point.z).distance_to(Human.position_of(h)) <= TOUCH_RADIUS:
-		_pending_human = true
+	var h := Human.nearest(_world, Vector2(point.x, point.z), TOUCH_RADIUS)
+	if not h.is_empty():
+		_pending_person = h["id"]
 		_press_time = 0.0
 		return false
 	var id := Items.find_near(_world, point)
@@ -310,15 +394,16 @@ func pick_item_at(point: Vector3) -> bool:
 
 
 func _on_grab_released(origin: Vector3, velocity: Vector3) -> void:
-	if _pending_human:
-		_pending_human = false
-		select_human()
+	if _pending_person >= 0:
+		select_person(_pending_person)
+		_pending_person = -1
 		return
 	hand.holding = false
 	var throw_velocity := velocity * THROW_GAIN + Vector3.UP * THROW_LIFT
-	if _world["human"]["held"]:
-		human_view.held_by = null
-		human_view.fly(Human.throw(_world, island_map, origin + Vector3.DOWN * 1.2, throw_velocity))
+	var held := Human.held_person(_world)
+	if not held.is_empty():
+		view_of(held).held_by = null
+		view_of(held).fly(Human.throw(_world, island_map, held, origin + Vector3.DOWN * 1.2, throw_velocity))
 		_save()
 		_render_hud()
 		return
@@ -346,4 +431,5 @@ func _save() -> void:
 
 func _render_hud() -> void:
 	hud.update_world(_world, WorldClock.hour(int(_world["tick"])))
-	hud.update_card(_world["human"], int(_world["tick"]))
+	hud.update_people(_world, selected_id)
+	_update_card()

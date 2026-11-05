@@ -65,7 +65,8 @@ func test_two_adults_near_each_other_become_a_pair() -> void:
 	_run(w, Family.NEWCOMER_DELAY + 1)
 	var a: Dictionary = Human.living(w)[0]
 	var b: Dictionary = Human.living(w)[1]
-	for _i in 200:
+	# 0.5 за тик (у дома — вдвое быстрее): 100 привязанности — не дольше 200 тиков, берём с запасом.
+	for _i in 300:
 		b["x"] = a["x"] + 1.0
 		b["z"] = a["z"]
 		WorldEngine.step(w, _map)

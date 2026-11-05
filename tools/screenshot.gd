@@ -79,7 +79,7 @@ func _waterfall_view(map: IslandMap) -> Array:
 func _human_view(main: Node) -> Array:
 	var world: Dictionary = main.get("_world")
 	var map := main.get("island_map") as IslandMap
-	var h: Dictionary = world["human"]
+	var h: Dictionary = world["people"][0]
 	var spot := _open_field(map)
 	if spot == Vector2.INF:
 		return []
@@ -88,7 +88,7 @@ func _human_view(main: Node) -> Array:
 	h["tx"] = spot.x
 	h["tz"] = spot.y
 	h["action"] = "idle"
-	(main.get("human_view") as HumanView).snap()
+	(main.call("view_of", h) as HumanView).snap()
 	main.call("select_human")
 	var p := Vector3(spot.x, map.height_at_world(spot.x, spot.y) + 1.0, spot.y)
 	return ["human", PI, 0.4, 8.0, p]
@@ -116,7 +116,7 @@ func _open_field(map: IslandMap) -> Vector2:
 ## Чудеса рядом с человечком: дождь над ним и молния в стороне (кратер, дым). Маны в превью ровно на два.
 ## Кадров прогрева мало — эффекты живут секунды, а программный рендер в CI медленный.
 func _miracles_view(main: Node) -> Array:
-	var h: Dictionary = (main.get("_world") as Dictionary)["human"]
+	var h: Dictionary = (main.get("_world") as Dictionary)["people"][0]
 	var p := Human.position_of(h)
 	main.call("cast_miracle", "rain", p)
 	main.call("cast_miracle", "lightning", p + Vector2(7, 3))
@@ -129,7 +129,7 @@ func _miracles_view(main: Node) -> Array:
 func _night_camp_view(main: Node) -> Array:
 	var world: Dictionary = main.get("_world")
 	var map := main.get("island_map") as IslandMap
-	var h: Dictionary = world["human"]
+	var h: Dictionary = world["people"][0]
 	var camp := Human.position_of(h)
 	world["tick"] = 90 # 02:00 ночи первого дня
 	world["fire"] = {"x": camp.x, "z": camp.y}
@@ -139,7 +139,7 @@ func _night_camp_view(main: Node) -> Array:
 	h["x"] = camp.x + 1.5
 	h["z"] = camp.y + 1.5
 	h["action"] = "sleep"
-	(main.get("human_view") as HumanView).snap()
+	(main.call("view_of", h) as HumanView).snap()
 	main.call("refresh_world_view")
 	var target := Vector3(camp.x, map.height_at_world(camp.x, camp.y) + 1.0, camp.y)
 	return ["night_camp", PI * 0.75, 0.35, 14.0, target]

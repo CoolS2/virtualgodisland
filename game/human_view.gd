@@ -136,6 +136,8 @@ func show_state(h: Dictionary, delta: float, age: float = Human.START_AGE) -> vo
 		visible = false
 		return
 	visible = true
+	# Ребёнок меньше: 0 лет — половина роста, к 16 — взрослый.
+	scale = Vector3.ONE * clampf(0.5 + age / Human.ADULT_AGE * 0.5, 0.5, 1.0)
 	_update_popup(delta)
 	if held_by:
 		position = position.lerp(held_by.grip_point() + Vector3.DOWN * 1.2, 0.5)

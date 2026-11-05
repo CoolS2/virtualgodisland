@@ -5,6 +5,7 @@ extends CanvasLayer
 
 signal mysteries_pressed
 signal card_closed
+signal person_selected(id: int)
 
 const HELP := """Управление
 ЛКМ — взять и бросить предмет (быстрее движешь мышь — дальше бросок)
@@ -30,6 +31,10 @@ var _day := UiStyle.label("", 18, UiStyle.CREAM)
 var _mana_bar := UiStyle.bar(Color("#7cc4e0"), 120)
 var _mana := UiStyle.label("", 14, UiStyle.CREAM_SOFT)
 var _faith := UiStyle.label("", 16, UiStyle.CREAM)
+var _people_count := UiStyle.label("", 16, UiStyle.CREAM)
+var _people_panel := PanelContainer.new()
+var _people_list := VBoxContainer.new()
+var _people_key := ""
 var _food := UiStyle.label("", 16, UiStyle.CREAM)
 var _mysteries := Button.new()
 var _help_panel := PanelContainer.new()
@@ -44,6 +49,7 @@ var _card_state := UiStyle.label("", 15)
 var _card_bars := {}
 var _card_skills := UiStyle.label("", 14)
 var _card_food := UiStyle.label("", 14, UiStyle.TEXT_DIM)
+var _card_family := UiStyle.label("", 14, UiStyle.INK)
 
 
 func _init() -> void:
@@ -51,6 +57,7 @@ func _init() -> void:
 	add_child(_root)
 	_build_top_bar()
 	_build_card()
+	_build_people_panel()
 	_help_panel.add_child(UiStyle.label(HELP, 15))
 	_help_panel.position = Vector2(12, 70)
 	_help_panel.visible = false
@@ -79,7 +86,12 @@ func update_world(world: Dictionary, hour: float) -> void:
 	_day.text = "День %d · %02d:%02d%s" % [WorldClock.day(tick), int(hour), int(fmod(hour, 1.0) * 60.0), " · ночь" if night else ""]
 	_mana_bar.value = float(world["mana"])
 	_mana.text = "Мана %d" % int(world["mana"])
-	_faith.text = "Вера %d" % int(world["human"]["faith"])
+	var people := Human.living(world)
+	var faith := 0.0
+	for h: Dictionary in people:
+		faith += float(h["faith"])
+	_faith.text = "Вера %d" % (int(faith / people.size()) if not people.is_empty() else 0)
+	_people_count.text = "Люди: %d" % people.size()
 	var food := Mysteries.food_in_camp(world)
 	_food.text = "Еда в лагере: —" if food < 0 else "Еда в лагере: %d" % food
 	_mysteries.text = "Тайны %d/%d" % [(world["mysteries"] as Array).size(), Mysteries.LIST.size()]
@@ -93,10 +105,38 @@ func is_card_visible() -> bool:
 	return _card.visible
 
 
-## Карточка человека: имя, пол, возраст, потребности, отношение к богу, навыки.
-func update_card(h: Dictionary, tick: int) -> void:
+## Список людей слева (кнопки с именем и возрастом); перестраивается, когда меняется состав.
+func update_people(world: Dictionary, selected_id: int) -> void:
+	var tick: int = world["tick"]
+	var people := Human.living(world)
+	var key := ""
+	for h: Dictionary in people:
+		key += "%d:%d;" % [h["id"], int(Human.age(h, tick))]
+	key += str(selected_id)
+	_people_panel.visible = people.size() > 1
+	if key == _people_key:
+		return
+	_people_key = key
+	for child in _people_list.get_children():
+		child.queue_free()
+	_people_list.add_child(UiStyle.title("Поселение", 30))
+	for h: Dictionary in people:
+		var age := int(Human.age(h, tick))
+		var b := Button.new()
+		b.text = "%s · %d %s" % [h["name"], age, years(age)]
+		b.focus_mode = Control.FOCUS_NONE
+		b.toggle_mode = true
+		b.button_pressed = int(h["id"]) == selected_id
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.pressed.connect(func() -> void: person_selected.emit(int(h["id"])))
+		_people_list.add_child(b)
+
+
+## Карточка человека: имя, пол, возраст, семья, потребности, отношение к богу, навыки.
+func update_card(h: Dictionary, world: Dictionary) -> void:
 	if not _card.visible:
 		return
+	var tick: int = world["tick"]
 	var age := int(Human.age(h, tick))
 	_card_title.text = h["name"]
 	_card_sub.text = "%s · %d %s" % ["женщина" if h["sex"] == "f" else "мужчина", age, years(age)]
@@ -119,7 +159,28 @@ func update_card(h: Dictionary, tick: int) -> void:
 	var names := PackedStringArray()
 	for kind: String in known:
 		names.append({"fruit": "фрукты", "fish": "рыба"}.get(kind, kind))
-	_card_food.text = "Не знает, что можно есть" if names.is_empty() else "Знает еду: " + ", ".join(names)
+	_card_food.text = "Племя не знает, что можно есть" if names.is_empty() else "Племя знает еду: " + ", ".join(names)
+	_card_family.text = _family_text(h, world)
+
+
+static func _family_text(h: Dictionary, world: Dictionary) -> String:
+	var parts := PackedStringArray()
+	var partner := Human.find_person(world, h["partner_id"])
+	if not partner.is_empty():
+		parts.append("%s: %s%s" % ["Муж" if h["sex"] == "f" else "Жена", partner["name"], "" if partner["alive"] else " (умер%s)" % ("ла" if partner["sex"] == "f" else "")])
+	if int(h["pregnant_until"]) >= 0:
+		parts.append("ждёт ребёнка")
+	var children := PackedStringArray()
+	for p: Dictionary in world["people"]:
+		if int(p["mother_id"]) == int(h["id"]) or int(p["father_id"]) == int(h["id"]):
+			children.append(p["name"])
+	if not children.is_empty():
+		parts.append("дети: " + ", ".join(children))
+	for key: String in ["mother_id", "father_id"]:
+		var parent := Human.find_person(world, h[key])
+		if not parent.is_empty():
+			parts.append("%s: %s" % ["мать" if key == "mother_id" else "отец", parent["name"]])
+	return "Одинок%s" % ("а" if h["sex"] == "f" else "") if parts.is_empty() else " · ".join(parts)
 
 
 func toast(text: String, seconds: float = 3.0) -> void:
@@ -170,6 +231,7 @@ func _build_top_bar() -> void:
 	mana_box.add_child(_mana)
 	mana_box.add_child(_mana_bar)
 	row.add_child(mana_box)
+	row.add_child(_people_count)
 	row.add_child(_faith)
 	row.add_child(_food)
 	var spacer := Control.new()
@@ -186,6 +248,16 @@ func _build_top_bar() -> void:
 	row.add_child(help)
 	bar.add_child(row)
 	_root.add_child(bar)
+
+
+func _build_people_panel() -> void:
+	_people_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	_people_panel.position = Vector2(12, 74)
+	_people_panel.custom_minimum_size = Vector2(230, 0)
+	_people_list.add_theme_constant_override("separation", 6)
+	_people_panel.add_child(_people_list)
+	_people_panel.visible = false
+	_root.add_child(_people_panel)
 
 
 func _build_card() -> void:
@@ -209,6 +281,8 @@ func _build_card() -> void:
 	box.add_child(head)
 	box.add_child(_card_sub)
 	box.add_child(_card_state)
+	_card_family.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(_card_family)
 	box.add_child(HSeparator.new())
 	for entry: Array in [["hunger", "Сытость", BAR_COLORS["hunger"]], ["thirst", "Вода", BAR_COLORS["thirst"]],
 			["energy", "Силы", BAR_COLORS["energy"]], ["faith", "Вера", BAR_COLORS["faith"]],
