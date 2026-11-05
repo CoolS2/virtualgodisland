@@ -77,6 +77,8 @@ func _build(key: String) -> Node3D:
 			tent.position = Vector3(-2.2, 0, -1.2)
 		"shrine":
 			_mesh(root, LowPoly.altar(), mat)
+		"house":
+			_mesh(root, LowPoly.house(), mat)
 		"cave":
 			_mesh(root, LowPoly.cave_entrance(), mat)
 		"raft":

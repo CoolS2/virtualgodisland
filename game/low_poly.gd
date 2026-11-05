@@ -170,6 +170,65 @@ static func raft() -> ArrayMesh:
 	return st.commit()
 
 
+static func house() -> ArrayMesh:
+	var st := _begin()
+	_add(st, BoxMesh.new(), _at(Vector3(0, 0.8, 0), Vector3(2.6, 1.6, 2.2)), Color("#a47148"))
+	_add(st, _cylinder(0.0, 1.95, 1.3, 4), _at(Vector3(0, 2.25, 0), Vector3(1.0, 1.0, 0.85), Vector3(0, PI / 4.0, 0)), Color("#8a3b2a"))
+	_add(st, BoxMesh.new(), _at(Vector3(0, 0.55, -1.11), Vector3(0.6, 1.1, 0.04)), Color("#4a3322"))
+	_add(st, BoxMesh.new(), _at(Vector3(0.85, 1.0, -1.11), Vector3(0.4, 0.4, 0.04)), Color("#ffe9a8"))
+	return st.commit()
+
+
+## Обелиск с полосами рун (руны — отдельный меш, см. HintsView).
+static func obelisk() -> ArrayMesh:
+	var st := _begin()
+	_add(st, BoxMesh.new(), _at(Vector3(0, 0.15, 0), Vector3(1.6, 0.3, 1.6)), Color("#8d8a86"))
+	_add(st, _cylinder(0.32, 0.6, 4.2, 4), _at(Vector3(0, 2.4, 0), Vector3.ONE, Vector3(0, PI / 4.0, 0)), Color("#6f7783"))
+	_add(st, _cylinder(0.0, 0.32, 0.6, 4), _at(Vector3(0, 4.8, 0), Vector3.ONE, Vector3(0, PI / 4.0, 0)), Color("#6f7783"))
+	return st.commit()
+
+
+static func obelisk_runes() -> ArrayMesh:
+	var st := _begin()
+	for i in 4:
+		_add(st, BoxMesh.new(), _at(Vector3(0, 1.2 + i * 0.85, 0), Vector3(0.86 - i * 0.08, 0.08, 0.86 - i * 0.08), Vector3(0, PI / 4.0, 0)), Color("#8ff3ff"))
+	return st.commit()
+
+
+## Подсказки к тайнам — маленькие, приглушённые, наполовину в земле.
+static func hint(kind: String) -> ArrayMesh:
+	var st := _begin()
+	var dull := Color("#7d7468")
+	match kind:
+		"fruit_core":
+			_add(st, _cylinder(0.05, 0.05, 0.22, 5), _at(Vector3(0, 0.1, 0), Vector3.ONE, Vector3(0, 0, PI / 2)), Color("#c9b27a"))
+			_add(st, _sphere(0.07, 5, 3), _at(Vector3(0.12, 0.1, 0)), Color("#b0563f"))
+		"burnt_tree":
+			_add(st, _cylinder(0.1, 0.2, 1.8, 5), _at(Vector3(0, 0.9, 0), Vector3.ONE, Vector3(0.1, 0, 0.08)), Color("#2b2522"))
+			_add(st, _cylinder(0.03, 0.06, 0.7, 4), _at(Vector3(0.25, 1.3, 0), Vector3.ONE, Vector3(0, 0, -0.9)), Color("#2b2522"))
+		"fish_bones":
+			_add(st, BoxMesh.new(), _at(Vector3(0, 0.03, 0), Vector3(0.8, 0.03, 0.04)), Color("#e8e2d2"))
+			for i in 4:
+				_add(st, BoxMesh.new(), _at(Vector3(-0.25 + i * 0.15, 0.03, 0), Vector3(0.03, 0.03, 0.3)), Color("#e8e2d2"))
+			_add(st, _sphere(0.1, 5, 3), _at(Vector3(0.45, 0.05, 0), Vector3(1.3, 0.6, 1.0)), Color("#e8e2d2"))
+		"stone_circle":
+			for i in 6:
+				var a := TAU * i / 6.0
+				_add(st, _sphere(0.18, 5, 3), _at(Vector3(cos(a) * 1.0, 0.06, sin(a) * 1.0), Vector3(1, 1.4, 1)), Color("#7f8a74"))
+		"ruins":
+			_add(st, BoxMesh.new(), _at(Vector3(0, 0.12, -1.0), Vector3(2.2, 0.3, 0.25)), dull)
+			_add(st, BoxMesh.new(), _at(Vector3(-1.0, 0.1, 0.0), Vector3(0.25, 0.22, 1.8)), dull)
+			_add(st, BoxMesh.new(), _at(Vector3(0.6, 0.08, 1.0), Vector3(0.9, 0.18, 0.25)), dull)
+		"torch_stub":
+			_add(st, _sphere(0.25, 5, 3), _at(Vector3(0, 0.1, 0), Vector3(1.2, 0.6, 1.0)), ROCK)
+			_add(st, _cylinder(0.04, 0.05, 0.5, 4), _at(Vector3(0.1, 0.35, 0), Vector3.ONE, Vector3(0, 0, 0.5)), BRANCH)
+			_add(st, _sphere(0.07, 4, 3), _at(Vector3(-0.02, 0.58, 0)), Color("#1d1a18"))
+		"raft_wreck":
+			_add(st, _cylinder(0.13, 0.13, 1.6, 6), _at(Vector3(0, 0.06, 0), Vector3.ONE, Vector3(PI / 2, 0.4, 0)), BRANCH.darkened(0.2))
+			_add(st, _cylinder(0.12, 0.12, 1.2, 6), _at(Vector3(0.35, 0.05, 0.1), Vector3.ONE, Vector3(PI / 2, -0.3, 0)), BRANCH.darkened(0.25))
+	return st.commit()
+
+
 ## Одна деталь отдельным мешем (для анимируемых частей).
 static func part(mesh: PrimitiveMesh, xf: Transform3D, color: Color) -> ArrayMesh:
 	var st := _begin()

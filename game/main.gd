@@ -9,12 +9,14 @@ const WELCOME_MAX_LINES := 14
 ## Бросок: скорость руки × GAIN + подброс вверх (чтобы бросок «летел», а не падал).
 const THROW_GAIN := 1.3
 const THROW_LIFT := 3.0
-const HINT := "ЛКМ — взять / бросить (и человечка) · E — погладить · Q — шлёпнуть · ПКМ — камера · колесо — зум · F — следить\n1 — дождь (20) · 2 — рыба к берегу (25) · 3 — молния (30) — там, где рука · M — тайны"
+const HINT := "ЛКМ — взять / бросить (и человечка) · E — погладить · Q — шлёпнуть · ПКМ — камера · колесо — зум · F — следить\n1 — дождь (20) · 2 — рыба к берегу (25) · 3 — молния (30) — там, где рука · ЛКМ по обелиску (или M) — открытия"
 const MOOD_LABELS := {"happy": "доволен", "ok": "спокоен", "sad": "грустит", "sleep": "спит", "dead": "погиб", "scared": "боится"}
 const MIRACLE_KEYS := {KEY_1: "rain", KEY_2: "fish", KEY_3: "lightning"}
 const MIRACLE_NAMES := {"rain": "Дождь", "fish": "Рыба к берегу", "lightning": "Молния"}
 ## Рука «рядом» с человечком — для взять/погладить/шлёпнуть.
 const TOUCH_RADIUS := 2.5
+## Клик рукой у обелиска открывает список открытий.
+const OBELISK_RADIUS := 2.5
 const FOLLOW_VIEW := [0.45, 25.0] # pitch, distance
 const ISLAND_VIEW := [0.6, 150.0]
 
@@ -26,6 +28,7 @@ var hand: Hand
 var items_view: ItemsView
 var human_view: HumanView
 var structures_view: StructuresView
+var hints_view: HintsView
 var daylight: Daylight
 var ui: GameUi
 
@@ -83,6 +86,9 @@ func _ready() -> void:
 	structures_view.map = map
 	add_child(structures_view)
 	structures_view.sync(_world)
+	hints_view = HintsView.new()
+	hints_view.build(map)
+	add_child(hints_view)
 	_setup_hud()
 	ui = GameUi.new()
 	add_child(ui)
@@ -122,6 +128,16 @@ func refresh_world_view() -> void:
 		_show_message("Тайна раскрыта: %s! (%d/%d)" % [Mysteries.name_of(solved.back()), solved.size(), Mysteries.LIST.size()])
 		human_view.popup("Тайна!", Color("#9ff0ff"))
 		_mysteries_seen = solved.size()
+
+
+func _food_knowledge(h: Dictionary) -> String:
+	var known: Array = h["knows"]
+	if known.is_empty():
+		return "не знает, что можно есть"
+	var names := PackedStringArray()
+	for kind: String in known:
+		names.append({"fruit": "фрукты", "fish": "рыбу"}.get(kind, kind))
+	return "ест: " + ", ".join(names)
 
 
 func _welcome_text(before: Dictionary) -> String:
@@ -240,6 +256,9 @@ func _notification(what: int) -> void:
 
 ## Взять предмет рядом с точкой ландшафта. true — взяли.
 func pick_item_at(point: Vector3) -> bool:
+	if Vector2(point.x, point.z).distance_to(hints_view.obelisk_position) <= OBELISK_RADIUS:
+		ui.show_mysteries(_world)
+		return false
 	if Vector2(point.x, point.z).distance_to(Human.position_of(_world["human"])) <= TOUCH_RADIUS and Human.grab(_world):
 		human_view.held_by = hand
 		human_view.popup("Ой!", Color("#ffd166"))
@@ -307,10 +326,10 @@ func _setup_hud() -> void:
 func _render_hud() -> void:
 	var h: Dictionary = _world["human"]
 	var hour := WorldClock.hour(int(_world["tick"]))
-	_hud.text = "день %d, %02d:%02d · тайны %d/%d · seed %d · tick %d · офлайн +%d\nголод %.0f · жажда %.0f · силы %.0f · %s · %s\nмана %.0f · вера %.0f · любовь %.0f · страх %.0f" % [
+	_hud.text = "день %d, %02d:%02d · тайны %d/%d · seed %d · tick %d · офлайн +%d\nголод %.0f · жажда %.0f · силы %.0f · %s · %s\nмана %.0f · вера %.0f · любовь %.0f · страх %.0f · %s" % [
 		WorldClock.day(int(_world["tick"])), int(hour), int(fmod(hour, 1.0) * 60.0),
 		(_world["mysteries"] as Array).size(), Mysteries.LIST.size(),
 		_world["seed"], _world["tick"], _offline_ticks, h["hunger"], h["thirst"], h["energy"],
 		HumanView.ACTION_LABELS.get(h["action"], h["action"]), MOOD_LABELS.get(Human.mood(h), ""),
-		_world["mana"], h["faith"], h["love"], h["fear"],
+		_world["mana"], h["faith"], h["love"], h["fear"], _food_knowledge(h),
 	]

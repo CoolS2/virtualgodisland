@@ -30,6 +30,7 @@ func _ready() -> void:
 	views.append(_human_view.bind(main))
 	views.append(_miracles_view.bind(main))
 	views.append(_night_camp_view.bind(main))
+	views.append(_obelisk_view.bind(main))
 	views.append(_hand_view.bind(main))
 	for make_view in views:
 		var view: Array = make_view.call()
@@ -140,6 +141,16 @@ func _night_camp_view(main: Node) -> Array:
 	main.call("refresh_world_view")
 	var target := Vector3(camp.x, map.height_at_world(camp.x, camp.y) + 1.0, camp.y)
 	return ["night_camp", PI * 0.75, 0.35, 14.0, target]
+
+
+## Обелиск и открытая панель открытий.
+func _obelisk_view(main: Node) -> Array:
+	var world: Dictionary = main.get("_world")
+	world["tick"] = 1
+	var p := (main.get("hints_view") as HintsView).obelisk_position
+	var map := main.get("island_map") as IslandMap
+	(main.get("ui") as GameUi).show_mysteries(world)
+	return ["obelisk", PI * 0.25, 0.25, 12.0, Vector3(p.x, map.height_at_world(p.x, p.y) + 2.5, p.y)]
 
 
 ## Рука держит ветку недалеко от центра острова.

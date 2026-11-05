@@ -21,14 +21,21 @@ func show_welcome(text: String) -> void:
 
 
 func toggle_mysteries(world: Dictionary) -> void:
-	_mysteries.visible = not _mysteries.visible
 	if _mysteries.visible:
-		var lines := PackedStringArray(["Тайны острова: %d/%d" % [(world["mysteries"] as Array).size(), Mysteries.LIST.size()], ""])
-		for m: Dictionary in Mysteries.LIST:
-			lines.append(("+ " + m["name"]) if Mysteries.is_solved(world, m["id"]) else "? ???")
-		lines.append("")
-		lines.append("Условия тайн скрыты — пробуйте разное.")
-		_mysteries_text.text = "\n".join(lines)
+		_mysteries.visible = false
+	else:
+		show_mysteries(world)
+
+
+## Список открытий (обелиск): раскрытые — по названию, неизвестные — «???».
+func show_mysteries(world: Dictionary) -> void:
+	_mysteries.visible = true
+	var lines := PackedStringArray(["Обелиск. Открытия острова: %d/%d" % [(world["mysteries"] as Array).size(), Mysteries.LIST.size()], ""])
+	for m: Dictionary in Mysteries.LIST:
+		lines.append(("+ " + m["name"]) if Mysteries.is_solved(world, m["id"]) else "? ???")
+	lines.append("")
+	lines.append("Условия скрыты. Ищите на острове странные следы — они подскажут.")
+	_mysteries_text.text = "\n".join(lines)
 
 
 func _setup_panel(panel: PanelContainer, text: Label, button_text: String) -> void:
