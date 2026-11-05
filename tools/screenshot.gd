@@ -202,20 +202,18 @@ func _obelisk_view(main: Node) -> Array:
 
 ## Рука держит ветку недалеко от центра острова.
 func _hand_view(main: Node) -> Array:
-	var world: Dictionary = main.get("_world")
-	var best := {}
-	for item: Dictionary in world["items"]:
-		if item["kind"] == "branch" and (best.is_empty() or Items.position_of(item).length() < Items.position_of(best).length()):
-			best = item
-	if best.is_empty():
+	var map := main.get("island_map") as IslandMap
+	var spot := _open_field(map)
+	if spot == Vector2.INF:
 		return []
-	var p := Items.position_of(best)
 	(main.get("ui") as GameUi).close_mysteries()
+	(main.get("hud") as Hud).close_overlays()
+	# Рука над открытым полем, раскрыта, крупно — чтобы было видно модель.
+	var p := Vector3(spot.x + 4.0, map.height_at_world(spot.x + 4.0, spot.y), spot.y)
 	var hand := main.get("hand") as Hand
-	hand.position = p + Vector3.UP * 3.0
-	hand.set_grip(true)
-	main.call("pick_item_at", p)
-	return ["hand", PI / 4.0, 0.45, 22.0, p + Vector3.UP * 1.5]
+	hand.position = p + Vector3.UP * 2.5
+	hand.set_grip(false)
+	return ["hand", PI / 4.0, 0.35, 9.0, p + Vector3.UP * 2.0]
 
 
 ## Стартовое меню с формой новой игры поверх сцены.
