@@ -35,5 +35,14 @@
 Палитры (`Textures/colormap.png`) **перекрашены** под природную гамму (мятные зелёные → оливковые):
 `tools/ui_art/recolor_kenney.py` берёт оригиналы из архивов и пишет копии — перезапуск восстанавливает результат.
 
-Свои процедурные модели (`game/low_poly.gd`) остались для: человека, руки, облаков, алтаря, пещеры, обелиска
+### Персонажи
+
+**Quaternius — Ultimate Animated Character Pack** (quaternius.com/packs/ultimatedanimatedcharacter.html), лицензия
+**CC0** (указана на странице пака; файла лицензии в архиве нет). Архив загрузил владелец (`assets/character.zip`,
+коммит `d8504fb`, 52 персонажа). В проект скопированы 4: `Casual_Male`, `Worker_Male`, `Casual_Female`,
+`Worker_Female` (`assets/models/characters/*.gltf`, данные встроены). Анимации пака: Death, Defeat, Idle, Jump,
+PickUp, Punch, RecieveHit, Roll, Run, Run_Carry, Shoot_OneHanded, SitDown, StandUp, SwordSlash, Walk, Walk_Carry.
+Цвет кожи, волос, рубашки задаётся в игре (`game/human_view.gd`).
+
+Свои процедурные модели (`game/low_poly.gd`) остались для: руки, облаков, алтаря, пещеры, обелиска
 и части подсказок — подходящих моделей в паках нет. Звуков пока нет.
