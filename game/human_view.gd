@@ -26,7 +26,8 @@ const ANIMATIONS := {
 }
 ## Анимации, которые не повторяются, а замирают на последнем кадре (лёг спать / упал).
 const HOLD_LAST_FRAME: Array[String] = ["Death", "Defeat"]
-const SKIN_TONES: Array[Color] = [Color("#f1c8a5"), Color("#e0ac85"), Color("#c68b62"), Color("#9c6644"), Color("#7a4b2e")]
+## Тёплые и насыщенные: после тонкоррекции и приглушения кадра бледные тона выглядят серыми.
+const SKIN_TONES: Array[Color] = [Color("#f2b48c"), Color("#e09a6c"), Color("#c47a4c"), Color("#9a5a34"), Color("#70401f")]
 const HAIR_COLORS: Array[Color] = [Color("#3b2416"), Color("#5a3820"), Color("#8a5a2b"), Color("#1d1a18"), Color("#b98a4e")]
 const SHIRT_COLORS: Array[Color] = [Color("#4f7ea8"), Color("#a8553f"), Color("#6f8a4a"), Color("#c49a3e"), Color("#7a5b8c"), Color("#d9c7a3")]
 const GREY := Color("#d8d4cc")
@@ -179,15 +180,15 @@ func _build_model(h: Dictionary) -> void:
 			var base := str(anim_name).get_slice("/", str(anim_name).get_slice_count("/") - 1)
 			anim.loop_mode = Animation.LOOP_NONE if HOLD_LAST_FRAME.has(base) or base == "RecieveHit" else Animation.LOOP_LINEAR
 	_hair_color = HAIR_COLORS[(_person_id * 3) % HAIR_COLORS.size()]
-	# У Quaternius «Face» — кожа (лицо, руки), а «Skin» — тёмные детали (глаза, брови): их не трогаем.
+	# У Quaternius «Skin» — голова, руки, ноги (в паке почти чёрная), «Face» — глаза: их не трогаем.
 	_recolor(_model, {
-		"Face": SKIN_TONES[(_person_id * 7) % SKIN_TONES.size()],
+		"Skin": SKIN_TONES[(_person_id * 7) % SKIN_TONES.size()],
 		"Shirt": SHIRT_COLORS[(_person_id * 5) % SHIRT_COLORS.size()],
 		"Hair": _hair_color,
 	})
 
 
-## Своя копия материала с цветом для поверхностей с данным именем материала (Face, Shirt, Hair).
+## Своя копия материала с цветом для поверхностей с данным именем материала (Skin, Shirt, Hair).
 func _recolor(node: Node, colors: Dictionary) -> void:
 	var mi := node as MeshInstance3D
 	if mi and mi.mesh:
