@@ -89,10 +89,11 @@ func _human_view(main: Node) -> Array:
 	h["tx"] = spot.x
 	h["tz"] = spot.y
 	h["action"] = "idle"
-	(main.call("view_of", h) as HumanView).snap()
-	main.call("select_human")
-	var p := Vector3(spot.x, map.height_at_world(spot.x, spot.y) + 1.0, spot.y)
-	return ["human", PI, 0.4, 8.0, p]
+	var view := main.call("view_of", h) as HumanView
+	view.snap()
+	view.set_selected(true)
+	var p := Vector3(spot.x, map.height_at_world(spot.x, spot.y) + 0.8, spot.y)
+	return ["human", PI, 0.25, 6.0, p]
 
 
 ## Ближайшая к центру клетка поля, вокруг которой в радиусе 3 тоже поле (без деревьев у лица).
