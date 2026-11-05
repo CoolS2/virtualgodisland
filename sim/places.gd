@@ -8,11 +8,14 @@ extends RefCounted
 ##   каменная арка — к ней приплывает рыба.
 
 const BERRY_TICKS := 30
+## Сдвиг по тикам — чтобы не всё сразу на первом тике мира.
+const BERRY_PHASE := 15
 const BERRIES_MAX := 3
 const BERRY_RADIUS := 3.0
 const EGG_TICKS := 2 * WorldClock.DAY_TICKS
 const EGG_PHASE := WorldClock.DAY_TICKS
 const ARCH_FISH_TICKS := 90
+const ARCH_FISH_PHASE := 45
 const ARCH_RADIUS := 6.0
 const MUSHROOM_NIGHT_MANA := 0.15
 
@@ -24,12 +27,12 @@ static func has(map: IslandMap, key: String) -> bool:
 ## Раз в тик (из WorldEngine.step).
 static func update(w: Dictionary, map: IslandMap) -> void:
 	var tick: int = w["tick"]
-	if has(map, "berry_grove") and tick % BERRY_TICKS == 0 and _count_near(w, "fruit", map.relics["berry_grove"], BERRY_RADIUS) < BERRIES_MAX:
+	if has(map, "berry_grove") and tick % BERRY_TICKS == BERRY_PHASE and _count_near(w, "fruit", map.relics["berry_grove"], BERRY_RADIUS) < BERRIES_MAX:
 		_add_near(w, map, "fruit", map.relics["berry_grove"], BERRY_RADIUS)
 	if has(map, "giant_nest") and tick % EGG_TICKS == EGG_PHASE and _count_near(w, "egg", map.relics["giant_nest"], 2.0) == 0:
 		var nest: Vector2 = map.relics["giant_nest"]
 		Items.add(w, "egg", Vector3(nest.x, map.height_at_world(nest.x, nest.y), nest.y))
-	if has(map, "rock_arch") and tick % ARCH_FISH_TICKS == 0 and _count_near(w, "fish", map.relics["rock_arch"], ARCH_RADIUS) == 0:
+	if has(map, "rock_arch") and tick % ARCH_FISH_TICKS == ARCH_FISH_PHASE and _count_near(w, "fish", map.relics["rock_arch"], ARCH_RADIUS) == 0:
 		var shore := Miracles.nearest_beach(map, map.relics["rock_arch"])
 		Items.add(w, "fish", Vector3(shore.x, map.height_at_world(shore.x, shore.y), shore.y))
 	if has(map, "glow_mushrooms") and (w["found"] as Array).has("glow_mushrooms") and WorldClock.is_night(tick):

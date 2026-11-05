@@ -118,7 +118,7 @@ func test_special_places_work() -> void:
 			places += 1
 	assert_eq(places, Hints.PLACES_PER_ISLAND, "на острове несколько особых мест")
 	if _map.relics.has("berry_grove"):
-		w["tick"] = Places.BERRY_TICKS
+		w["tick"] = Places.BERRY_PHASE
 		var fruits := Items.count_kind(w, "fruit")
 		Places.update(w, _map)
 		assert_eq(Items.count_kind(w, "fruit"), fruits + 1, "на поляне вырос плод")
