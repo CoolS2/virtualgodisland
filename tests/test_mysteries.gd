@@ -143,24 +143,69 @@ func test_raft_from_branches_and_love() -> void:
 	assert_lte(Items.count_kind(w, "branch"), branches - Mysteries.RAFT_BRANCHES + 1, "ветки ушли на плот")
 
 
-func test_house_from_branches_and_stones() -> void:
+func test_house_rebuilt_on_ruins_from_branches_and_stones() -> void:
 	var pair := _fresh()
 	var w: Dictionary = pair[0]
+	var map: IslandMap = pair[1]
+	_make_camp(pair)
+	assert_true(map.relics.has("ruins"), "на острове есть развалины")
+	var site := Mysteries.house_site(w, map)
+	assert_eq(site, map.relics["ruins"], "дом отстраивают на развалинах")
+	for i in Mysteries.HOUSE_BRANCHES:
+		Items.add(w, "branch", Vector3(site.x + 1 + i * 0.3, 0, site.y))
+	for i in Mysteries.HOUSE_STONES:
+		Items.add(w, "stone", Vector3(site.x, 0, site.y + 1 + i * 0.3))
+	var stones := Items.count_kind(w, "stone")
+	_run(pair, 12)
+	assert_true(Mysteries.is_solved(w, "house"))
+	assert_almost_eq(Vector2(w["house"]["x"], w["house"]["z"]).distance_to(site), 0.0, 0.01, "дом — на месте развалин")
+	assert_lte(Items.count_kind(w, "stone"), stones - Mysteries.HOUSE_STONES, "камни ушли на дом")
+
+
+func test_materials_at_camp_do_not_build_house_away_from_ruins() -> void:
+	var pair := _fresh()
+	var w: Dictionary = pair[0]
+	var map: IslandMap = pair[1]
 	var camp := _make_camp(pair)
+	if camp.distance_to(Mysteries.house_site(w, map)) <= Mysteries.RAFT_GATHER_RADIUS:
+		pass_test("лагерь у самых развалин — проверять нечего")
+		return
 	for i in Mysteries.HOUSE_BRANCHES:
 		Items.add(w, "branch", Vector3(camp.x + 1 + i * 0.3, 0, camp.y))
 	for i in Mysteries.HOUSE_STONES:
 		Items.add(w, "stone", Vector3(camp.x, 0, camp.y + 1 + i * 0.3))
-	var stones := Items.count_kind(w, "stone")
 	_run(pair, 12)
-	assert_true(Mysteries.is_solved(w, "house"))
-	assert_false((w["house"] as Dictionary).is_empty())
-	assert_lte(Items.count_kind(w, "stone"), stones - Mysteries.HOUSE_STONES, "камни ушли на дом")
+	assert_false(Mysteries.is_solved(w, "house"))
+
+
+func test_lightning_relights_old_hearth() -> void:
+	var pair := _fresh()
+	var w: Dictionary = pair[0]
+	var map: IslandMap = pair[1]
+	assert_true(map.relics.has("old_hearth"), "у развалин есть кострище")
+	var hearth: Vector2 = map.relics["old_hearth"]
+	Miracles.cast(w, map, "lightning", hearth + Vector2(1, 0))
+	assert_false((w["fire"] as Dictionary).is_empty(), "кострище снова горит")
+	assert_almost_eq(Vector2(w["fire"]["x"], w["fire"]["z"]).distance_to(hearth), 0.0, 0.01, "огонь — в кострище")
+
+
+func test_shrine_is_built_in_old_sanctuary() -> void:
+	var pair := _fresh()
+	var w: Dictionary = pair[0]
+	var map: IslandMap = pair[1]
+	_make_camp(pair)
+	w["people"][0]["faith"] = 90.0
+	_run(pair, 8)
+	assert_true(Mysteries.is_solved(w, "shrine"))
+	assert_almost_eq(Vector2(w["shrine"]["x"], w["shrine"]["z"]).distance_to(map.relics["stone_circle"]), 0.0, 0.01)
 
 
 func test_hints_and_obelisk_are_placed_on_land() -> void:
 	var map := IslandGenerator.generate(42)
 	var hints := Hints.place(map)
+	assert_eq(map.relics, hints, "генератор кладёт следы в карту")
+	assert_between(hints["old_hearth"].distance_to(hints["ruins"]), Hints.HEARTH_MIN - 1.0, Hints.HEARTH_MAX + 1.0,
+		"кострище — у развалин")
 	assert_true(hints.has("obelisk"))
 	assert_eq(map.biome_at_world(hints["obelisk"].x, hints["obelisk"].y), IslandMap.Biome.FIELD)
 	for key: String in Hints.FOR_MYSTERY:
@@ -199,3 +244,22 @@ func test_save_v4_migrates() -> void:
 	assert_eq(w["mysteries"], [])
 	assert_true((w["fire"] as Dictionary).is_empty())
 	assert_eq(int(w["fish_eaten"]), 0)
+	assert_eq(w["found"], [], "находок в старом сейве нет")
+
+
+func test_explorer_finds_relics_and_walks_the_island() -> void:
+	var pair := _fresh()
+	var w: Dictionary = pair[0]
+	var map: IslandMap = pair[1]
+	w["knowledge"] = ["fruit"]
+	var start := Human.position_of(w["people"][0])
+	var farthest := 0.0
+	for _i in WorldClock.DAY_TICKS:
+		WorldEngine.step(w, map)
+		farthest = maxf(farthest, Human.position_of(w["people"][0]).distance_to(start))
+	assert_gt((w["found"] as Array).size(), 0, "что-то нашёл; лог: %s" % [w["log"]])
+	assert_gt(farthest, Human.WANDER_RADIUS * 2.0, "ушёл дальше, чем гуляют рядом")
+	for key: String in w["found"]:
+		assert_true(Hints.DISCOVERABLE.has(key))
+	var restored := WorldEngine.from_data(JSON.parse_string(JSON.stringify(w, "", true, true)))
+	assert_eq(restored["found"], w["found"], "находки сохраняются")

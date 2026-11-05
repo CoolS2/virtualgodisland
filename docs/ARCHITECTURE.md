@@ -22,10 +22,11 @@ sim/            # детерминированная логика мира (то
   craters.gd          class_name Craters         — кратеры как изменения рельефа поверх карты из seed
   world_clock.gd      class_name WorldClock      — время суток по тику (сутки = 120 тиков)
   mysteries.gd        class_name Mysteries       — тайны: условия, стройки, постройки (огонь, лагерь, алтарь, дом, пещера, плот)
-  hints.gd            class_name Hints           — места подсказок к тайнам и обелиска (по seed, не сохраняются)
+  hints.gd            class_name Hints           — следы прошлого (развалины, кострище, святилище, шахта, корабль…)
+                                                   и обелиск: места по seed (map.relics), находки; не сохраняются
 game/           # всё, что видит и трогает игрок: сцены и их скрипты
   main.tscn / main.gd — сборка сцены, цикл: catch_up раз в секунду, сейв, HUD
-  terrain.gd          — меш острова из карты (low-poly, цвет по биому/высоте), sample_height
+  terrain.gd          — меш острова из карты (гладкие нормали, цвет по биому/высоте), slope_at
   water.gd            — вода: плоскость + shaders/water.gdshader (волны, цвет по глубине, пена у берега)
   river.gd            — река: лента вдоль русла + shaders/river.gdshader (течение, пена у берегов, участок водопада)
   waterfall.gd        — подножие водопада: пенное пятно и брызги (CPUParticles3D)
@@ -41,10 +42,10 @@ game/           # всё, что видит и трогает игрок: сце
   hud.gd              — верхняя панель, карточка человека, справка, всплывающие сообщения
   ui_style.gd         — общий вид панелей и полосок
   game_ui.gd          — панели: «Пока тебя не было…», открытия (обелиск/M), конец игры
-  hints_view.gd       — обелиск с рунами и подсказки к тайнам
+  hints_view.gd       — обелиск и следы прошлого из моделей Kenney (развалины прячутся, когда отстроен дом)
   miracle_fx.gd       — эффекты чудес (дождь, молния, дым), удаляются по таймеру
   items_view.gd       — отображение предметов: в руке, полёт по траектории из sim, исчезновение утонувших
-  camera_rig.gd       — орбитальная камера
+  camera_rig.gd       — камера: WASD/стрелки, колесо, вращение ПКМ/СКМ; щелчок ПКМ → сигнал right_clicked
   save_store.gd       — сейв мира в user://
 assets/         # модели, текстуры, звуки (лицензии — docs/ASSETS.md)
 addons/gut/     # тестовый фреймворк GUT
@@ -102,7 +103,7 @@ var ticks := WorldEngine.catch_up(world, map, now_ms)
   `human.build_kind/work`); 6 — дом, знание еды (`house`, `human.knows`; старые сейвы — еда уже известна);
   7 — параметры человека (`human.name/sex/born_tick/start_age/lifespan/skills/cause`); 8 — несколько людей
   (`people[]` с `id/mother_id/father_id/partner_id/pregnant_until`, `next_person_id`, `knowledge`, `bonds`,
-  `newcomer_due/arrived`; из v≤7 `human` → `people[0]`, ADR-0007). Загрузка старых версий: `WorldEngine.from_data` заполняет
+  `newcomer_due/arrived`; из v≤7 `human` → `people[0]`, ADR-0007); 9 — находки (`found`). Загрузка старых версий: `WorldEngine.from_data` заполняет
   недостающие поля, предметы и человечек появляются на ближайшем тике.
 - Удержание предмета рукой в сейв не попадает: после загрузки рука пуста.
 - Несовместимое изменение формы мира → миграция `vN → vN+1` с тестом (предпочтительно)

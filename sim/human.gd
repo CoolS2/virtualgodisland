@@ -5,7 +5,7 @@ extends RefCounted
 ##   id: int; mother_id, father_id, partner_id: int (-1 — нет); pregnant_until: int (тик родов, -1 — нет)
 ##   hunger, thirst: float — 0 норма .. 100 смерть; energy: float — 100 бодр .. 0; alive: bool
 ##   spawned: bool; x, z: float — позиция в мировых координатах (высота — по карте)
-##   action: String — "idle" | "wander" | "drink" | "eat" | "sleep"
+##   action: String — "idle" | "wander" | "explore" | "drink" | "eat" | "sleep" | "build"
 ##   tx, tz: float — цель движения; target_item: int — еда для "eat"; stuck: int — тиков без продвижения
 ##   faith, love, fear: float 0..100 — вера, любовь и страх к богу; held: bool — в руке бога;
 ##   touch_tick: int — тик последнего «погладить/шлёпнуть» (не чаще раза в тик)
@@ -17,7 +17,9 @@ extends RefCounted
 ## сами и бог не подскажет (подкинет еду рядом), умрут от голода (голод 0→100 ≈ 33 ч).
 ## 1 тик = 1 минута: за тик человечек проходит до WALK_PER_TICK (1 ед/с), game/ показывает это плавно.
 
-const ACTIONS: Array[String] = ["idle", "wander", "drink", "eat", "sleep", "build"]
+const ACTIONS: Array[String] = ["idle", "wander", "explore", "drink", "eat", "sleep", "build"]
+## Свободен: ничем важным не занят (может строить, подбирать дела).
+const FREE_ACTIONS: Array[String] = ["idle", "wander", "explore"]
 
 const WALK_PER_TICK := 60.0
 const STEP := 1.0
@@ -78,6 +80,13 @@ const SATED := 5.0
 const RESTED := 95.0
 ## Ценность прогулки: потребность побеждает, когда её доля выше.
 const WANDER_SCORE := 0.3
+## Исследовать остров (идти к ненайденным следам прошлого, потом — в дальние места) взрослому интереснее,
+## чем гулять рядом; ребёнок и тот, кто держится рядом с парой, не исследуют.
+const EXPLORE_SCORE := 0.35
+const EXPLORE_MIN := 20.0
+const EXPLORE_MAX := 45.0
+## Выше не забирается (снег, скалы).
+const EXPLORE_MAX_HEIGHT := 12.0
 const WANDER_RADIUS := 15.0
 const WANDER_ATTEMPTS := 10
 const STUCK_LIMIT := 2
@@ -154,11 +163,73 @@ static func _update_one(w: Dictionary, map: IslandMap, h: Dictionary) -> void:
 					var at := Vector2(h["tx"], h["tz"])
 					_set_action(h, "idle")
 					Mysteries.complete_build(w, kind, at)
-		"wander":
+		"wander", "explore":
 			if _move(h, map):
 				_set_action(h, "idle")
-	if h["action"] == "idle" or h["action"] == "wander":
+	_discover(w, map, h)
+	if FREE_ACTIONS.has(h["action"]):
 		_decide(w, map, h)
+
+
+## Подошёл к следу прошлого, которого ещё никто не находил, — находка (журнал, world["found"]).
+static func _discover(w: Dictionary, map: IslandMap, h: Dictionary) -> void:
+	if h["action"] == "sleep":
+		return
+	var found: Array = w["found"]
+	for key: String in Hints.DISCOVERABLE:
+		if found.has(key) or not map.relics.has(key):
+			continue
+		if position_of(h).distance_to(map.relics[key]) <= Hints.DISCOVER_RADIUS:
+			found.append(key)
+			WorldEngine.add_log(w, "%s %s %s" % [h["name"], _verb(h, "нашёл"), Hints.discovery_text(key)])
+
+
+## Исследует ли человек остров сам: взрослый, который ни за кем не идёт.
+static func _explorer(w: Dictionary, h: Dictionary) -> bool:
+	return is_adult(h, int(w["tick"])) and _leader(w, h).is_empty()
+
+
+## За кем человек идёт: ребёнок — за матерью; взрослый — за парой (или тем, кто может ею стать),
+## если тот старше по id (из двоих ведёт первый появившийся); {} — сам по себе.
+static func _leader(w: Dictionary, h: Dictionary) -> Dictionary:
+	if not is_adult(h, int(w["tick"])):
+		var mother := find_person(w, h["mother_id"])
+		return mother if not mother.is_empty() and mother["alive"] else {}
+	var companion := _companion(w, h)
+	if not companion.is_empty() and int(companion["id"]) < int(h["id"]):
+		return companion
+	return {}
+
+
+## Прямой путь от a до b не проходит через море (люди ходят по прямой).
+static func _path_clear(map: IslandMap, a: Vector2, b: Vector2) -> bool:
+	var steps := ceili(a.distance_to(b) / 2.0)
+	for i in steps + 1:
+		if not _walkable(map, a.lerp(b, float(i) / maxf(1.0, steps))):
+			return false
+	return true
+
+
+## Куда идти исследовать: ближайший ненайденный след прошлого, иначе — случайное дальнее место.
+static func _explore_target(w: Dictionary, map: IslandMap, h: Dictionary) -> Vector2:
+	var pos := position_of(h)
+	var best := Vector2.INF
+	for key: String in Hints.DISCOVERABLE:
+		if (w["found"] as Array).has(key) or not map.relics.has(key):
+			continue
+		var p: Vector2 = map.relics[key]
+		if p.distance_to(pos) < best.distance_to(pos) and _path_clear(map, pos, p):
+			best = p
+	if best != Vector2.INF:
+		return best
+	for _i in WANDER_ATTEMPTS:
+		var angle: float = VgiRng.next_float(w) * TAU
+		var radius: float = lerpf(EXPLORE_MIN, EXPLORE_MAX, VgiRng.next_float(w))
+		var p := pos + Vector2(cos(angle), sin(angle)) * radius
+		if _walkable(map, p) and map.biome_at_world(p.x, p.y) != IslandMap.Biome.RIVER \
+				and map.height_at_world(p.x, p.y) <= EXPLORE_MAX_HEIGHT:
+			return p
+	return Vector2.INF
 
 
 ## Настроение для лица: "dead" | "sleep" | "scared" | "happy" | "ok" | "sad".
@@ -403,14 +474,15 @@ static func _decide(w: Dictionary, map: IslandMap, h: Dictionary) -> void:
 		"drink": h["thirst"] / 100.0 if h["thirst"] >= THIRST_TRIGGER and not map.river.is_empty() else 0.0,
 		"eat": h["hunger"] / 100.0 if h["hunger"] >= HUNGER_TRIGGER and _nearest_food(w, h) >= 0 else 0.0,
 		"sleep": _sleep_score(w, h),
+		"explore": EXPLORE_SCORE if _explorer(w, h) else 0.0,
 		"wander": WANDER_SCORE,
 	}
 	var best := "wander"
-	for action: String in ["drink", "eat", "sleep"]: # фиксированный порядок — детерминизм при равенстве
+	for action: String in ["drink", "eat", "sleep", "explore"]: # фиксированный порядок — детерминизм при равенстве
 		if scores[action] > scores[best]:
 			best = action
-	if best == "wander" and h["action"] == "wander":
-		return
+	if best == h["action"] and (best == "explore" or (best == "wander" and _leader(w, h).is_empty())):
+		return # уже идёт (кто идёт за другим — каждый тик сверяется с ним)
 	match best:
 		"drink":
 			var water := _nearest_river_point(h, map)
@@ -428,27 +500,32 @@ static func _decide(w: Dictionary, map: IslandMap, h: Dictionary) -> void:
 			if is_adult(h, int(w["tick"])):
 				WorldEngine.add_log(w, "%s %s спать%s" % [h["name"], "легла" if h["sex"] == "f" else "лёг",
 					" в лагере" if not (w["camp"] as Dictionary).is_empty() else ""])
+		"explore":
+			var target := _explore_target(w, map, h)
+			if target != Vector2.INF:
+				_set_action(h, "explore", target.x, target.y)
+				return
+			_wander(w, map, h)
 		"wander":
-			# Ребёнок держится рядом с матерью; взрослый — рядом с парой (или с тем, кто может ею стать).
-			var center := position_of(h)
-			var reach := WANDER_RADIUS
-			if not is_adult(h, int(w["tick"])):
-				var mother := find_person(w, h["mother_id"])
-				if not mother.is_empty() and mother["alive"]:
-					center = position_of(mother)
-				reach = CHILD_WANDER_RADIUS
-			else:
-				var companion := _companion(w, h)
-				if not companion.is_empty():
-					center = position_of(companion)
-					reach = COMPANION_WANDER_RADIUS
-			for _i in WANDER_ATTEMPTS:
-				var angle: float = VgiRng.next_float(w) * TAU
-				var radius: float = VgiRng.next_float(w) * reach
-				var p := center + Vector2(cos(angle), sin(angle)) * radius
-				if _walkable(map, p) and map.biome_at_world(p.x, p.y) != IslandMap.Biome.RIVER:
-					_set_action(h, "wander", p.x, p.y)
-					return
+			_wander(w, map, h)
+
+
+## Погулять рядом: ребёнок — у матери, взрослый — у пары (или того, кто может ею стать), иначе — вокруг себя.
+static func _wander(w: Dictionary, map: IslandMap, h: Dictionary) -> void:
+	var center := position_of(h)
+	var reach := WANDER_RADIUS
+	var leader := _leader(w, h)
+	if not leader.is_empty():
+		# Туда, куда идёт ведущий (а не где он сейчас), — чтобы не отставать, когда он уходит далеко.
+		center = Vector2(leader["tx"], leader["tz"])
+		reach = CHILD_WANDER_RADIUS if not is_adult(h, int(w["tick"])) else COMPANION_WANDER_RADIUS
+	for _i in WANDER_ATTEMPTS:
+		var angle: float = VgiRng.next_float(w) * TAU
+		var radius: float = VgiRng.next_float(w) * reach
+		var p := center + Vector2(cos(angle), sin(angle)) * radius
+		if _walkable(map, p) and map.biome_at_world(p.x, p.y) != IslandMap.Biome.RIVER:
+			_set_action(h, "wander", p.x, p.y)
+			return
 
 
 ## Идёт к (tx, tz) не дальше WALK_PER_TICK, не заходя в море. true — пришёл.

@@ -6,6 +6,9 @@ extends RefCounted
 const SEED_SALT := 0x5EED
 const MIN_HEIGHT := 0.15 # не ставить у самой воды
 const MAX_SLOPE := 0.9 # на крутых склонах ничего не растёт
+## Вокруг следов прошлого деревья и камни не ставим — чтобы их было видно (трава — можно).
+const RELIC_CLEARANCE := {"ruins": 8.0, "stone_circle": 5.0, "old_hearth": 3.0, "obelisk": 3.0, "torch_stub": 3.5,
+	"raft_wreck": 6.0}
 
 
 static func build(map: IslandMap, world_seed: int, craters: Array = [], tile: float = 1.0) -> Node3D:
@@ -33,6 +36,8 @@ static func build(map: IslandMap, world_seed: int, craters: Array = [], tile: fl
 			var yaw: float = rng.next() * TAU
 			var size: float = 0.75 + rng.next() * 0.6
 			if kind.is_empty() or Terrain.slope_at(map, x, y) > MAX_SLOPE or _near_river(map, x, y):
+				continue
+			if kind != "grass" and _near_relic(map, Vector2(fx * tile - half, fy * tile - half)):
 				continue
 			if not craters.is_empty() and Craters.contains({"craters": craters}, Vector2(fx * tile - half, fy * tile - half), 0.5):
 				continue
@@ -107,3 +112,10 @@ static func _pick(map: IslandMap, x: int, y: int, roll: float, variant: float) -
 			if roll < 0.05:
 				return "rock"
 	return ""
+
+
+static func _near_relic(map: IslandMap, p: Vector2) -> bool:
+	for key: String in RELIC_CLEARANCE:
+		if map.relics.has(key) and p.distance_to(map.relics[key]) < float(RELIC_CLEARANCE[key]):
+			return true
+	return false

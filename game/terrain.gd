@@ -1,6 +1,6 @@
 class_name Terrain
 extends RefCounted
-## Меши острова и воды из IslandMap. Low-poly: плоская нормаль на треугольник, цвет по биому.
+## Меш острова из IslandMap: гладкое освещение (общие вершины, сглаженные нормали), цвет по биому.
 
 const COLORS := {
 	IslandMap.Biome.SEA: Color("#d6c296"), # дно под водой (у берега; глубже темнеет)
@@ -17,19 +17,50 @@ const SNOW := Color("#efeee8")
 ## Крутые склоны (перепад высоты к соседям, на клетку) окрашиваются камнем.
 const CLIFF_SLOPE := 1.1
 const CLIFF := Color("#776e63")
-## Разброс яркости между вершинами — «живой» мультяшный ландшафт вместо ровной заливки.
-const JITTER := 0.06
+## Лёгкий разброс яркости между вершинами — чтобы большие поля не были ровной заливкой.
+const JITTER := 0.025
 
 
 ## Меш ландшафта с коллизией (по ней рука находит точку под курсором).
+## Вершины общие для соседних треугольников, нормаль — по перепаду высот вокруг вершины:
+## освещение плавное, без видимых граней треугольников.
 static func build_terrain(map: IslandMap, tile: float = 1.0) -> MeshInstance3D:
 	var half: float = (map.size - 1) * tile / 2.0
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var count := map.size * map.size
+	var vertices := PackedVector3Array()
+	var normals := PackedVector3Array()
+	var colors := PackedColorArray()
+	vertices.resize(count)
+	normals.resize(count)
+	colors.resize(count)
+	for y in map.size:
+		for x in map.size:
+			var i := y * map.size + x
+			vertices[i] = Vector3(x * tile - half, map.height_at(x, y), y * tile - half)
+			normals[i] = normal_at(map, x, y, tile)
+			# Цвета палитры заданы в sRGB, а цвет вершин шейдер берёт как линейный — переводим явно
+			# (флаг vertex_color_is_srgb в рендерере Compatibility на 4.7.2 видимого эффекта не дал).
+			colors[i] = _color_at(map, Vector2i(x, y)).srgb_to_linear()
+	var indices := PackedInt32Array()
+	indices.resize((map.size - 1) * (map.size - 1) * 6)
+	var k := 0
 	for y in map.size - 1:
 		for x in map.size - 1:
-			_add_triangle(st, map, tile, half, [Vector2i(x, y), Vector2i(x + 1, y), Vector2i(x, y + 1)])
-			_add_triangle(st, map, tile, half, [Vector2i(x + 1, y), Vector2i(x + 1, y + 1), Vector2i(x, y + 1)])
+			var a := y * map.size + x
+			var b := a + 1
+			var c := a + map.size
+			var d := c + 1
+			for v: int in [a, b, c, b, d, c]:
+				indices[k] = v
+				k += 1
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_COLOR] = colors
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 
 	var mat := StandardMaterial3D.new()
 	mat.vertex_color_use_as_albedo = true
@@ -38,25 +69,19 @@ static func build_terrain(map: IslandMap, tile: float = 1.0) -> MeshInstance3D:
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 
 	var mesh_instance := MeshInstance3D.new()
-	mesh_instance.mesh = st.commit()
+	mesh_instance.mesh = mesh
 	mesh_instance.material_override = mat
 	mesh_instance.create_trimesh_collision()
 	return mesh_instance
 
 
-static func _add_triangle(st: SurfaceTool, map: IslandMap, tile: float, half: float, cells: Array[Vector2i]) -> void:
-	var points: Array[Vector3] = []
-	for c in cells:
-		points.append(Vector3(c.x * tile - half, map.height_at(c.x, c.y), c.y * tile - half))
-	var normal := (points[1] - points[0]).cross(points[2] - points[0]).normalized()
-	if normal.y < 0.0:
-		normal = -normal
-	for i in cells.size():
-		st.set_normal(normal)
-		# Цвета палитры заданы в sRGB, а цвет вершин шейдер берёт как линейный — переводим явно
-		# (флаг vertex_color_is_srgb в рендерере Compatibility на 4.7.2 видимого эффекта не дал).
-		st.set_color(_color_at(map, cells[i]).srgb_to_linear())
-		st.add_vertex(points[i])
+## Сглаженная нормаль в узле сетки (центральные разности высот).
+static func normal_at(map: IslandMap, x: int, y: int, tile: float = 1.0) -> Vector3:
+	var left := map.height_at(maxi(x - 1, 0), y)
+	var right := map.height_at(mini(x + 1, map.size - 1), y)
+	var up := map.height_at(x, maxi(y - 1, 0))
+	var down := map.height_at(x, mini(y + 1, map.size - 1))
+	return Vector3(left - right, 2.0 * tile, up - down).normalized()
 
 
 static func _color_at(map: IslandMap, c: Vector2i) -> Color:

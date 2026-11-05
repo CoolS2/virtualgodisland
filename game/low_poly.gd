@@ -15,8 +15,6 @@ const CLOUD := Color("#ffffff")
 const STONE := Color("#a3a09a")
 const BRANCH := Color("#7a4e2d")
 const FRUIT := Color("#e0483e")
-const SKIN := Color("#f2c49b")
-const SLEEVE := Color("#efe9d8")
 const SHIRT := Color("#3f8fd8")
 const PANTS := Color("#7a5a3c")
 const HAIR := Color("#5a3820")
@@ -108,22 +106,6 @@ static func fruit_item() -> ArrayMesh:
 	return st.commit()
 
 
-## Ладонь руки бога (смотрит вниз, пальцы вдоль -Z) с манжетой рукава.
-static func hand_palm() -> ArrayMesh:
-	var st := _begin()
-	_add(st, BoxMesh.new(), _at(Vector3.ZERO, Vector3(1.2, 0.4, 1.3)), SKIN)
-	_add(st, _cylinder(0.55, 0.6, 0.7, 8), _at(Vector3(0, 0.05, 0.95), Vector3(1.0, 1.0, 0.75), Vector3(PI / 2, 0, 0)), SLEEVE)
-	return st.commit()
-
-
-## Палец: от начала координат (сустав) вдоль -Z.
-static func hand_finger(length: float) -> ArrayMesh:
-	var st := _begin()
-	_add(st, _cylinder(0.12, 0.14, length, 6), _at(Vector3(0, 0, -length / 2.0), Vector3.ONE, Vector3(-PI / 2, 0, 0)), SKIN)
-	_add(st, _sphere(0.12, 6, 3), _at(Vector3(0, 0, -length)), SKIN)
-	return st.commit()
-
-
 ## Кострище: кольцо камней и сложенные шалашом поленья (пламя — отдельно, см. StructuresView).
 static func campfire() -> ArrayMesh:
 	var st := _begin()
@@ -198,34 +180,10 @@ static func obelisk_runes() -> ArrayMesh:
 ## Подсказки к тайнам — маленькие, приглушённые, наполовину в земле.
 static func hint(kind: String) -> ArrayMesh:
 	var st := _begin()
-	var dull := Color("#7d7468")
 	match kind:
-		"fruit_core":
-			_add(st, _cylinder(0.05, 0.05, 0.22, 5), _at(Vector3(0, 0.1, 0), Vector3.ONE, Vector3(0, 0, PI / 2)), Color("#c9b27a"))
-			_add(st, _sphere(0.07, 5, 3), _at(Vector3(0.12, 0.1, 0)), Color("#b0563f"))
 		"burnt_tree":
 			_add(st, _cylinder(0.1, 0.2, 1.8, 5), _at(Vector3(0, 0.9, 0), Vector3.ONE, Vector3(0.1, 0, 0.08)), Color("#2b2522"))
 			_add(st, _cylinder(0.03, 0.06, 0.7, 4), _at(Vector3(0.25, 1.3, 0), Vector3.ONE, Vector3(0, 0, -0.9)), Color("#2b2522"))
-		"fish_bones":
-			_add(st, BoxMesh.new(), _at(Vector3(0, 0.03, 0), Vector3(0.8, 0.03, 0.04)), Color("#e8e2d2"))
-			for i in 4:
-				_add(st, BoxMesh.new(), _at(Vector3(-0.25 + i * 0.15, 0.03, 0), Vector3(0.03, 0.03, 0.3)), Color("#e8e2d2"))
-			_add(st, _sphere(0.1, 5, 3), _at(Vector3(0.45, 0.05, 0), Vector3(1.3, 0.6, 1.0)), Color("#e8e2d2"))
-		"stone_circle":
-			for i in 6:
-				var a := TAU * i / 6.0
-				_add(st, _sphere(0.18, 5, 3), _at(Vector3(cos(a) * 1.0, 0.06, sin(a) * 1.0), Vector3(1, 1.4, 1)), Color("#7f8a74"))
-		"ruins":
-			_add(st, BoxMesh.new(), _at(Vector3(0, 0.12, -1.0), Vector3(2.2, 0.3, 0.25)), dull)
-			_add(st, BoxMesh.new(), _at(Vector3(-1.0, 0.1, 0.0), Vector3(0.25, 0.22, 1.8)), dull)
-			_add(st, BoxMesh.new(), _at(Vector3(0.6, 0.08, 1.0), Vector3(0.9, 0.18, 0.25)), dull)
-		"torch_stub":
-			_add(st, _sphere(0.25, 5, 3), _at(Vector3(0, 0.1, 0), Vector3(1.2, 0.6, 1.0)), ROCK)
-			_add(st, _cylinder(0.04, 0.05, 0.5, 4), _at(Vector3(0.1, 0.35, 0), Vector3.ONE, Vector3(0, 0, 0.5)), BRANCH)
-			_add(st, _sphere(0.07, 4, 3), _at(Vector3(-0.02, 0.58, 0)), Color("#1d1a18"))
-		"raft_wreck":
-			_add(st, _cylinder(0.13, 0.13, 1.6, 6), _at(Vector3(0, 0.06, 0), Vector3.ONE, Vector3(PI / 2, 0.4, 0)), BRANCH.darkened(0.2))
-			_add(st, _cylinder(0.12, 0.12, 1.2, 6), _at(Vector3(0.35, 0.05, 0.1), Vector3.ONE, Vector3(PI / 2, -0.3, 0)), BRANCH.darkened(0.25))
 	return st.commit()
 
 

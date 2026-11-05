@@ -9,8 +9,6 @@ const WELCOME_MAX_LINES := 14
 ## Бросок: скорость руки × GAIN + подброс вверх (чтобы бросок «летел», а не падал).
 const THROW_GAIN := 1.3
 const THROW_LIFT := 3.0
-## Короткий клик по человеку — выделить; удержать дольше — взять рукой.
-const HOLD_TO_GRAB := 0.25
 const MENU_SCENE := "res://game/menu.tscn"
 const MIRACLE_KEYS := {KEY_1: "rain", KEY_2: "fish", KEY_3: "lightning"}
 const MIRACLE_NAMES := {"rain": "Дождь", "fish": "Рыба к берегу", "lightning": "Молния"}
@@ -40,12 +38,11 @@ var _world: Dictionary
 var _terrain: Node3D
 var _decorations: Node3D
 var hud: Hud
-var _pending_person := -1
-var _press_time := 0.0
 var _people_seen := 0
 var _offline_ticks: int
 var _since_update := 0.0
 var _mysteries_seen := 0
+var _found_seen := 0
 var _game_over_shown := false
 
 
@@ -67,6 +64,7 @@ func _ready() -> void:
 		WorldEngine.step(_world, map) # новый мир: человек и предметы появляются сразу
 	_mysteries_seen = (_world["mysteries"] as Array).size()
 	_people_seen = (_world["people"] as Array).size()
+	_found_seen = (_world["found"] as Array).size()
 
 	daylight = Daylight.new()
 	add_child(daylight)
@@ -83,7 +81,9 @@ func _ready() -> void:
 	add_child(_decorations)
 	add_child(Clouds.new(_world["seed"]))
 	camera_rig = CameraRig.new()
+	camera_rig.map = map
 	add_child(camera_rig)
+	camera_rig.right_clicked.connect(_on_right_click)
 	hand = Hand.new()
 	add_child(hand)
 	hand.grab_pressed.connect(pick_item_at)
@@ -100,6 +100,7 @@ func _ready() -> void:
 	hints_view = HintsView.new()
 	hints_view.build(map)
 	add_child(hints_view)
+	hints_view.sync(_world)
 	hud = Hud.new()
 	add_child(hud)
 	hud.mysteries_pressed.connect(func() -> void: ui.toggle_mysteries(_world))
@@ -116,11 +117,6 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	if _pending_person >= 0:
-		_press_time += delta
-		if _press_time >= HOLD_TO_GRAB and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
-			_grab_person(_pending_person)
-			_pending_person = -1
 	for h: Dictionary in _world["people"]:
 		if people_views.has(h["id"]):
 			(people_views[h["id"]] as HumanView).show_state(h, delta, Human.age(h, int(_world["tick"])))
@@ -146,7 +142,12 @@ func _process(delta: float) -> void:
 func refresh_world_view() -> void:
 	items_view.sync(_world)
 	structures_view.sync(_world)
+	hints_view.sync(_world)
 	_sync_people()
+	var found: Array = _world["found"]
+	if found.size() > _found_seen:
+		_show_message("Находка: %s" % Hints.discovery_text(found.back()))
+		_found_seen = found.size()
 	var solved: Array = _world["mysteries"]
 	if solved.size() > _mysteries_seen:
 		_show_message("Тайна раскрыта: %s! (%d/%d)" % [Mysteries.name_of(solved.back()), solved.size(), Mysteries.LIST.size()])
@@ -277,17 +278,24 @@ func _unhandled_input(event: InputEvent) -> void:
 	var key := event as InputEventKey
 	if not key or not key.pressed or key.echo:
 		return
-	if key.keycode == KEY_ESCAPE:
+	# Физические клавиши — работают и в русской раскладке.
+	var code := key.physical_keycode
+	if code == KEY_ESCAPE:
 		hud.close_overlays()
-	elif key.keycode == KEY_F:
+	elif code == KEY_F:
 		toggle_follow()
-	elif key.keycode == KEY_M:
+	elif code == KEY_M:
 		ui.toggle_mysteries(_world)
-	elif MIRACLE_KEYS.has(key.keycode) and hand.has_ground():
+	elif MIRACLE_KEYS.has(code) and hand.has_ground():
 		var p := hand.ground_point()
-		cast_miracle(MIRACLE_KEYS[key.keycode], Vector2(p.x, p.z))
-	elif (key.keycode == KEY_E or key.keycode == KEY_Q) and _hand_near_human():
-		touch_human("pet" if key.keycode == KEY_E else "slap")
+		cast_miracle(MIRACLE_KEYS[code], Vector2(p.x, p.z))
+	elif (code == KEY_E or code == KEY_Q) and _hand_near_human():
+		touch_human("pet" if code == KEY_E else "slap")
+
+
+## Правый щелчок: по человеку — карточка с параметрами, мимо — закрыть карточку.
+func _on_right_click() -> void:
+	select_person(-1 if _person_near_hand().is_empty() else int(_person_near_hand()["id"]))
 
 
 ## Чудо в мировой точке: sim решает, хватает ли маны и кто видел; здесь — эффекты и сообщения.
@@ -382,8 +390,7 @@ func pick_item_at(point: Vector3) -> bool:
 		return false
 	var h := Human.nearest(_world, Vector2(point.x, point.z), TOUCH_RADIUS)
 	if not h.is_empty():
-		_pending_person = h["id"]
-		_press_time = 0.0
+		_grab_person(h["id"])
 		return false
 	var id := Items.find_near(_world, point)
 	if id < 0 or not Items.pick_up(_world, id):
@@ -394,10 +401,6 @@ func pick_item_at(point: Vector3) -> bool:
 
 
 func _on_grab_released(origin: Vector3, velocity: Vector3) -> void:
-	if _pending_person >= 0:
-		select_person(_pending_person)
-		_pending_person = -1
-		return
 	hand.holding = false
 	var throw_velocity := velocity * THROW_GAIN + Vector3.UP * THROW_LIFT
 	var held := Human.held_person(_world)

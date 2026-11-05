@@ -17,6 +17,7 @@ extends RefCounted
 ##   mana: float          — мана бога (sim/miracles.gd)
 ##   craters: Array       — кратеры (sim/craters.gd)
 ##   mysteries, fire, camp, shrine, cave, raft, fish_eaten — тайны (sim/mysteries.gd)
+##   found: Array[String] — найденные людьми следы прошлого (ключи Hints.DISCOVERABLE)
 
 ## 1 тик = 1 реальная минута.
 const TICK_MS := 60_000
@@ -66,6 +67,7 @@ static func create_world(world_seed: int, now_ms: int, options: Dictionary = {})
 		"mysteries": [],
 		"fire": {}, "camp": {}, "shrine": {}, "house": {}, "cave": {}, "raft": {},
 		"fish_eaten": 0,
+		"found": [],
 	}
 
 
@@ -191,7 +193,7 @@ static func from_data(data: Variant) -> Dictionary:
 		"items_spawned": bool(d.get("items_spawned", false)),
 		"mana": float(d.get("mana", Miracles.MANA_START)),
 		"craters": Craters.from_data(d.get("craters", [])),
-		"mysteries": _mysteries_from_data(d.get("mysteries", [])),
+		"mysteries": _strings_from_data(d.get("mysteries", [])),
 		"fire": Mysteries.structure_from_data(d.get("fire")),
 		"camp": Mysteries.structure_from_data(d.get("camp")),
 		"shrine": Mysteries.structure_from_data(d.get("shrine")),
@@ -199,6 +201,7 @@ static func from_data(data: Variant) -> Dictionary:
 		"cave": Mysteries.structure_from_data(d.get("cave")),
 		"raft": Mysteries.structure_from_data(d.get("raft")),
 		"fish_eaten": int(d.get("fish_eaten", 0)),
+		"found": _strings_from_data(d.get("found", [])),
 	}
 
 
@@ -253,7 +256,8 @@ static func _knowledge_from_data(data: Variant) -> Array:
 	return result
 
 
-static func _mysteries_from_data(data: Variant) -> Array:
+## Список строк без повторов (раскрытые тайны, находки).
+static func _strings_from_data(data: Variant) -> Array:
 	var result: Array = []
 	if typeof(data) == TYPE_ARRAY:
 		for entry: Variant in data:

@@ -5,23 +5,25 @@ extends Node3D
 ## (sim двигает людей рывком раз в тик-минуту). Подпись действия над головой, всплывающие реакции.
 
 const WALK_SPEED := 1.3
-## Если отстал сильнее (например, после офлайна) — переносимся сразу.
-const TELEPORT_DISTANCE := 40.0
+## Если отстал сильнее (например, после офлайна) — переносимся сразу. Больше, чем проходит за тик (sim — 60).
+const TELEPORT_DISTANCE := 90.0
 ## С этого голода над человеком «голоден…» — подсказка игроку, что еды он не нашёл.
 const HUNGRY_LABEL := 60.0
 const ACTION_LABELS := {
-	"idle": "думает", "wander": "гуляет", "drink": "пьёт", "eat": "ест", "sleep": "спит", "build": "строит",
+	"idle": "думает", "wander": "гуляет", "explore": "исследует", "drink": "пьёт", "eat": "ест", "sleep": "спит", "build": "строит",
 }
-## Модели по полу; вариант выбирается по id человека.
+## Модели по полу (без головных уборов); вариант выбирается по id человека.
 const MODELS := {
-	"m": ["res://assets/models/characters/Casual_Male.gltf", "res://assets/models/characters/Worker_Male.gltf"],
-	"f": ["res://assets/models/characters/Casual_Female.gltf", "res://assets/models/characters/Worker_Female.gltf"],
+	"m": ["res://assets/models/characters/Casual_Male.gltf", "res://assets/models/characters/Casual2_Male.gltf",
+		"res://assets/models/characters/Casual3_Male.gltf"],
+	"f": ["res://assets/models/characters/Casual_Female.gltf", "res://assets/models/characters/Casual2_Female.gltf",
+		"res://assets/models/characters/Casual3_Female.gltf"],
 }
 ## Модель ~3.3 ед. роста → взрослый ~1.6.
 const MODEL_SCALE := 0.48
 ## Состояние → анимация пака (сна и еды в паке нет — ближайшие по смыслу).
 const ANIMATIONS := {
-	"walk": "Walk", "idle": "Idle", "wander": "Idle", "drink": "PickUp", "eat": "PickUp", "build": "Punch",
+	"walk": "Walk", "idle": "Idle", "wander": "Idle", "explore": "Idle", "drink": "PickUp", "eat": "PickUp", "build": "Punch",
 	"sleep": "Death", "dead": "Death", "held": "Jump", "sad": "Defeat", "scared": "RecieveHit",
 }
 ## Анимации, которые не повторяются, а замирают на последнем кадре (лёг спать / упал).
@@ -155,13 +157,13 @@ func show_state(h: Dictionary, delta: float, age: float = Human.START_AGE) -> vo
 	var action: String = h["action"]
 	var mood := Human.mood(h)
 	var state := "walk" if walking else ("dead" if not h["alive"] else action)
-	if state == "idle" or state == "wander":
+	if Human.FREE_ACTIONS.has(state):
 		if mood == "sad" or mood == "scared":
 			state = mood
 	if _current != "RecieveHit" or not _player.is_playing():
 		_play(ANIMATIONS.get(state, "Idle"))
 	_label.text = "Zzz" if action == "sleep" and h["alive"] else ("" if not h["alive"] else ACTION_LABELS.get(action, ""))
-	if h["alive"] and (action == "idle" or action == "wander") and float(h["hunger"]) >= HUNGRY_LABEL:
+	if h["alive"] and Human.FREE_ACTIONS.has(action) and float(h["hunger"]) >= HUNGRY_LABEL:
 		_label.text = "голоден…"
 
 

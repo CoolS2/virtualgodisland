@@ -64,6 +64,9 @@ func _build_island() -> void:
 	if waterfall:
 		world.add_child(waterfall)
 	world.add_child(Decorations.build(map, island_seed))
+	var relics := HintsView.new()
+	relics.build(map)
+	world.add_child(relics)
 	world.add_child(Clouds.new(island_seed))
 	_camera = Camera3D.new()
 	_camera.fov = 50.0

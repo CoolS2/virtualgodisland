@@ -23,11 +23,13 @@ const SHRINE_FAITH := 80.0
 const RAFT_LOVE := 70.0
 const RAFT_BRANCHES := 10
 const RAFT_GATHER_RADIUS := 8.0
-## Дом: у лагеря собраны ветки и камни (их приносит бог).
+## Дом отстраивают на развалинах старого дома: там собраны ветки и камни (их приносит бог).
 const HOUSE_BRANCHES := 8
 const HOUSE_STONES := 6
 ## Ветка, упавшая так близко к огню ночью, становится факелом.
 const TORCH_RADIUS := 2.0
+## Молния так близко к потухшему кострищу снова разжигает его (огонь — на месте кострища).
+const RELIGHT_RADIUS := 4.0
 
 
 static func is_solved(w: Dictionary, id: String) -> bool:
@@ -65,7 +67,7 @@ static func update(w: Dictionary, map: IslandMap) -> void:
 	# Строит свободный взрослый (первый по порядку появления — детерминированно).
 	var builder := {}
 	for h: Dictionary in people:
-		if not h["held"] and (h["action"] == "idle" or h["action"] == "wander") and Human.is_adult(h, tick):
+		if not h["held"] and Human.FREE_ACTIONS.has(h["action"]) and Human.is_adult(h, tick):
 			builder = h
 			break
 	if builder.is_empty() or _someone_builds(people):
@@ -76,14 +78,31 @@ static func update(w: Dictionary, map: IslandMap) -> void:
 			Human.start_build(builder, "camp", _pos(w["fire"]))
 		return
 	var camp := _pos(w["camp"])
+	var house_spot := house_site(w, map)
 	if not is_solved(w, "shrine") and _max(people, "faith") >= SHRINE_FAITH:
-		var spot := camp + Vector2(3, 0)
-		Human.start_build(builder, "shrine", spot if map.biome_at_world(spot.x, spot.y) != IslandMap.Biome.SEA else camp)
-	elif not is_solved(w, "house") and _near(w, camp, "branch").size() >= HOUSE_BRANCHES and _near(w, camp, "stone").size() >= HOUSE_STONES:
-		var spot := camp + Vector2(-3, 2)
-		Human.start_build(builder, "house", spot if map.biome_at_world(spot.x, spot.y) != IslandMap.Biome.SEA else camp)
+		Human.start_build(builder, "shrine", shrine_site(w, map))
+	elif not is_solved(w, "house") and _near(w, house_spot, "branch").size() >= HOUSE_BRANCHES \
+			and _near(w, house_spot, "stone").size() >= HOUSE_STONES:
+		Human.start_build(builder, "house", house_spot)
 	elif not is_solved(w, "raft") and _max(people, "love") >= RAFT_LOVE and _branches_near(w, camp).size() >= RAFT_BRANCHES:
-		Human.start_build(builder, "raft", Miracles.nearest_beach(map, camp))
+		var wreck: Vector2 = map.relics.get("raft_wreck", camp)
+		Human.start_build(builder, "raft", Miracles.nearest_beach(map, wreck))
+
+
+## Где отстраивают дом: на развалинах (нет развалин — у лагеря).
+static func house_site(w: Dictionary, map: IslandMap) -> Vector2:
+	if map.relics.has("ruins"):
+		return map.relics["ruins"]
+	var spot := _pos(w["camp"]) + Vector2(-3, 2)
+	return spot if map.biome_at_world(spot.x, spot.y) != IslandMap.Biome.SEA else _pos(w["camp"])
+
+
+## Где ставят алтарь: в старом святилище (нет — у лагеря).
+static func shrine_site(w: Dictionary, map: IslandMap) -> Vector2:
+	if map.relics.has("stone_circle"):
+		return map.relics["stone_circle"]
+	var spot := _pos(w["camp"]) + Vector2(3, 0)
+	return spot if map.biome_at_world(spot.x, spot.y) != IslandMap.Biome.SEA else _pos(w["camp"])
 
 
 static func _someone_builds(people: Array) -> bool:
@@ -117,9 +136,8 @@ static func complete_build(w: Dictionary, kind: String, at: Vector2) -> void:
 		"shrine":
 			w["shrine"] = _dict(at)
 		"house":
-			var camp := _pos(w["camp"])
-			var branches := _near(w, camp, "branch")
-			var stones := _near(w, camp, "stone")
+			var branches := _near(w, at, "branch")
+			var stones := _near(w, at, "stone")
 			if branches.size() < HOUSE_BRANCHES or stones.size() < HOUSE_STONES:
 				return # материалы успели разбросать
 			for i in HOUSE_BRANCHES:
@@ -138,9 +156,14 @@ static func complete_build(w: Dictionary, kind: String, at: Vector2) -> void:
 	solve(w, kind)
 
 
-## Молния в лес — огонь (один на мир).
+## Молния в лес — огонь; молния в потухшее кострище — оно снова горит (огонь один на мир).
 static func on_lightning(w: Dictionary, map: IslandMap, point: Vector2) -> void:
-	if (w["fire"] as Dictionary).is_empty() and map.biome_at_world(point.x, point.y) == IslandMap.Biome.FOREST:
+	if not (w["fire"] as Dictionary).is_empty():
+		return
+	if map.relics.has("old_hearth") and point.distance_to(map.relics["old_hearth"]) <= RELIGHT_RADIUS:
+		w["fire"] = _dict(map.relics["old_hearth"])
+		WorldEngine.add_log(w, "молния ударила в старое кострище — оно снова горит")
+	elif map.biome_at_world(point.x, point.y) == IslandMap.Biome.FOREST:
 		w["fire"] = _dict(point)
 		WorldEngine.add_log(w, "молния подожгла лес — горит огонь")
 
@@ -155,7 +178,9 @@ static func on_item_landed(w: Dictionary, map: IslandMap, item: Dictionary) -> b
 	if fire.distance_to(Vector2(item["x"], item["z"])) > TORCH_RADIUS:
 		return false
 	(w["items"] as Array).erase(item)
-	w["cave"] = _dict(_cave_spot(map, fire))
+	# Пещера открывается у старой шахты (нет шахты — ближе к огню).
+	var mine: Vector2 = map.relics.get("torch_stub", fire)
+	w["cave"] = _dict(_cave_spot(map, mine))
 	solve(w, "cave")
 	return true
 

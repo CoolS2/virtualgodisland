@@ -17,6 +17,8 @@ var river := PackedInt32Array()
 var river_levels := PackedFloat64Array()
 ## Водопад: индекс в river верхней точки уступа (вода падает к river[waterfall + 1]); -1 — нет.
 var waterfall := -1
+## Следы прошлого и обелиск: {"ключ": Vector2 в мировых координатах} (Hints.place, заполняет генератор).
+var relics := {}
 
 
 ## Уровень моря (поверхность воды) в мировых координатах.

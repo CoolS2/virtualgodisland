@@ -33,9 +33,9 @@ buttonLong_brown, buttonLong_brown_pressed, buttonLong_grey, panelInset_beige (R
 
 | Пак | Папка | Используется |
 |---|---|---|
-| Survival Kit 2.0 | `assets/models/survival` | ели (tree, tree-tall), камни (rock-a/b/c), трава, костёр (campfire-pit), палатка (tent), предметы: камень (resource-stone), бревно (tree-log-small) |
-| Pirate Kit | `assets/models/pirate` | пальмы (palm-bend/straight), кусты и трава (grass-plant, grass), плот (boat-row-small), подсказка «обломки корабля» (ship-wreck) |
-| Fantasy Town Kit 2.0 | `assets/models/town` | лиственные деревья (tree, tree-high-round), дом из стен (wall-wood, -door, -window-shutters) и крыши (roof-gable), подсказка «развалины» (wall-wood-broken) |
+| Survival Kit 2.0 | `assets/models/survival` | ели (tree, tree-tall), камни (rock-a/b/c, rock-flat-grass), трава, костёр (campfire-pit), палатка (tent), предметы: камень (resource-stone), бревно (tree-log-small); следы прошлого: кирка, лопата (tool-pickaxe, tool-shovel), бочка, ящик, ведро (barrel, box-open, bucket) |
+| Pirate Kit | `assets/models/pirate` | пальмы (palm-bend/straight), кусты и трава (grass-plant, grass), плот (boat-row-small), обломки корабля (ship-wreck) с сундуком, ящиком и бочкой (chest, crate, barrel) |
+| Fantasy Town Kit 2.0 | `assets/models/town` | лиственные деревья (tree, tree-high-round), дом из стен (wall-wood, -door, -window-shutters) и крыши (roof-gable); развалины и святилище: каменные стены (wall-broken, wall-half), колонны (pillar-stone), валуны (rock-large), телега, колесо, сломанный забор (cart, wheel, fence-broken) |
 | Food Kit | `assets/models/food` | яблоко (фрукт), рыба, подсказки: половинка яблока, рыбьи кости |
 
 Палитры (`Textures/colormap.png`) **перекрашены** под природную гамму (мятные зелёные → оливковые):
@@ -45,8 +45,8 @@ buttonLong_brown, buttonLong_brown_pressed, buttonLong_grey, panelInset_beige (R
 
 **Quaternius — Ultimate Animated Character Pack** (quaternius.com/packs/ultimatedanimatedcharacter.html), лицензия
 **CC0** (указана на странице пака; файла лицензии в архиве нет). Архив загрузил владелец (`assets/character.zip`,
-коммит `d8504fb`, 52 персонажа). В проект скопированы 4: `Casual_Male`, `Worker_Male`, `Casual_Female`,
-`Worker_Female` (`assets/models/characters/*.gltf`, данные встроены). Анимации пака: Death, Defeat, Idle, Jump,
+коммит `d8504fb`, 52 персонажа). В проект скопированы 6: `Casual_Male`, `Casual2_Male`, `Casual3_Male`, `Casual_Female`,
+`Casual2_Female`, `Casual3_Female` (Worker — в каске — убраны) (`assets/models/characters/*.gltf`, данные встроены). Анимации пака: Death, Defeat, Idle, Jump,
 PickUp, Punch, RecieveHit, Roll, Run, Run_Carry, Shoot_OneHanded, SitDown, StandUp, SwordSlash, Walk, Walk_Carry.
 Цвет кожи, волос, рубашки задаётся в игре (`game/human_view.gd`).
 

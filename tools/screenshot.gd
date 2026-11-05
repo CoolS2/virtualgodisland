@@ -27,6 +27,10 @@ func _ready() -> void:
 		views.append(func() -> Array: return view)
 	views.append(_river_view.bind(map))
 	views.append(_waterfall_view.bind(map))
+	views.append(_relic_view.bind(map, "ruins", 0.45, 26.0))
+	views.append(_relic_view.bind(map, "stone_circle", 0.4, 16.0))
+	views.append(_relic_view.bind(map, "raft_wreck", 0.35, 22.0))
+	views.append(_relic_view.bind(map, "torch_stub", 0.35, 14.0))
 	views.append(_human_view.bind(main))
 	views.append(_family_view.bind(main))
 	views.append(_miracles_view.bind(main))
@@ -73,6 +77,15 @@ func _waterfall_view(map: IslandMap) -> Array:
 	var downstream: Vector3 = points[mini(map.waterfall + 8, points.size() - 1)]
 	var target := Vector3(top.x, (top.y + points[map.waterfall + 1].y) / 2.0, top.z)
 	return ["waterfall", atan2(downstream.x - top.x, downstream.z - top.z), 0.3, 24.0, target]
+
+
+## След прошлого (map.relics) с камерой со стороны центра острова; файл — <ключ>.png.
+func _relic_view(map: IslandMap, key: String, pitch: float, distance: float) -> Array:
+	if map == null or not map.relics.has(key):
+		return []
+	var p: Vector2 = map.relics[key]
+	var target := Vector3(p.x, map.height_at_world(p.x, p.y) + 1.0, p.y)
+	return [key, atan2(-p.x, -p.y), pitch, distance, target]
 
 
 ## Человечек крупным планом, лицом к камере. Для кадра ставим его на открытое место в поле
