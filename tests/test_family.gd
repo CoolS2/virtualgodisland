@@ -59,20 +59,21 @@ func test_newcomer_arrives_after_house_with_opposite_sex() -> void:
 	assert_eq(int(w["newcomer_due"]), -1, "второй раз не приплывает")
 
 
-func test_two_adults_near_each_other_become_a_pair() -> void:
+## Двое одиноких взрослых сами держатся вместе и за несколько игровых дней становятся парой.
+func test_two_adults_become_a_pair_on_their_own() -> void:
 	var w := _world()
 	_with_house(w)
 	_run(w, Family.NEWCOMER_DELAY + 1)
 	var a: Dictionary = Human.living(w)[0]
 	var b: Dictionary = Human.living(w)[1]
-	# 0.5 за тик (у дома — вдвое быстрее): 100 привязанности — не дольше 200 тиков, берём с запасом.
-	for _i in 300:
-		b["x"] = a["x"] + 1.0
-		b["z"] = a["z"]
+	for _i in 3 * WorldClock.DAY_TICKS:
+		for h: Dictionary in Human.living(w):
+			h["hunger"] = 0.0
+			h["thirst"] = 0.0
 		WorldEngine.step(w, _map)
 		if int(a["partner_id"]) >= 0:
 			break
-	assert_eq(int(a["partner_id"]), int(b["id"]))
+	assert_eq(int(a["partner_id"]), int(b["id"]), "пара за 3 игровых дня; привязанность %.0f" % Family.bond(w, a, b))
 	assert_eq(int(b["partner_id"]), int(a["id"]))
 	assert_string_contains(str(w["log"]), "стали парой")
 

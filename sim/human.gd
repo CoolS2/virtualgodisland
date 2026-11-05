@@ -57,6 +57,8 @@ const START_AGE := 20.0
 ## С этого возраста — взрослый: строит, заводит пару. Дети гуляют рядом.
 const ADULT_AGE := 16.0
 const CHILD_WANDER_RADIUS := 5.0
+## Взрослые гуляют рядом с парой или с одиноким человеком противоположного пола.
+const COMPANION_WANDER_RADIUS := 6.0
 const LIFESPAN_MIN := 60.0
 const LIFESPAN_MAX := 75.0
 const SKILLS: Array[String] = ["forage", "build", "fish", "heal"]
@@ -214,6 +216,25 @@ static func held_person(w: Dictionary) -> Dictionary:
 		if h["held"]:
 			return h
 	return {}
+
+
+## С кем гулять рядом: партнёр, иначе ближайший одинокий взрослый противоположного пола; {} — ни с кем.
+static func _companion(w: Dictionary, h: Dictionary) -> Dictionary:
+	var partner := find_person(w, h["partner_id"])
+	if not partner.is_empty() and partner["alive"]:
+		return partner
+	if int(h["partner_id"]) >= 0:
+		return {}
+	var best := {}
+	var best_dist := INF
+	for other: Dictionary in living(w):
+		if other["sex"] == h["sex"] or int(other["partner_id"]) >= 0 or not is_adult(other, int(w["tick"])):
+			continue
+		var d := position_of(other).distance_to(position_of(h))
+		if d < best_dist:
+			best_dist = d
+			best = other
+	return best
 
 
 ## Глагол в прошедшем времени по полу: «съел» → «съела», «проснулся» → «проснулась».
@@ -408,7 +429,7 @@ static func _decide(w: Dictionary, map: IslandMap, h: Dictionary) -> void:
 				WorldEngine.add_log(w, "%s %s спать%s" % [h["name"], "легла" if h["sex"] == "f" else "лёг",
 					" в лагере" if not (w["camp"] as Dictionary).is_empty() else ""])
 		"wander":
-			# Ребёнок держится рядом с матерью.
+			# Ребёнок держится рядом с матерью; взрослый — рядом с парой (или с тем, кто может ею стать).
 			var center := position_of(h)
 			var reach := WANDER_RADIUS
 			if not is_adult(h, int(w["tick"])):
@@ -416,6 +437,11 @@ static func _decide(w: Dictionary, map: IslandMap, h: Dictionary) -> void:
 				if not mother.is_empty() and mother["alive"]:
 					center = position_of(mother)
 				reach = CHILD_WANDER_RADIUS
+			else:
+				var companion := _companion(w, h)
+				if not companion.is_empty():
+					center = position_of(companion)
+					reach = COMPANION_WANDER_RADIUS
 			for _i in WANDER_ATTEMPTS:
 				var angle: float = VgiRng.next_float(w) * TAU
 				var radius: float = VgiRng.next_float(w) * reach

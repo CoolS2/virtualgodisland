@@ -28,6 +28,7 @@ func _ready() -> void:
 	views.append(_river_view.bind(map))
 	views.append(_waterfall_view.bind(map))
 	views.append(_human_view.bind(main))
+	views.append(_family_view.bind(main))
 	views.append(_miracles_view.bind(main))
 	views.append(_night_camp_view.bind(main))
 	views.append(_obelisk_view.bind(main))
@@ -111,6 +112,32 @@ func _open_field(map: IslandMap) -> Vector2:
 			if ok:
 				best = p
 	return best
+
+
+## Семья (только превью): партнёр и ребёнок рядом с первым человеком, открыт список поселения и карточка.
+func _family_view(main: Node) -> Array:
+	var world: Dictionary = main.get("_world")
+	var map := main.get("island_map") as IslandMap
+	var first: Dictionary = world["people"][0]
+	var partner := Family.new_person(world, "f" if first["sex"] == "m" else "m")
+	var child := Family.new_person(world, "m")
+	for pair: Array in [[partner, Vector2(1.6, 0.4)], [child, Vector2(0.8, -1.2)]]:
+		var h: Dictionary = pair[0]
+		h["spawned"] = true
+		h["x"] = float(first["x"]) + pair[1].x
+		h["z"] = float(first["z"]) + pair[1].y
+		h["tx"] = h["x"]
+		h["tz"] = h["z"]
+	partner["partner_id"] = first["id"]
+	first["partner_id"] = partner["id"]
+	child["start_age"] = 5.0
+	child["mother_id"] = (first if first["sex"] == "f" else partner)["id"]
+	child["father_id"] = (partner if first["sex"] == "f" else first)["id"]
+	main.call("refresh_world_view")
+	main.call("select_person", first["id"])
+	main.call("_render_hud")
+	var target := Vector3(first["x"], map.height_at_world(first["x"], first["z"]) + 1.0, first["z"])
+	return ["family", PI, 0.35, 10.0, target]
 
 
 ## Чудеса рядом с человечком: дождь над ним и молния в стороне (кратер, дым). Маны в превью ровно на два.

@@ -7,7 +7,7 @@ const NEWCOMER_DELAY := WorldClock.DAY_TICKS
 const NEWCOMER_AGE_MIN := 18.0
 const NEWCOMER_AGE_MAX := 26.0
 ## Привязанность растёт, пока двое взрослых рядом; у дома — вдвое быстрее.
-const BOND_RADIUS := 8.0
+const BOND_RADIUS := 12.0
 const BOND_PER_TICK := 0.5
 const HOUSE_BOND_BONUS := 2.0
 const HOUSE_RADIUS := 10.0
