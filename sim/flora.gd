@@ -17,7 +17,8 @@ const BOULDERS: Array[String] = ["rock"]
 const FRUIT_TREES: Array[String] = ["tree", "tree_dark", "palm"]
 ## Вокруг следов прошлого ничего не растёт — чтобы их было видно.
 const RELIC_CLEARANCE := {"ruins": 8.0, "stone_circle": 5.0, "old_hearth": 3.0, "obelisk": 3.5, "torch_stub": 3.5,
-	"raft_wreck": 6.5, "burnt_tree": 2.5, "fruit_core": 1.5, "fish_bones": 1.5}
+	"raft_wreck": 6.5, "burnt_tree": 2.5, "fruit_core": 1.5, "fish_bones": 1.5, "geyser": 4.0, "berry_grove": 4.5,
+	"glow_mushrooms": 3.5, "giant_nest": 3.5, "rock_arch": 5.0}
 const REGROW_TICKS := 3 * WorldClock.DAY_TICKS
 const SHAKE_COOLDOWN := 60
 const FELL_BRANCHES := 2
@@ -54,7 +55,7 @@ static func place(map: IslandMap) -> Dictionary:
 			if kind.is_empty() or map.slope_at(x, y) > MAX_SLOPE or _near_river(map, x, y):
 				continue
 			var p := Vector2(fx - half, fy - half)
-			if _near_relic(map, p):
+			if _near_relic(map, p) or _near_cache(map, p):
 				continue
 			var h := map.sample_height(fx, fy)
 			if h < MIN_HEIGHT:
@@ -208,6 +209,13 @@ static func _near_river(map: IslandMap, x: int, y: int) -> bool:
 			var ny: int = clampi(y + dy, 0, map.size - 1)
 			if map.biome_at(nx, ny) == IslandMap.Biome.RIVER:
 				return true
+	return false
+
+
+static func _near_cache(map: IslandMap, p: Vector2) -> bool:
+	for c: Dictionary in map.caches:
+		if p.distance_to(Vector2(c["x"], c["z"])) < 2.0:
+			return true
 	return false
 
 

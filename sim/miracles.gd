@@ -68,6 +68,8 @@ static func cast(w: Dictionary, map: IslandMap, kind: String, point: Vector2) ->
 					Human.scare(h, LIGHTNING_FEAR)
 	for h: Dictionary in witnesses:
 		Human.add_faith(h, FAITH_PER_MIRACLE)
+		if kind == "rain":
+			Human.fulfil_wish(w, h, "rain")
 	return {"ok": true, "reason": "", "seen": not witnesses.is_empty(), "at": at}
 
 

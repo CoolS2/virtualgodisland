@@ -7,15 +7,18 @@ extends RefCounted
 ## Бросок (ADR-0006): полёт считается сразу целиком с фиксированным шагом — детерминированно,
 ## без физики движка. Мир хранит только итог; траекторию возвращаем для анимации в game/.
 
-const KINDS: Array[String] = ["stone", "branch", "fruit", "fish"]
+const KINDS: Array[String] = ["stone", "branch", "fruit", "fish", "egg"]
 ## Сытность еды (сколько голода снимает).
-const FOOD := {"fruit": 35.0, "fish": 50.0}
+const FOOD := {"fruit": 35.0, "fish": 50.0, "egg": 60.0}
+## Еда в винительном падеже — для журнала («съел фрукт», «попробовал рыбу»).
+const FOOD_NAMES := {"fruit": "фрукт", "fish": "рыбу", "egg": "яйцо"}
 ## Сколько предметов каждого вида появляется на новом острове и в каких биомах.
 const SPAWN := {
 	"stone": [14, [IslandMap.Biome.BEACH, IslandMap.Biome.MOUNTAIN, IslandMap.Biome.FIELD]],
 	"branch": [16, [IslandMap.Biome.FOREST, IslandMap.Biome.BEACH]], # на пляже — выброшенные морем
 	"fruit": [10, [IslandMap.Biome.FIELD, IslandMap.Biome.FOREST]],
 	"fish": [0, []], # только чудом
+	"egg": [0, []], # только в гнезде огромной птицы
 }
 const SPAWN_SALT := 0x17E5
 const SPAWN_ATTEMPTS := 4000

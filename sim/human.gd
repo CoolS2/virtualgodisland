@@ -11,6 +11,7 @@ extends RefCounted
 ##   touch_tick: int — тик последнего «погладить/шлёпнуть» (не чаще раза в тик)
 ##   build_kind: String, work: int — что строит (тайны) и сколько тиков уже работает
 ##   study: String — какой след изучает (sim/studies.gd), "" — ничего
+##   wish: String — чего хочет ("" | ключ WISHES), wish_until: int — до какого тика; next_wish: int — когда захочет
 ##   name: String; sex: "m" | "f"; born_tick: int; start_age: float (лет при born_tick); lifespan: float (лет);
 ##   skills: {"forage", "build", "fish", "heal"} — множители 0.7..1.3 (кто-то лучше добывает еду, кто-то строит…)
 ##   cause: String — причина смерти ("" — жив)
@@ -81,6 +82,15 @@ const SATED := 5.0
 const RESTED := 95.0
 ## Ценность прогулки: потребность побеждает, когда её доля выше.
 const WANDER_SCORE := 0.3
+## Желания: раз в сутки взрослый чего-то хочет; исполнил бог за WISH_TICKS — вера и любовь растут, нет — огорчён.
+const WISHES := {"fruit": "хочет фруктов", "fish": "хочет рыбы", "pet": "хочет ласки", "rain": "хочет дождя"}
+const WISH_EVERY := WorldClock.DAY_TICKS
+const WISH_TICKS := 90
+## Первое желание — не сразу после появления.
+const WISH_FIRST := 40
+const WISH_FAITH := 15.0
+const WISH_LOVE := 10.0
+const WISH_LETDOWN := 3.0
 ## Исследовать остров (идти к ненайденным следам прошлого, потом — в дальние места) взрослому интереснее,
 ## чем гулять рядом; ребёнок и тот, кто держится рядом с парой, не исследуют.
 const EXPLORE_SCORE := 0.35
@@ -102,7 +112,7 @@ static func default_state() -> Dictionary:
 		"spawned": false, "x": 0.0, "z": 0.0,
 		"action": "idle", "tx": 0.0, "tz": 0.0, "target_item": -1, "stuck": 0,
 		"faith": 0.0, "love": 0.0, "fear": 0.0, "held": false, "touch_tick": -1,
-		"build_kind": "", "work": 0, "study": "",
+		"build_kind": "", "work": 0, "study": "", "wish": "", "wish_until": -1, "next_wish": -1,
 		"id": 1, "mother_id": -1, "father_id": -1, "partner_id": -1, "pregnant_until": -1,
 		"name": "", "sex": "m", "born_tick": 0, "start_age": START_AGE, "lifespan": LIFESPAN_MAX,
 		"skills": {"forage": 1.0, "build": 1.0, "fish": 1.0, "heal": 1.0}, "cause": "",
@@ -124,6 +134,8 @@ static func _update_one(w: Dictionary, map: IslandMap, h: Dictionary) -> void:
 	h["faith"] = maxf(0.0, h["faith"] - FAITH_DECAY)
 	if h["held"]:
 		return # в руке бога ничего не делает
+	var start := position_of(h)
+	_update_wish(w, h)
 	_try_self_learn(w, h)
 	match h["action"]:
 		"drink":
@@ -145,7 +157,8 @@ static func _update_one(w: Dictionary, map: IslandMap, h: Dictionary) -> void:
 						w["fish_eaten"] = int(w["fish_eaten"]) + 1
 						if int(w["fish_eaten"]) >= Mysteries.FISH_FOR_FISHERMAN:
 							Mysteries.solve(w, "fisherman")
-					WorldEngine.add_log(w, "%s %s %s" % [h["name"], _verb(h, "съел"), "рыбу" if item["kind"] == "fish" else "фрукт"])
+					WorldEngine.add_log(w, "%s %s %s" % [h["name"], _verb(h, "съел"), Items.FOOD_NAMES[item["kind"]]])
+					fulfil_wish(w, h, item["kind"])
 					_set_action(h, "idle")
 		"sleep":
 			if _move(h, map):
@@ -160,7 +173,7 @@ static func _update_one(w: Dictionary, map: IslandMap, h: Dictionary) -> void:
 		"build":
 			if _move(h, map):
 				h["work"] = int(h["work"]) + 1
-				if h["work"] >= build_ticks(h):
+				if h["work"] >= build_ticks(h, w):
 					var kind: String = h["build_kind"]
 					var at := Vector2(h["tx"], h["tz"])
 					_set_action(h, "idle")
@@ -174,6 +187,7 @@ static func _update_one(w: Dictionary, map: IslandMap, h: Dictionary) -> void:
 		"wander", "explore":
 			if _move(h, map):
 				_set_action(h, "idle")
+	Exploration.reveal_path(w, map, start, position_of(h))
 	_discover(w, map, h)
 	if FREE_ACTIONS.has(h["action"]):
 		_decide(w, map, h)
@@ -330,8 +344,10 @@ static func _verb(h: Dictionary, male: String) -> String:
 
 
 ## Тиков стройки с учётом навыка строителя (не меньше 1).
-static func build_ticks(h: Dictionary) -> int:
-	return maxi(1, ceili(Mysteries.BUILD_TICKS / float(h["skills"]["build"])))
+## С инструментами из тайника (world["bonuses"] has "tools") — вдвое быстрее.
+static func build_ticks(h: Dictionary, w: Dictionary = {}) -> int:
+	var tools := 0.5 if not w.is_empty() and (w["bonuses"] as Array).has("tools") else 1.0
+	return maxi(1, ceili(Mysteries.BUILD_TICKS * tools / float(h["skills"]["build"])))
 
 
 ## Смерть (голод, жажда, старость) — причина в журнал.
@@ -357,7 +373,7 @@ static func learn(w: Dictionary, kind: String, who: Dictionary = {}) -> void:
 	(w["knowledge"] as Array).append(kind)
 	var name: String = who.get("name", "Человек")
 	WorldEngine.add_log(w, "%s %s %s — съедобно!" % [name, _verb(who, "попробовал") if not who.is_empty() else "попробовал",
-		"фрукт" if kind == "fruit" else "рыбу"])
+		Items.FOOD_NAMES[kind]])
 	Mysteries.solve(w, "food")
 
 
@@ -396,6 +412,46 @@ static func _sleep_score(w: Dictionary, h: Dictionary) -> float:
 static func start_build(h: Dictionary, kind: String, at: Vector2) -> void:
 	_set_action(h, "build", at.x, at.y)
 	h["build_kind"] = kind
+
+
+## Желание: появляется у взрослого раз в WISH_EVERY (что именно — из того, что можно исполнить), истекает.
+static func _update_wish(w: Dictionary, h: Dictionary) -> void:
+	var tick: int = w["tick"]
+	if not str(h["wish"]).is_empty():
+		if tick >= int(h["wish_until"]):
+			h["wish"] = ""
+			h["next_wish"] = tick + WISH_EVERY
+			h["faith"] = maxf(0.0, float(h["faith"]) - WISH_LETDOWN)
+			WorldEngine.add_log(w, "%s %s: желание не сбылось" % [h["name"], "огорчена" if h["sex"] == "f" else "огорчён"])
+		return
+	if not is_adult(h, tick) or h["action"] == "sleep":
+		return
+	if int(h["next_wish"]) < 0:
+		h["next_wish"] = tick + WISH_FIRST + (int(h["id"]) * 37) % WISH_EVERY
+	if tick < int(h["next_wish"]):
+		return
+	var options: Array[String] = ["pet"]
+	if knows(w, "fruit"):
+		options.append("fruit")
+	if knows(w, "fish"):
+		options.append("fish")
+	if Mysteries.is_solved(w, "food"):
+		options.append("rain")
+	var kind: String = options[(int(tick / 7.0) + int(h["id"])) % options.size()]
+	h["wish"] = kind
+	h["wish_until"] = tick + WISH_TICKS
+	WorldEngine.add_log(w, "%s %s" % [h["name"], WISHES[kind]])
+
+
+## Бог исполнил желание (поел нужного, погладили, увидел дождь): вера и любовь растут.
+static func fulfil_wish(w: Dictionary, h: Dictionary, kind: String) -> void:
+	if h["wish"] != kind:
+		return
+	h["wish"] = ""
+	h["next_wish"] = int(w["tick"]) + WISH_EVERY
+	add_faith(h, WISH_FAITH)
+	h["love"] = minf(100.0, float(h["love"]) + WISH_LOVE)
+	WorldEngine.add_log(w, "%s %s: желание исполнилось" % [h["name"], "счастлива" if h["sex"] == "f" else "счастлив"])
 
 
 ## Сесть изучать след (бог опустил рядом).
@@ -441,6 +497,7 @@ static func throw(w: Dictionary, map: IslandMap, h: Dictionary, origin: Vector3,
 	h["x"] = spot.x
 	h["z"] = spot.y
 	_set_action(h, "idle")
+	Exploration.reveal(w, map, spot)
 	return path
 
 
@@ -450,6 +507,7 @@ static func pet(w: Dictionary, h: Dictionary) -> bool:
 		return false
 	h["love"] = minf(100.0, h["love"] + PET_LOVE)
 	h["fear"] = maxf(0.0, h["fear"] - PET_CALM)
+	fulfil_wish(w, h, "pet")
 	return true
 
 
@@ -505,7 +563,7 @@ static func _decide(w: Dictionary, map: IslandMap, h: Dictionary) -> void:
 		return # уже идёт (кто идёт за другим — каждый тик сверяется с ним)
 	match best:
 		"drink":
-			var water := _nearest_river_point(h, map)
+			var water := Places.water_near(map, position_of(h), _nearest_river_point(h, map))
 			_set_action(h, "drink", water.x, water.y)
 		"eat":
 			var id := _nearest_food(w, map, h)

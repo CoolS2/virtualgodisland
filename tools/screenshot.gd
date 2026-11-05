@@ -31,6 +31,8 @@ func _ready() -> void:
 	views.append(_relic_view.bind(map, "stone_circle", 0.4, 16.0))
 	views.append(_relic_view.bind(map, "raft_wreck", 0.35, 22.0))
 	views.append(_relic_view.bind(map, "torch_stub", 0.35, 14.0))
+	for place: String in Hints.PLACES:
+		views.append(_relic_view.bind(map, place, 0.4, 16.0))
 	views.append(_human_view.bind(main))
 	views.append(_family_view.bind(main))
 	views.append(_miracles_view.bind(main))

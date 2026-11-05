@@ -24,6 +24,10 @@ sim/            # детерминированная логика мира (то
   mysteries.gd        class_name Mysteries       — тайны: условия, стройки, постройки (огонь, лагерь, алтарь, дом, пещера, плот)
   flora.gd            class_name Flora           — растительность и валуны по seed (map.flora); вырвать/потрясти дерево,
                                                    столкнуть валун (путь вниз по склону), отрастание
+  exploration.gd      class_name Exploration     — туман на карте (сетка 32×32), отметки обрывков карт
+  caches.gd           class_name Caches          — тайники (map.caches по seed, сундуки шторма) и их находки
+  places.gd           class_name Places          — особые места: гейзер, ягоды, грибы, гнездо, арка
+  events.gd           class_name Events          — шторм и падающая звезда (по RNG мира)
   studies.gd          class_name Studies         — изучение следов прошлого: понял / не понимает, подсказки к тайнам
   hints.gd            class_name Hints           — следы прошлого (развалины, кострище, святилище, шахта, корабль…)
                                                    и обелиск: места по seed (map.relics), находки; не сохраняются
@@ -48,6 +52,10 @@ game/           # всё, что видит и трогает игрок: сце
   hints_view.gd       — обелиск и следы прошлого из моделей Kenney (развалины прячутся, когда отстроен дом), искры
   ground_patch.gd     — пятна на земле под местами (след, постройка) и искры над ненайденным
   boulder_fx.gd       — валун катится по пути из Flora.roll
+  caches_view.gd      — тайники, ямы, сундуки шторма, звёздные камни
+  weather.gd          — дождь шторма, радуга, светлячки, падающая звезда
+  fauna.gd            — птицы, крабы, прыгающая рыба (только визуал)
+  minimap.gd          — карта острова с туманом и значками
   mystery_icon.gd     — миниатюра тайны для списка открытий (силуэт / модель в своём SubViewport)
   miracle_fx.gd       — эффекты чудес (дождь, молния, дым), удаляются по таймеру
   items_view.gd       — отображение предметов: в руке, полёт по траектории из sim, исчезновение утонувших
@@ -110,7 +118,8 @@ var ticks := WorldEngine.catch_up(world, map, now_ms)
   7 — параметры человека (`human.name/sex/born_tick/start_age/lifespan/skills/cause`); 8 — несколько людей
   (`people[]` с `id/mother_id/father_id/partner_id/pregnant_until`, `next_person_id`, `knowledge`, `bonds`,
   `newcomer_due/arrived`; из v≤7 `human` → `people[0]`, ADR-0007); 9 — находки (`found`); 10 — изученные следы (`studied`, `human.study`), деревья и валуны
-(`felled`, `shaken`, `rolled`). Загрузка старых версий: `WorldEngine.from_data` заполняет
+(`felled`, `shaken`, `rolled`); 11 — туман и отметки (`explored`, `marked`), тайники (`dug`, `chests`, `bonuses`),
+события (`next_storm`, `storm_until`, `next_star`, `starstones`), желания (`human.wish/wish_until/next_wish`). Загрузка старых версий: `WorldEngine.from_data` заполняет
   недостающие поля, предметы и человечек появляются на ближайшем тике.
 - Удержание предмета рукой в сейв не попадает: после загрузки рука пуста.
 - Несовместимое изменение формы мира → миграция `vN → vN+1` с тестом (предпочтительно)

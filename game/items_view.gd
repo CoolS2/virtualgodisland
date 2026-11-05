@@ -22,6 +22,7 @@ func _init() -> void:
 		"branch": Models.mesh("survival/tree-log-small", 2.0),
 		"fruit": Models.mesh("food/apple", 2.6),
 		"fish": Models.mesh("food/fish", 1.5),
+		"egg": Models.mesh("food/egg", 6.0),
 	}
 
 

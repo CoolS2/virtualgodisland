@@ -34,6 +34,7 @@ const SKIN_TONES: Array[Color] = [Color("#f2b48c"), Color("#e09a6c"), Color("#c4
 const HAIR_COLORS: Array[Color] = [Color("#3b2416"), Color("#5a3820"), Color("#8a5a2b"), Color("#1d1a18"), Color("#b98a4e")]
 const SHIRT_COLORS: Array[Color] = [Color("#4f7ea8"), Color("#a8553f"), Color("#6f8a4a"), Color("#c49a3e"), Color("#7a5b8c"), Color("#d9c7a3")]
 const GREY := Color("#d8d4cc")
+const WISH_BUBBLES := {"fruit": "хочу фруктов", "fish": "хочу рыбы", "pet": "хочу ласки", "rain": "хочу дождя"}
 
 var map: IslandMap
 ## Если задана — человек в руке: висит под ней (выставляет main).
@@ -49,6 +50,8 @@ var _placed := false
 var _flight := PackedVector3Array()
 var _flight_time := 0.0
 var _popup := Label3D.new()
+## Желание над головой («хочу рыбы»).
+var _wish := Label3D.new()
 var _popup_time := 0.0
 var _hair_materials: Array[StandardMaterial3D] = []
 var _hair_color := Color.BLACK
@@ -71,6 +74,14 @@ func _init() -> void:
 	_popup.no_depth_test = true
 	_popup.visible = false
 	add_child(_popup)
+	_wish.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_wish.pixel_size = 0.006
+	_wish.font_size = 36
+	_wish.outline_size = 10
+	_wish.modulate = Color("#ffe8a0")
+	_wish.position = Vector3(0, 2.6, 0)
+	_wish.no_depth_test = true
+	add_child(_wish)
 	var torus := TorusMesh.new()
 	torus.inner_radius = 0.55
 	torus.outer_radius = 0.7
@@ -163,6 +174,8 @@ func show_state(h: Dictionary, delta: float, age: float = Human.START_AGE) -> vo
 			state = mood
 	if _current != "RecieveHit" or not _player.is_playing():
 		_play(ANIMATIONS.get(state, "Idle"))
+	var wish := str(h.get("wish", ""))
+	_wish.text = "" if wish.is_empty() or not h["alive"] else "… " + str(WISH_BUBBLES.get(wish, ""))
 	_label.text = "Zzz" if action == "sleep" and h["alive"] else ("" if not h["alive"] else ACTION_LABELS.get(action, ""))
 	if h["alive"] and Human.FREE_ACTIONS.has(action) and float(h["hunger"]) >= HUNGRY_LABEL:
 		_label.text = "голоден…"

@@ -23,8 +23,16 @@ const DISCOVERABLE := {
 	"torch_stub": "заброшенную шахту",
 	"raft_wreck": "обломки корабля",
 	"burnt_tree": "обгоревшее дерево",
+	"geyser": "гейзер — горячая вода бьёт из земли",
+	"berry_grove": "ягодную поляну",
+	"glow_mushrooms": "поляну светящихся грибов",
+	"giant_nest": "гнездо огромной птицы",
+	"rock_arch": "каменную арку над водой",
 }
 const DISCOVER_RADIUS := 6.0
+## Особые места (sim/places.gd): гейзер, ягодная поляна, светящиеся грибы, гнездо огромной птицы, каменная арка.
+const PLACES: Array[String] = ["geyser", "berry_grove", "glow_mushrooms", "giant_nest", "rock_arch"]
+const PLACES_PER_ISLAND := 4
 ## Кострище — в нескольких шагах от развалин (бывшая деревня).
 const HEARTH_MIN := 5.0
 const HEARTH_MAX := 8.0
@@ -45,8 +53,19 @@ static func place(map: IslandMap) -> Dictionary:
 		"fish_bones": [IslandMap.Biome.BEACH],
 		"torch_stub": [IslandMap.Biome.MOUNTAIN],
 		"raft_wreck": [IslandMap.Biome.BEACH],
+		"geyser": [IslandMap.Biome.FIELD],
+		"berry_grove": [IslandMap.Biome.FIELD],
+		"glow_mushrooms": [IslandMap.Biome.FOREST],
+		"giant_nest": [IslandMap.Biome.MOUNTAIN],
+		"rock_arch": [IslandMap.Biome.BEACH],
 	}
-	for key: String in ["ruins", "stone_circle", "fruit_core", "burnt_tree", "fish_bones", "torch_stub", "raft_wreck"]:
+	var keys: Array[String] = ["ruins", "stone_circle", "fruit_core", "burnt_tree", "fish_bones", "torch_stub", "raft_wreck"]
+	# Особые места: на каждом острове — PLACES_PER_ISLAND из набора (какие — по seed).
+	var places: Array[String] = PLACES.duplicate()
+	for i in places.size() - PLACES_PER_ISLAND:
+		places.remove_at(int(rng.next() * places.size()))
+	keys.append_array(places)
+	for key: String in keys:
 		var biomes: Array = wanted[key]
 		for attempt in ATTEMPTS:
 			var x: int = 3 + int(rng.next() * (map.size - 6))
@@ -56,6 +75,8 @@ static func place(map: IslandMap) -> Dictionary:
 				continue
 			if key == "torch_stub" and h > IslandGenerator.ROCK_LINE + 2.0:
 				continue
+			if key == "giant_nest" and h < IslandGenerator.SNOW_LINE - 4.0:
+				continue # гнездо — у вершины
 			# Развалины и святилище — на открытом поле (если такого места мало — на поле поменьше), вдали от обелиска.
 			var open_radius := 3 if attempt * 2 < ATTEMPTS else 1
 			if (key == "ruins" or key == "stone_circle") and not _open(map, x, y, open_radius):

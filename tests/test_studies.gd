@@ -75,4 +75,5 @@ func test_nothing_to_study_far_from_relics() -> void:
 
 func test_every_relic_with_note_is_on_the_island() -> void:
 	for key: String in Studies.NOTES:
-		assert_true(_map.relics.has(key), "след %s есть на острове" % key)
+		if not Hints.PLACES.has(key): # особых мест на острове — только часть набора
+			assert_true(_map.relics.has(key), "след %s есть на острове" % key)

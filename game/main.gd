@@ -42,6 +42,9 @@ var people_views := {}
 var selected_id := -1
 var structures_view: StructuresView
 var hints_view: HintsView
+var caches_view: CachesView
+var weather: Weather
+var fauna: Fauna
 var daylight: Daylight
 var ui: GameUi
 
@@ -54,6 +57,9 @@ var _offline_ticks: int
 var _since_update := 0.0
 var _mysteries_seen := 0
 var _found_seen := 0
+var _craters_seen := 0
+var _stars_seen := 0
+var _storm_seen := false
 var _pending_tree := -1
 ## Когда (сек. с запуска) впервые увидели раскрытую первую тайну; -1 — ещё нет.
 var _first_mystery_time := -1.0
@@ -119,12 +125,28 @@ func _ready() -> void:
 	hints_view.build(map)
 	add_child(hints_view)
 	hints_view.sync(_world)
+	caches_view = CachesView.new()
+	caches_view.map = map
+	add_child(caches_view)
+	caches_view.sync(_world)
+	weather = Weather.new()
+	weather.build(map)
+	add_child(weather)
+	fauna = Fauna.new()
+	fauna.build(map)
+	add_child(fauna)
+	_craters_seen = (_world["craters"] as Array).size()
+	_stars_seen = (_world["starstones"] as Array).size()
+	_storm_seen = Events.storming(_world)
 	hud = Hud.new()
 	add_child(hud)
 	hud.mysteries_pressed.connect(func() -> void: ui.toggle_mysteries(_world))
 	hud.card_closed.connect(func() -> void: select_person(-1))
 	hud.person_selected.connect(select_person)
 	hud.find_person_pressed.connect(focus_next_person)
+	hud.minimap.build(map)
+	hud.minimap.clicked.connect(func(p: Vector2) -> void:
+		camera_rig.focus(Vector3(p.x, maxf(0.0, map.height_at_world(p.x, p.y)), p.y), FOCUS_DISTANCE * 1.5))
 	ui = GameUi.new()
 	add_child(ui)
 	ui.new_game_requested.connect(_new_game)
@@ -152,8 +174,13 @@ func _process(delta: float) -> void:
 	var tick := float(_world["tick"])
 	if not _is_preview():
 		tick += clampf(float(SaveStore.now_ms() - int(_world["last_seen"])) / WorldEngine.TICK_MS, 0.0, 0.999)
-	daylight.set_hour(WorldClock.hour(tick))
 	structures_view.night = WorldClock.is_night(tick)
+	hints_view.night = structures_view.night
+	var storming := Events.storming(_world)
+	daylight.overcast = move_toward(daylight.overcast, 1.0 if storming else 0.0, delta * 0.3)
+	daylight.set_hour(WorldClock.hour(tick))
+	weather.focus = camera_rig.target
+	weather.set_state(storming, structures_view.night)
 	_update_card()
 	_since_update += delta
 	if _since_update < HUD_INTERVAL:
@@ -170,6 +197,22 @@ func refresh_world_view() -> void:
 	items_view.sync(_world)
 	structures_view.sync(_world)
 	hints_view.sync(_world)
+	caches_view.sync(_world)
+	if (_world["craters"] as Array).size() != _craters_seen:
+		_craters_seen = (_world["craters"] as Array).size()
+		_rebuild_terrain() # звезда упала
+	var stars: Array = _world["starstones"]
+	if stars.size() > _stars_seen:
+		var s: Dictionary = stars.back()
+		weather.falling_star(Vector3(s["x"], island_map.height_at_world(s["x"], s["z"]), s["z"]))
+		_show_message("С неба упала звезда! Найди светящийся камень и коснись его рукой")
+	_stars_seen = stars.size()
+	var storming := Events.storming(_world)
+	if storming and not _storm_seen:
+		_show_message("Шторм! Посмотри потом, что волны вынесли на берег")
+	elif _storm_seen and not storming:
+		weather.rainbow()
+	_storm_seen = storming
 	if _flora_signature() != _flora_state:
 		_rebuild_decorations() # дерево выросло, появилась постройка
 	_sync_people()
@@ -340,6 +383,7 @@ func cast_miracle(kind: String, point: Vector2) -> Dictionary:
 	match kind:
 		"rain":
 			MiracleFx.rain(self, at, Miracles.RAIN_RADIUS)
+			weather.rainbow()
 		"lightning":
 			MiracleFx.lightning(self, at)
 	if (_world["craters"] as Array).size() != craters_before:
@@ -456,6 +500,22 @@ func pick_item_at(point: Vector3) -> bool:
 		hand.holding = true
 		return true
 	var at := Vector2(point.x, point.z)
+	if Events.absorb_star(_world, at):
+		_show_message("Звёздный камень впитан: +%d маны" % int(Events.STAR_MANA))
+		hand.gesture("pet")
+		refresh_world_view()
+		_save()
+		_render_hud()
+		return false
+	var cache := Caches.nearest(_world, island_map, at)
+	if not cache.is_empty():
+		var content := Caches.dig(_world, island_map, cache)
+		if not content.is_empty():
+			_show_message("Тайник: " + Caches.NAMES[content])
+			refresh_world_view()
+			_save()
+			_render_hud()
+		return false
 	var rock := Flora.nearest(_world, island_map, at, ROCK_RADIUS, Flora.BOULDERS)
 	if rock >= 0:
 		_roll_boulder(rock)

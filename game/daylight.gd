@@ -10,8 +10,11 @@ const SUNSET := Color("#ffa968")
 const SUN_COLOR := Color("#fff1d6")
 const MOON_COLOR := Color("#9fb6ff")
 const SUN_DISTANCE := 100.0
+const STORM := Color("#6d7680")
 
 var environment := Environment.new()
+## Пасмурность 0..1 (шторм): солнце тусклее, небо серее. Выставлять до set_hour.
+var overcast := 0.0
 
 var _sky_mat := ProceduralSkyMaterial.new()
 var _sun := DirectionalLight3D.new()
@@ -57,7 +60,7 @@ func set_hour(hour: float) -> void:
 
 	var sun_pos := Vector3(cos(angle), elevation, 0.4) * SUN_DISTANCE
 	_sun.transform = Transform3D(Basis.looking_at(-sun_pos), sun_pos)
-	_sun.light_energy = 1.3 * day
+	_sun.light_energy = 1.3 * day * (1.0 - 0.65 * overcast)
 	_sun.light_color = SUN_COLOR.lerp(SUNSET, dusk * 0.7)
 	_sun.visible = day > 0.01
 	var moon_pos := Vector3(-cos(angle), maxf(0.3, -elevation), -0.3) * SUN_DISTANCE
@@ -66,7 +69,8 @@ func set_hour(hour: float) -> void:
 	_moon.visible = day < 0.99
 
 	var horizon := NIGHT_HORIZON.lerp(DAY_HORIZON, day).lerp(SUNSET, dusk * 0.55)
-	_sky_mat.sky_top_color = NIGHT_TOP.lerp(DAY_TOP, day)
+	horizon = horizon.lerp(STORM, overcast * 0.7)
+	_sky_mat.sky_top_color = NIGHT_TOP.lerp(DAY_TOP, day).lerp(STORM.darkened(0.3), overcast * 0.7)
 	_sky_mat.sky_horizon_color = horizon
 	_sky_mat.ground_horizon_color = horizon
 	environment.ambient_light_energy = 0.25 + 0.45 * day

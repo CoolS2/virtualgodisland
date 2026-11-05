@@ -53,6 +53,41 @@ const LAYOUTS := {
 		["pirate/crate", 1.0, Vector2(-3.4, 3.0), 1.1, 0.0, 0.15],
 		["pirate/barrel", 0.8, Vector2(2.2, 4.4), 0.0, 1.5, 0.1],
 	],
+	"geyser": [
+		["survival/rock-a", 1.0, Vector2(1.3, 0.0), 0.0, 0.0, 0.1],
+		["survival/rock-b", 0.8, Vector2(0.2, 1.3), 1.0, 0.0, 0.1],
+		["survival/rock-c", 0.9, Vector2(-1.2, 0.5), 2.0, 0.0, 0.1],
+		["survival/rock-a", 0.8, Vector2(-0.6, -1.2), 3.0, 0.0, 0.1],
+		["survival/rock-b", 0.9, Vector2(0.9, -1.0), 4.0, 0.0, 0.1],
+	],
+	"berry_grove": [
+		["pirate/grass-plant", 1.8, Vector2(1.6, 0.4), 0.0, 0.0, 0.0],
+		["pirate/grass-plant", 1.5, Vector2(-1.2, 1.4), 1.0, 0.0, 0.0],
+		["pirate/grass-plant", 1.7, Vector2(-0.8, -1.6), 2.0, 0.0, 0.0],
+		["pirate/grass-plant", 1.4, Vector2(1.0, -1.8), 3.0, 0.0, 0.0],
+		["pirate/grass-plant", 1.6, Vector2(0.0, 2.2), 4.0, 0.0, 0.0],
+	],
+	"glow_mushrooms": [
+		["food/mushroom", 7.0, Vector2(0.0, 0.0), 0.0, 0.0, 0.0],
+		["food/mushroom", 5.0, Vector2(1.1, 0.5), 1.0, 0.0, 0.0],
+		["food/mushroom", 6.0, Vector2(-0.9, 0.9), 2.0, 0.0, 0.0],
+		["food/mushroom", 4.0, Vector2(-0.4, -1.1), 3.0, 0.0, 0.0],
+		["food/mushroom", 5.5, Vector2(1.3, -0.9), 4.0, 0.0, 0.0],
+		["food/mushroom", 3.5, Vector2(-1.6, -0.2), 5.0, 0.0, 0.0],
+	],
+	"giant_nest": [
+		["survival/tree-log-small", 5.0, Vector2(1.3, 0.0), 0.0, 0.0, 0.1],
+		["survival/tree-log-small", 5.0, Vector2(-1.3, 0.0), 0.1, 0.0, 0.1],
+		["survival/tree-log-small", 5.0, Vector2(0.0, 1.3), PI / 2.0, 0.0, 0.1],
+		["survival/tree-log-small", 5.0, Vector2(0.0, -1.3), PI / 2.0 + 0.1, 0.0, 0.1],
+		["survival/tree-log-small", 4.5, Vector2(0.9, 0.9), PI / 4.0, 0.0, 0.0],
+		["survival/tree-log-small", 4.5, Vector2(-0.9, -0.9), PI / 4.0, 0.0, 0.0],
+	],
+	"rock_arch": [
+		["pirate/rocks-sand-b", 0.55, Vector2(-1.8, 0.0), 0.0, 0.0, 0.2],
+		["pirate/rocks-sand-b", 0.55, Vector2(1.8, 0.0), PI, 0.0, 0.2],
+		["town/rock-large", 1.8, Vector2(0.0, 0.0), 0.0, 0.0, -1.7],
+	],
 	"fruit_core": [["food/apple-half", 2.4, Vector2(0, 0), 0.0, 0.0, 0.02]],
 	"fish_bones": [["food/fish-bones", 1.4, Vector2(0, 0), 0.0, 0.0, 0.02]],
 }
@@ -61,6 +96,8 @@ const PATCHES := {
 	"obelisk": [3.0, Color("#bdb4a2")], "ruins": [7.5, Color("#9c8463")], "old_hearth": [2.6, Color("#4f4740")],
 	"stone_circle": [4.2, Color("#c4bba8")], "torch_stub": [3.4, Color("#857d72")], "raft_wreck": [6.0, Color("#a8916a")],
 	"burnt_tree": [2.4, Color("#3f3833")], "fruit_core": [1.0, Color("#8c7a52")], "fish_bones": [1.0, Color("#b59f72")],
+	"geyser": [3.0, Color("#9fb1a8")], "berry_grove": [3.8, Color("#6f7d45")], "glow_mushrooms": [2.6, Color("#4f4560")],
+	"giant_nest": [2.8, Color("#8a7a5a")], "rock_arch": [4.5, Color("#b59f72")],
 }
 ## Камень Kenney (стены, колонны, валуны) — синеватый; на острове старый камень тёплый, выветренный.
 const STONE_PARTS: Array[String] = ["town/wall-broken", "town/wall-half", "town/pillar-stone", "town/rock-large"]
@@ -75,6 +112,13 @@ var obelisk_position := Vector2.ZERO
 var map: IslandMap
 var _runes_material := StandardMaterial3D.new()
 var _stone := StandardMaterial3D.new()
+## Светящиеся грибы: ночью ярче (выставляет main через night).
+var _glow := StandardMaterial3D.new()
+var _glow_light: OmniLight3D
+var _geyser: CPUParticles3D
+var _geyser_time := 0.0
+## Ночь — грибы светятся (выставляет main).
+var night := false
 var _time := 0.0
 ## След -> его детали (чтобы прятать: развалины, когда дом отстроен; кострище, когда снова горит).
 var _parts := {}
@@ -85,6 +129,10 @@ var _sparkles := {}
 func build(island: IslandMap) -> void:
 	name = "Hints"
 	map = island
+	_glow.albedo_color = Color("#bfe9f0")
+	_glow.emission_enabled = true
+	_glow.emission = Color("#5fd8ff")
+	_glow.emission_energy_multiplier = 0.3
 	var spots := map.relics
 	for key: String in spots:
 		var p: Vector2 = spots[key]
@@ -103,6 +151,14 @@ func build(island: IslandMap) -> void:
 			_add_layout(key, LAYOUTS[key], p, yaw)
 			if key == "ruins":
 				_add_layout("village", LAYOUTS["village"], p, yaw)
+			if key == "geyser":
+				_add_geyser(p)
+			if key == "glow_mushrooms":
+				_glow_light = OmniLight3D.new()
+				_glow_light.light_color = Color("#7fe8ff")
+				_glow_light.omni_range = 7.0
+				_glow_light.position = _ground(p) + Vector3.UP * 1.0
+				add_child(_glow_light)
 		elif LOW_POLY.has(key):
 			var node := MeshInstance3D.new()
 			node.mesh = LowPoly.hint(key)
@@ -127,6 +183,15 @@ func sync(world: Dictionary) -> void:
 
 func _process(delta: float) -> void:
 	_time += delta
+	# Грибы: днём бледно-голубые, ночью светятся и подсвечивают поляну.
+	var glow := 1.0 if night else 0.15
+	_glow.emission_energy_multiplier = lerpf(_glow.emission_energy_multiplier, glow * (1.6 + 0.4 * sin(_time * 2.0)), 0.1)
+	if _glow_light:
+		_glow_light.light_energy = glow * 2.0
+	# Гейзер бьёт раз в 12 с на 4 с.
+	if _geyser:
+		_geyser_time += delta
+		_geyser.emitting = fmod(_geyser_time, 12.0) < 4.0
 	# Руны мерцают — обелиск зовёт подойти.
 	_runes_material.albedo_color = Color("#8ff3ff").lerp(Color("#2a6f88"), 0.5 + 0.5 * sin(_time * 1.7))
 
@@ -145,8 +210,36 @@ func _add_layout(key: String, parts: Array, center: Vector2, yaw: float) -> void
 			node.material_override = _stone
 		if part[0] == "town/pillar-stone":
 			node.scale = Vector3(PILLAR_GIRTH, 1.0, PILLAR_GIRTH)
+		if key == "glow_mushrooms":
+			node.material_override = _glow
 		add_child(node)
 		(_parts[key] as Array).append(node)
+
+
+func _add_geyser(p: Vector2) -> void:
+	_geyser = CPUParticles3D.new()
+	_geyser.position = _ground(p) + Vector3.UP * 0.2
+	_geyser.amount = 60
+	_geyser.lifetime = 1.6
+	_geyser.direction = Vector3.UP
+	_geyser.spread = 6.0
+	_geyser.initial_velocity_min = 7.0
+	_geyser.initial_velocity_max = 9.0
+	_geyser.gravity = Vector3(0, -9.0, 0)
+	_geyser.scale_amount_min = 0.6
+	_geyser.scale_amount_max = 1.4
+	var mesh := SphereMesh.new()
+	mesh.radius = 0.15
+	mesh.height = 0.3
+	mesh.radial_segments = 6
+	mesh.rings = 3
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = Color(0.92, 0.97, 1.0, 0.75)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mesh.material = mat
+	_geyser.mesh = mesh
+	add_child(_geyser)
 
 
 func _add_obelisk(p: Vector2) -> void:

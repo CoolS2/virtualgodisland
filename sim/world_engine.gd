@@ -20,6 +20,9 @@ extends RefCounted
 ##   found: Array[String] — найденные людьми следы прошлого (ключи Hints.DISCOVERABLE)
 ##   studied: Array[String] — изученные следы (sim/studies.gd)
 ##   felled, shaken, rolled — что рука сделала с деревьями и валунами (sim/flora.gd)
+##   explored: Array[int] — туман на карте, marked — отмеченные на карте места (sim/exploration.gd)
+##   dug, chests, bonuses — тайники и их находки (sim/caches.gd)
+##   next_storm, storm_until, next_star, starstones — события (sim/events.gd)
 
 ## 1 тик = 1 реальная минута.
 const TICK_MS := 60_000
@@ -74,6 +77,15 @@ static func create_world(world_seed: int, now_ms: int, options: Dictionary = {})
 		"felled": {},
 		"shaken": {},
 		"rolled": [],
+		"explored": Exploration.from_data(null),
+		"marked": [],
+		"dug": [],
+		"chests": [],
+		"bonuses": [],
+		"next_storm": -1,
+		"storm_until": -1,
+		"next_star": -1,
+		"starstones": [],
 	}
 
 
@@ -94,6 +106,8 @@ static func step(w: Dictionary, map: IslandMap) -> void:
 	Family.update(w, map)
 	Miracles.regen(w)
 	Flora.regrow(w)
+	Places.update(w, map)
+	Events.update(w, map)
 
 	if int(w["tick"]) % FRUIT_REGROW_TICKS == 0 and Items.count_kind(w, "fruit") < FRUIT_MAX:
 		Items.grow_fruit(w, map)
@@ -210,6 +224,15 @@ static func from_data(data: Variant) -> Dictionary:
 		"fish_eaten": int(d.get("fish_eaten", 0)),
 		"found": _strings_from_data(d.get("found", [])),
 		"studied": _strings_from_data(d.get("studied", [])),
+		"explored": Exploration.from_data(d.get("explored")),
+		"marked": _strings_from_data(d.get("marked", [])),
+		"dug": _ints_from_data(d.get("dug", [])),
+		"chests": Caches.chests_from_data(d.get("chests")),
+		"bonuses": _strings_from_data(d.get("bonuses", [])),
+		"next_storm": int(d.get("next_storm", -1)),
+		"storm_until": int(d.get("storm_until", -1)),
+		"next_star": int(d.get("next_star", -1)),
+		"starstones": _points_from_data(d.get("starstones", [])),
 	}
 	result.merge(Flora.from_data(d))
 	return result
@@ -244,6 +267,10 @@ static func _human_from_data(h: Dictionary, fallback_id: int) -> Dictionary:
 	result["build_kind"] = str(h.get("build_kind", ""))
 	result["work"] = int(h.get("work", 0))
 	result["study"] = str(h.get("study", ""))
+	var wish := str(h.get("wish", ""))
+	result["wish"] = wish if Human.WISHES.has(wish) else ""
+	result["wish_until"] = int(h.get("wish_until", -1))
+	result["next_wish"] = int(h.get("next_wish", -1))
 	if result["action"] == "study" and not Studies.NOTES.has(result["study"]):
 		result["action"] = "idle"
 	result["name"] = str(h.get("name", "Ару"))
@@ -266,6 +293,24 @@ static func _knowledge_from_data(data: Variant) -> Array:
 		for kind: Variant in data:
 			if Items.FOOD.has(str(kind)) and not result.has(str(kind)):
 				result.append(str(kind))
+	return result
+
+
+static func _ints_from_data(data: Variant) -> Array:
+	var result: Array = []
+	if typeof(data) == TYPE_ARRAY:
+		for entry: Variant in data:
+			if not result.has(int(entry)):
+				result.append(int(entry))
+	return result
+
+
+static func _points_from_data(data: Variant) -> Array:
+	var result: Array = []
+	if typeof(data) == TYPE_ARRAY:
+		for entry: Variant in data:
+			if typeof(entry) == TYPE_DICTIONARY and (entry as Dictionary).has("x"):
+				result.append({"x": float(entry["x"]), "z": float(entry.get("z", 0.0))})
 	return result
 
 

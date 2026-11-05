@@ -37,6 +37,8 @@ const SKILL_NAMES := {"forage": "Собиратель", "build": "Строите
 var _root := UiStyle.root()
 ## Квадратики показателей (кроме дня), которые открываются тайнами — CHIP_UNLOCK.
 var _chips := {}
+## Карта острова с туманом (внизу справа); main строит её по карте и подписывается на щелчки.
+var minimap := Minimap.new()
 ## Подсказка внизу по центру (обучение: первая тайна).
 var _hint_panel := PanelContainer.new()
 var _hint := UiStyle.label("", 15)
@@ -96,6 +98,11 @@ func _init() -> void:
 	_hint_panel.add_child(_hint)
 	_hint_panel.visible = false
 	_root.add_child(_hint_panel)
+	minimap.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	minimap.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	minimap.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	minimap.position = Vector2(-12, -12)
+	_root.add_child(minimap)
 
 
 func _process(delta: float) -> void:
@@ -126,6 +133,8 @@ func update_world(world: Dictionary, hour: float) -> void:
 	var food := Mysteries.food_in_camp(world)
 	_food.text = "Еда в лагере —" if food < 0 else "Еда в лагере %d" % food
 	_mysteries.text = "Тайны %d/%d" % [(world["mysteries"] as Array).size(), Mysteries.LIST.size()]
+	if minimap.map:
+		minimap.update_world(world)
 	for key: String in CHIP_UNLOCK:
 		_chips[key].visible = Mysteries.is_solved(world, CHIP_UNLOCK[key])
 
@@ -177,6 +186,8 @@ func update_card(h: Dictionary, world: Dictionary) -> void:
 		_card_state.text = "Погиб%s: %s" % ["ла" if h["sex"] == "f" else "", h["cause"]]
 	else:
 		_card_state.text = "%s · %s" % [ACTIONS.get(h["action"], h["action"]).capitalize(), MOODS.get(Human.mood(h), "")]
+		if not str(h["wish"]).is_empty():
+			_card_state.text += "\nЖелание: %s" % Human.WISHES[h["wish"]].trim_prefix("хочет ")
 	(_card_bars["hunger"] as ProgressBar).value = 100.0 - float(h["hunger"])
 	(_card_bars["thirst"] as ProgressBar).value = 100.0 - float(h["thirst"])
 	(_card_bars["energy"] as ProgressBar).value = float(h["energy"])
@@ -191,7 +202,7 @@ func update_card(h: Dictionary, world: Dictionary) -> void:
 	var known: Array = world["knowledge"]
 	var names := PackedStringArray()
 	for kind: String in known:
-		names.append({"fruit": "фрукты", "fish": "рыба"}.get(kind, kind))
+		names.append({"fruit": "фрукты", "fish": "рыба", "egg": "яйца"}.get(kind, kind))
 	_card_food.text = "Племя не знает, что можно есть" if names.is_empty() else "Племя знает еду: " + ", ".join(names)
 	_card_family.text = _family_text(h, world)
 
