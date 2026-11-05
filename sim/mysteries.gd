@@ -50,31 +50,63 @@ static func solve(w: Dictionary, id: String) -> void:
 
 ## Раз в тик: рыбалка, решение что-нибудь построить (днём, когда человечек свободен).
 static func update(w: Dictionary, map: IslandMap) -> void:
-	var h: Dictionary = w["human"]
+	var people := Human.living(w)
+	if people.is_empty():
+		return
 	var tick: int = w["tick"]
-	var fishing_ticks := maxi(1, roundi(FISHING_TICKS / float(h["skills"]["fish"])))
-	if is_solved(w, "fisherman") and tick % fishing_ticks == 0 and Items.count_kind(w, "fish") == 0 and h["spawned"]:
-		var shore := Miracles.nearest_beach(map, Human.position_of(h))
+	var fisher := _best(people, "fish")
+	var fishing_ticks := maxi(1, roundi(FISHING_TICKS / float(fisher["skills"]["fish"])))
+	if is_solved(w, "fisherman") and tick % fishing_ticks == 0 and Items.count_kind(w, "fish") == 0:
+		var shore := Miracles.nearest_beach(map, Human.position_of(fisher))
 		Items.add(w, "fish", Vector3(shore.x, map.height_at_world(shore.x, shore.y), shore.y))
-		WorldEngine.add_log(w, "поймал рыбу")
-	if not h["spawned"] or not h["alive"] or h["held"] or WorldClock.is_night(tick):
+		WorldEngine.add_log(w, "%s %s рыбу" % [fisher["name"], "поймала" if fisher["sex"] == "f" else "поймал"])
+	if WorldClock.is_night(tick):
 		return
-	if h["action"] != "idle" and h["action"] != "wander":
+	# Строит свободный взрослый (первый по порядку появления — детерминированно).
+	var builder := {}
+	for h: Dictionary in people:
+		if not h["held"] and (h["action"] == "idle" or h["action"] == "wander") and Human.is_adult(h, tick):
+			builder = h
+			break
+	if builder.is_empty() or _someone_builds(people):
 		return
-	var pos := Human.position_of(h)
+	var pos := Human.position_of(builder)
 	if not is_solved(w, "camp"):
 		if not (w["fire"] as Dictionary).is_empty() and pos.distance_to(_pos(w["fire"])) <= SEE_FIRE:
-			Human.start_build(h, "camp", _pos(w["fire"]))
+			Human.start_build(builder, "camp", _pos(w["fire"]))
 		return
 	var camp := _pos(w["camp"])
-	if not is_solved(w, "shrine") and float(h["faith"]) >= SHRINE_FAITH:
+	if not is_solved(w, "shrine") and _max(people, "faith") >= SHRINE_FAITH:
 		var spot := camp + Vector2(3, 0)
-		Human.start_build(h, "shrine", spot if map.biome_at_world(spot.x, spot.y) != IslandMap.Biome.SEA else camp)
+		Human.start_build(builder, "shrine", spot if map.biome_at_world(spot.x, spot.y) != IslandMap.Biome.SEA else camp)
 	elif not is_solved(w, "house") and _near(w, camp, "branch").size() >= HOUSE_BRANCHES and _near(w, camp, "stone").size() >= HOUSE_STONES:
 		var spot := camp + Vector2(-3, 2)
-		Human.start_build(h, "house", spot if map.biome_at_world(spot.x, spot.y) != IslandMap.Biome.SEA else camp)
-	elif not is_solved(w, "raft") and float(h["love"]) >= RAFT_LOVE and _branches_near(w, camp).size() >= RAFT_BRANCHES:
-		Human.start_build(h, "raft", Miracles.nearest_beach(map, camp))
+		Human.start_build(builder, "house", spot if map.biome_at_world(spot.x, spot.y) != IslandMap.Biome.SEA else camp)
+	elif not is_solved(w, "raft") and _max(people, "love") >= RAFT_LOVE and _branches_near(w, camp).size() >= RAFT_BRANCHES:
+		Human.start_build(builder, "raft", Miracles.nearest_beach(map, camp))
+
+
+static func _someone_builds(people: Array) -> bool:
+	for h: Dictionary in people:
+		if h["action"] == "build":
+			return true
+	return false
+
+
+static func _max(people: Array, key: String) -> float:
+	var best := 0.0
+	for h: Dictionary in people:
+		best = maxf(best, float(h[key]))
+	return best
+
+
+## Лучший по навыку (при равенстве — первый).
+static func _best(people: Array, skill: String) -> Dictionary:
+	var best: Dictionary = people[0]
+	for h: Dictionary in people:
+		if float(h["skills"][skill]) > float(best["skills"][skill]):
+			best = h
+	return best
 
 
 ## Человечек закончил стройку (Human вызывает после BUILD_TICKS тиков на месте).
@@ -95,6 +127,7 @@ static func complete_build(w: Dictionary, kind: String, at: Vector2) -> void:
 			for i in HOUSE_STONES:
 				(w["items"] as Array).erase(stones[i])
 			w["house"] = _dict(at)
+			Family.on_house_built(w)
 		"raft":
 			var branches := _branches_near(w, _pos(w["camp"]))
 			if branches.size() < RAFT_BRANCHES:

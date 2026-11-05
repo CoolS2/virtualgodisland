@@ -134,7 +134,7 @@ static func settle(w: Dictionary, map: IslandMap) -> void:
 
 ## Взять предмет. Рука держит не больше одного (предмет или человечка). Возвращает true при успехе.
 static func pick_up(w: Dictionary, id: int) -> bool:
-	if held_id(w) >= 0 or w["human"]["held"]:
+	if held_id(w) >= 0 or not Human.held_person(w).is_empty():
 		return false
 	var item := find(w, id)
 	if item.is_empty():
@@ -172,9 +172,9 @@ static func throw_item(w: Dictionary, map: IslandMap, id: int, origin: Vector3, 
 	var impact := first_impact(map, path)
 	if not impact.is_empty():
 		var at: Vector3 = impact["at"]
-		var h: Dictionary = w["human"]
-		if h["spawned"] and h["alive"] and not h["held"] and Human.position_of(h).distance_to(Vector2(at.x, at.z)) <= HIT_RADIUS:
-			Human.scare(h, HIT_FEAR)
+		for h: Dictionary in Human.living(w):
+			if not h["held"] and Human.position_of(h).distance_to(Vector2(at.x, at.z)) <= HIT_RADIUS:
+				Human.scare(h, HIT_FEAR)
 		if item["kind"] == "stone" and float(impact["speed"]) >= STONE_CRATER_SPEED:
 			Craters.add(w, map, Craters.make(Vector2(at.x, at.z), STONE_CRATER_RADIUS, STONE_CRATER_DEPTH))
 	return path

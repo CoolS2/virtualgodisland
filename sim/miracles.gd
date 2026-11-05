@@ -26,7 +26,9 @@ const LIGHTNING_DANGER := 6.0
 
 
 static func regen(w: Dictionary) -> void:
-	var faith: float = w["human"]["faith"]
+	var faith := 0.0 # вера всех живых: больше верующих — больше маны
+	for h: Dictionary in Human.living(w):
+		faith += float(h["faith"])
 	var shrine := SHRINE_REGEN if not (w["shrine"] as Dictionary).is_empty() else 0.0
 	w["mana"] = minf(MANA_MAX, float(w["mana"]) + MANA_BASE_REGEN + faith * MANA_FAITH_REGEN + shrine)
 
@@ -38,14 +40,17 @@ static func cast(w: Dictionary, map: IslandMap, kind: String, point: Vector2) ->
 	if float(w["mana"]) < COST[kind]:
 		return {"ok": false, "reason": "mana", "seen": false, "at": Vector3.ZERO}
 	w["mana"] = float(w["mana"]) - COST[kind]
-	var h: Dictionary = w["human"]
-	var distance := Human.position_of(h).distance_to(point)
-	var seen: bool = h["spawned"] and h["alive"] and not h["held"] and h["action"] != "sleep" and distance <= SEE_RADIUS
+	# Кто видел: не спит, не в руке, ближе SEE_RADIUS.
+	var witnesses: Array = []
+	for h: Dictionary in Human.living(w):
+		if not h["held"] and h["action"] != "sleep" and Human.position_of(h).distance_to(point) <= SEE_RADIUS:
+			witnesses.append(h)
 	var at := Vector3(point.x, map.height_at_world(point.x, point.y), point.y)
 	match kind:
 		"rain":
-			if h["spawned"] and distance <= RAIN_RADIUS:
-				h["thirst"] = maxf(0.0, h["thirst"] - RAIN_THIRST)
+			for h: Dictionary in Human.living(w):
+				if Human.position_of(h).distance_to(point) <= RAIN_RADIUS:
+					h["thirst"] = maxf(0.0, h["thirst"] - RAIN_THIRST)
 			for _i in RAIN_FRUITS:
 				Items.grow_fruit_near(w, map, point, RAIN_RADIUS)
 		"fish":
@@ -56,14 +61,14 @@ static func cast(w: Dictionary, map: IslandMap, kind: String, point: Vector2) ->
 			Mysteries.on_lightning(w, map, point)
 			Craters.add(w, map, Craters.make(point, LIGHTNING_RADIUS, LIGHTNING_DEPTH))
 			at.y = map.height_at_world(point.x, point.y)
-			if h["spawned"] and h["alive"]:
-				if seen:
+			for h: Dictionary in Human.living(w):
+				if witnesses.has(h):
 					Human.scare(h, LIGHTNING_FEAR)
-				if distance <= LIGHTNING_DANGER:
+				if Human.position_of(h).distance_to(point) <= LIGHTNING_DANGER:
 					Human.scare(h, LIGHTNING_FEAR)
-	if seen:
+	for h: Dictionary in witnesses:
 		Human.add_faith(h, FAITH_PER_MIRACLE)
-	return {"ok": true, "reason": "", "seen": seen, "at": at}
+	return {"ok": true, "reason": "", "seen": not witnesses.is_empty(), "at": at}
 
 
 ## Ближайшая к точке клетка пляжа (мировые координаты).

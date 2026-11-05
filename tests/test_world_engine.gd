@@ -16,7 +16,7 @@ func test_catch_up_equals_live_ticks() -> void:
 		WorldEngine.step(live, _map)
 	var offline := WorldEngine.create_world(1, 0)
 	WorldEngine.catch_up(offline, _map, 300 * WorldEngine.TICK_MS)
-	assert_eq(offline["human"], live["human"])
+	assert_eq(offline["people"][0], live["people"][0])
 	assert_eq(offline["items"], live["items"])
 	assert_eq(offline["tick"], 300)
 
@@ -38,7 +38,7 @@ func test_partial_tick_is_kept() -> void:
 func test_human_survives_one_day_offline() -> void:
 	var w := WorldEngine.create_world(1, 0)
 	WorldEngine.catch_up(w, _map, DAY_MS)
-	assert_true(w["human"]["alive"])
+	assert_true(w["people"][0]["alive"])
 
 
 ## Сейв: мир переживает JSON (где все числа становятся float) без потери типов и значений.

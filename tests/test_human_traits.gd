@@ -16,8 +16,8 @@ func _world() -> Dictionary:
 func test_traits_are_rolled_deterministically_and_in_range() -> void:
 	var a := _world()
 	var b := _world()
-	assert_eq(a["human"], b["human"])
-	var h: Dictionary = a["human"]
+	assert_eq(a["people"][0], b["people"][0])
+	var h: Dictionary = a["people"][0]
 	assert_true(h["sex"] == "m" or h["sex"] == "f")
 	assert_true((Human.NAMES[h["sex"]] as Array).has(h["name"]))
 	assert_between(float(h["lifespan"]), Human.LIFESPAN_MIN, Human.LIFESPAN_MAX)
@@ -30,21 +30,21 @@ func test_traits_differ_between_seeds() -> void:
 	for s in 12:
 		var w := WorldEngine.create_world(s, 0)
 		WorldEngine.step(w, IslandGenerator.generate(s, 64))
-		seen[w["human"]["sex"]] = true
+		seen[w["people"][0]["sex"]] = true
 	assert_eq(seen.size(), 2, "встречаются оба пола")
 
 
 func test_ageing() -> void:
 	var w := _world()
-	var h: Dictionary = w["human"]
+	var h: Dictionary = w["people"][0]
 	assert_almost_eq(Human.age(h, int(h["born_tick"])), Human.START_AGE, 0.001)
 	assert_almost_eq(Human.age(h, int(h["born_tick"]) + Human.TICKS_PER_YEAR * 10), Human.START_AGE + 10.0, 0.001)
 
 
 func test_dies_of_old_age_and_game_ends() -> void:
 	var w := _world()
-	var h: Dictionary = w["human"]
-	h["knows"] = ["fruit"]
+	var h: Dictionary = w["people"][0]
+	w["knowledge"] = ["fruit"]
 	h["lifespan"] = Human.START_AGE + 0.01 # ~5 тиков жизни
 	assert_false(WorldEngine.is_game_over(w))
 	for _i in 10:
@@ -56,9 +56,9 @@ func test_dies_of_old_age_and_game_ends() -> void:
 
 func test_hunger_death_has_cause() -> void:
 	var w := _world()
-	w["human"]["hunger"] = 99.99
+	w["people"][0]["hunger"] = 99.99
 	WorldEngine.step(w, _map)
-	assert_eq(w["human"]["cause"], "голод")
+	assert_eq(w["people"][0]["cause"], "голод")
 
 
 func test_builder_skill_speeds_up_building() -> void:
@@ -72,36 +72,36 @@ func test_builder_skill_speeds_up_building() -> void:
 func test_traits_survive_save_and_old_saves_get_defaults() -> void:
 	var w := _world()
 	var restored := WorldEngine.from_data(JSON.parse_string(JSON.stringify(w, "", true, true)))
-	assert_eq(restored["human"]["name"], w["human"]["name"])
-	assert_eq(restored["human"]["sex"], w["human"]["sex"])
+	assert_eq(restored["people"][0]["name"], w["people"][0]["name"])
+	assert_eq(restored["people"][0]["sex"], w["people"][0]["sex"])
 	var old := WorldEngine.from_data({"seed": 1, "tick": 0, "last_seen": 0, "rng_state": 1, "log": [],
 		"human": {"hunger": 0.0, "thirst": 0.0, "energy": 100.0, "alive": true, "spawned": true}})
-	assert_eq(float(old["human"]["skills"]["build"]), 1.0)
-	assert_eq(float(old["human"]["lifespan"]), Human.LIFESPAN_MAX)
+	assert_eq(float(old["people"][0]["skills"]["build"]), 1.0)
+	assert_eq(float(old["people"][0]["lifespan"]), Human.LIFESPAN_MAX)
 
 
 func test_new_game_keeps_chosen_name_and_sex() -> void:
 	var w := WorldEngine.create_world(42, 0, {"name": "  Тестовый  ", "sex": "f"})
 	WorldEngine.step(w, _map)
-	assert_eq(w["human"]["name"], "Тестовый")
-	assert_eq(w["human"]["sex"], "f")
-	assert_false(w["human"].has("sex_chosen"))
+	assert_eq(w["people"][0]["name"], "Тестовый")
+	assert_eq(w["people"][0]["sex"], "f")
+	assert_false(w["people"][0].has("sex_chosen"))
 	# Остальное (навыки, срок жизни) — как без выбора: RNG тратится одинаково.
 	var plain := _world()
-	assert_eq(w["human"]["skills"], plain["human"]["skills"])
-	assert_eq(w["human"]["lifespan"], plain["human"]["lifespan"])
+	assert_eq(w["people"][0]["skills"], plain["people"][0]["skills"])
+	assert_eq(w["people"][0]["lifespan"], plain["people"][0]["lifespan"])
 
 
 func test_empty_name_gets_random_one() -> void:
 	var w := WorldEngine.create_world(42, 0, {"name": "   ", "sex": "m"})
 	WorldEngine.step(w, _map)
-	assert_true((Human.NAMES["m"] as Array).has(w["human"]["name"]))
+	assert_true((Human.NAMES["m"] as Array).has(w["people"][0]["name"]))
 
 
 func test_food_in_camp() -> void:
 	var w := _world()
 	assert_eq(Mysteries.food_in_camp(w), -1, "лагеря нет")
-	var p := Human.position_of(w["human"])
+	var p := Human.position_of(w["people"][0])
 	w["camp"] = {"x": p.x, "z": p.y}
 	var before := Mysteries.food_in_camp(w)
 	Items.add(w, "fruit", Vector3(p.x + 1, 0, p.y))

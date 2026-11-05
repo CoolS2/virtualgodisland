@@ -1,6 +1,8 @@
 class_name Human
 extends RefCounted
-## Человечек: потребности и автономный выбор действий (utility AI). Данные — world["human"]:
+## Человек: потребности и автономный выбор действий (utility AI). Люди — world["people"] (ADR-0007),
+## у каждого — словарь:
+##   id: int; mother_id, father_id, partner_id: int (-1 — нет); pregnant_until: int (тик родов, -1 — нет)
 ##   hunger, thirst: float — 0 норма .. 100 смерть; energy: float — 100 бодр .. 0; alive: bool
 ##   spawned: bool; x, z: float — позиция в мировых координатах (высота — по карте)
 ##   action: String — "idle" | "wander" | "drink" | "eat" | "sleep"
@@ -11,8 +13,8 @@ extends RefCounted
 ##   name: String; sex: "m" | "f"; born_tick: int; start_age: float (лет при born_tick); lifespan: float (лет);
 ##   skills: {"forage", "build", "fish", "heal"} — множители 0.7..1.3 (кто-то лучше добывает еду, кто-то строит…)
 ##   cause: String — причина смерти ("" — жив)
-##   knows: Array[String] — какую еду знает ("fruit", "fish"). Вначале не знает ничего: если не догадается
-##   сам и бог не подскажет (подкинет еду рядом), умрёт от голода (голод 0→100 ≈ 33 ч).
+## Знание еды — общее: world["knowledge"] ("fruit", "fish"). Вначале не знают ничего: если не догадаются
+## сами и бог не подскажет (подкинет еду рядом), умрут от голода (голод 0→100 ≈ 33 ч).
 ## 1 тик = 1 минута: за тик человечек проходит до WALK_PER_TICK (1 ед/с), game/ показывает это плавно.
 
 const ACTIONS: Array[String] = ["idle", "wander", "drink", "eat", "sleep", "build"]
@@ -52,6 +54,9 @@ const SELF_LEARN_CHANCE := 0.03
 ## Возраст: 1 игровой год = 4 игровых дня (8 реальных часов). Первый человечек появляется взрослым.
 const TICKS_PER_YEAR := 4 * WorldClock.DAY_TICKS
 const START_AGE := 20.0
+## С этого возраста — взрослый: строит, заводит пару. Дети гуляют рядом.
+const ADULT_AGE := 16.0
+const CHILD_WANDER_RADIUS := 5.0
 const LIFESPAN_MIN := 60.0
 const LIFESPAN_MAX := 75.0
 const SKILLS: Array[String] = ["forage", "build", "fish", "heal"]
@@ -84,23 +89,29 @@ static func default_state() -> Dictionary:
 		"spawned": false, "x": 0.0, "z": 0.0,
 		"action": "idle", "tx": 0.0, "tz": 0.0, "target_item": -1, "stuck": 0,
 		"faith": 0.0, "love": 0.0, "fear": 0.0, "held": false, "touch_tick": -1,
-		"build_kind": "", "work": 0, "knows": [],
+		"build_kind": "", "work": 0,
+		"id": 1, "mother_id": -1, "father_id": -1, "partner_id": -1, "pregnant_until": -1,
 		"name": "", "sex": "m", "born_tick": 0, "start_age": START_AGE, "lifespan": LIFESPAN_MAX,
 		"skills": {"forage": 1.0, "build": 1.0, "fish": 1.0, "heal": 1.0}, "cause": "",
 	}
 
 
-## Один тик поведения (потребности уже изменены WorldEngine.step).
+## Один тик поведения всех живых людей (потребности уже изменены WorldEngine.step).
 static func update(w: Dictionary, map: IslandMap) -> void:
-	var h: Dictionary = w["human"]
-	if not h["spawned"]:
-		_spawn(w, map)
+	for h: Dictionary in (w["people"] as Array).duplicate():
+		if not h["spawned"]:
+			_spawn(w, map, h)
+		if h["alive"]:
+			_update_one(w, map, h)
+
+
+static func _update_one(w: Dictionary, map: IslandMap, h: Dictionary) -> void:
 	h["fear"] = maxf(0.0, h["fear"] - FEAR_DECAY)
 	h["love"] = maxf(0.0, h["love"] - LOVE_DECAY)
 	h["faith"] = maxf(0.0, h["faith"] - FAITH_DECAY)
 	if h["held"]:
 		return # в руке бога ничего не делает
-	_try_self_learn(w)
+	_try_self_learn(w, h)
 	match h["action"]:
 		"drink":
 			if _move(h, map):
@@ -121,7 +132,7 @@ static func update(w: Dictionary, map: IslandMap) -> void:
 						w["fish_eaten"] = int(w["fish_eaten"]) + 1
 						if int(w["fish_eaten"]) >= Mysteries.FISH_FOR_FISHERMAN:
 							Mysteries.solve(w, "fisherman")
-					WorldEngine.add_log(w, "съел %s" % ("рыбу" if item["kind"] == "fish" else "фрукт"))
+					WorldEngine.add_log(w, "%s %s %s" % [h["name"], _verb(h, "съел"), "рыбу" if item["kind"] == "fish" else "фрукт"])
 					_set_action(h, "idle")
 		"sleep":
 			if _move(h, map):
@@ -131,7 +142,7 @@ static func update(w: Dictionary, map: IslandMap) -> void:
 				var night := WorldClock.is_night(int(w["tick"]))
 				var urgent: bool = h["hunger"] >= WAKE_NEED or h["thirst"] >= WAKE_NEED
 				if urgent or (h["energy"] >= RESTED and not night):
-					WorldEngine.add_log(w, "проснулся")
+					WorldEngine.add_log(w, "%s %s" % [h["name"], _verb(h, "проснулся")])
 					_set_action(h, "idle")
 		"build":
 			if _move(h, map):
@@ -145,7 +156,7 @@ static func update(w: Dictionary, map: IslandMap) -> void:
 			if _move(h, map):
 				_set_action(h, "idle")
 	if h["action"] == "idle" or h["action"] == "wander":
-		_decide(w, map)
+		_decide(w, map, h)
 
 
 ## Настроение для лица: "dead" | "sleep" | "scared" | "happy" | "ok" | "sad".
@@ -169,60 +180,105 @@ static func age(h: Dictionary, tick: int) -> float:
 	return float(h["start_age"]) + float(tick - int(h["born_tick"])) / TICKS_PER_YEAR
 
 
+static func is_adult(h: Dictionary, tick: int) -> bool:
+	return age(h, tick) >= ADULT_AGE
+
+
+## Живые люди (появившиеся на острове).
+static func living(w: Dictionary) -> Array:
+	return (w["people"] as Array).filter(func(h: Dictionary) -> bool: return h["spawned"] and h["alive"])
+
+
+static func find_person(w: Dictionary, id: int) -> Dictionary:
+	for h: Dictionary in w["people"]:
+		if int(h["id"]) == id:
+			return h
+	return {}
+
+
+## Ближайший живой человек к точке не дальше radius; {} — никого.
+static func nearest(w: Dictionary, point: Vector2, radius: float) -> Dictionary:
+	var best := {}
+	var best_dist := radius
+	for h: Dictionary in living(w):
+		var d := position_of(h).distance_to(point)
+		if d <= best_dist:
+			best_dist = d
+			best = h
+	return best
+
+
+## Человек в руке бога или {}.
+static func held_person(w: Dictionary) -> Dictionary:
+	for h: Dictionary in w["people"]:
+		if h["held"]:
+			return h
+	return {}
+
+
+## Глагол в прошедшем времени по полу: «съел» → «съела», «проснулся» → «проснулась».
+static func _verb(h: Dictionary, male: String) -> String:
+	if h["sex"] != "f":
+		return male
+	return male.trim_suffix("ся") + "ась" if male.ends_with("ся") else male + "а"
+
+
 ## Тиков стройки с учётом навыка строителя (не меньше 1).
 static func build_ticks(h: Dictionary) -> int:
 	return maxi(1, ceili(Mysteries.BUILD_TICKS / float(h["skills"]["build"])))
 
 
 ## Смерть (голод, жажда, старость) — причина в журнал.
-static func die(w: Dictionary, cause: String) -> void:
-	var h: Dictionary = w["human"]
+static func die(w: Dictionary, h: Dictionary, cause: String) -> void:
 	if not h["alive"]:
 		return
 	h["alive"] = false
 	h["cause"] = cause
+	h["held"] = false
 	_set_action(h, "idle")
 	WorldEngine.add_log(w, "%s умер%s: %s" % [h["name"], "ла" if h["sex"] == "f" else "", cause])
 
 
-## Знает ли, что этот вид еды съедобен.
-static func knows(h: Dictionary, kind: String) -> bool:
-	return (h["knows"] as Array).has(kind)
+## Знает ли племя, что этот вид еды съедобен.
+static func knows(w: Dictionary, kind: String) -> bool:
+	return (w["knowledge"] as Array).has(kind)
 
 
-## Узнал новую еду. Первая еда — тайна «Еда».
-static func learn(w: Dictionary, kind: String) -> void:
-	var h: Dictionary = w["human"]
-	if knows(h, kind) or not Items.FOOD.has(kind):
+## Племя узнало новую еду. Первая еда — тайна «Еда».
+static func learn(w: Dictionary, kind: String, who: Dictionary = {}) -> void:
+	if knows(w, kind) or not Items.FOOD.has(kind):
 		return
-	(h["knows"] as Array).append(kind)
-	WorldEngine.add_log(w, "попробовал %s — съедобно!" % ("фрукт" if kind == "fruit" else "рыбу"))
+	(w["knowledge"] as Array).append(kind)
+	var name: String = who.get("name", "Человек")
+	WorldEngine.add_log(w, "%s %s %s — съедобно!" % [name, _verb(who, "попробовал") if not who.is_empty() else "попробовал",
+		"фрукт" if kind == "fruit" else "рыбу"])
 	Mysteries.solve(w, "food")
 
 
-## Предмет упал рядом: если это незнакомая еда и человечек видит — пробует.
+## Предмет упал рядом: если это незнакомая еда и кто-то видит — пробует.
 static func notice_landed(w: Dictionary, item: Dictionary) -> void:
-	var h: Dictionary = w["human"]
-	if not h["spawned"] or not h["alive"] or h["held"] or h["action"] == "sleep":
+	if not Items.FOOD.has(item["kind"]):
 		return
-	if Items.FOOD.has(item["kind"]) and position_of(h).distance_to(Vector2(item["x"], item["z"])) <= LEARN_RADIUS:
-		learn(w, item["kind"])
-
-
-static func _try_self_learn(w: Dictionary) -> void:
-	var h: Dictionary = w["human"]
-	if h["hunger"] < SELF_LEARN_HUNGER or h["action"] == "sleep":
-		return
-	for item: Dictionary in w["items"]:
-		if Items.FOOD.has(item["kind"]) and not knows(h, item["kind"]) and not item["held"] \
-				and position_of(h).distance_to(Vector2(item["x"], item["z"])) <= SELF_LEARN_RADIUS:
-			if VgiRng.next_float(w) < SELF_LEARN_CHANCE * float(h["skills"]["forage"]):
-				learn(w, item["kind"])
+	for h: Dictionary in living(w):
+		if h["held"] or h["action"] == "sleep":
+			continue
+		if position_of(h).distance_to(Vector2(item["x"], item["z"])) <= LEARN_RADIUS:
+			learn(w, item["kind"], h)
 			return
 
 
-static func _sleep_score(w: Dictionary) -> float:
-	var h: Dictionary = w["human"]
+static func _try_self_learn(w: Dictionary, h: Dictionary) -> void:
+	if h["hunger"] < SELF_LEARN_HUNGER or h["action"] == "sleep":
+		return
+	for item: Dictionary in w["items"]:
+		if Items.FOOD.has(item["kind"]) and not knows(w, item["kind"]) and not item["held"] \
+				and position_of(h).distance_to(Vector2(item["x"], item["z"])) <= SELF_LEARN_RADIUS:
+			if VgiRng.next_float(w) < SELF_LEARN_CHANCE * float(h["skills"]["forage"]):
+				learn(w, item["kind"], h)
+			return
+
+
+static func _sleep_score(w: Dictionary, h: Dictionary) -> float:
 	if h["energy"] <= ENERGY_TRIGGER:
 		return (100.0 - h["energy"]) / 100.0
 	if WorldClock.is_night(int(w["tick"])) and h["energy"] < NIGHT_SLEEP_BELOW:
@@ -246,10 +302,9 @@ static func add_faith(h: Dictionary, amount: float) -> void:
 	h["faith"] = minf(100.0, h["faith"] + amount * k)
 
 
-## Взять человечка рукой (рука пуста). true — взяли.
-static func grab(w: Dictionary) -> bool:
-	var h: Dictionary = w["human"]
-	if not h["spawned"] or not h["alive"] or h["held"] or Items.held_id(w) >= 0:
+## Взять человека рукой (рука пуста). true — взяли.
+static func grab(w: Dictionary, h: Dictionary) -> bool:
+	if not h["spawned"] or not h["alive"] or h["held"] or Items.held_id(w) >= 0 or not held_person(w).is_empty():
 		return false
 	h["held"] = true
 	scare(h, GRAB_FEAR)
@@ -258,8 +313,7 @@ static func grab(w: Dictionary) -> bool:
 
 
 ## Бросить/отпустить человечка. Упал в море — выносит на ближайший берег. Возвращает траекторию.
-static func throw(w: Dictionary, map: IslandMap, origin: Vector3, velocity: Vector3) -> PackedVector3Array:
-	var h: Dictionary = w["human"]
+static func throw(w: Dictionary, map: IslandMap, h: Dictionary, origin: Vector3, velocity: Vector3) -> PackedVector3Array:
 	if not h["held"]:
 		return PackedVector3Array()
 	velocity = velocity.limit_length(Items.MAX_THROW_SPEED)
@@ -279,9 +333,8 @@ static func throw(w: Dictionary, map: IslandMap, origin: Vector3, velocity: Vect
 
 
 ## Погладить: любовь растёт, страх уходит. Не чаще раза в тик. true — сработало.
-static func pet(w: Dictionary) -> bool:
-	var h: Dictionary = w["human"]
-	if not _touchable(w):
+static func pet(w: Dictionary, h: Dictionary) -> bool:
+	if not _touchable(w, h):
 		return false
 	h["love"] = minf(100.0, h["love"] + PET_LOVE)
 	h["fear"] = maxf(0.0, h["fear"] - PET_CALM)
@@ -289,17 +342,15 @@ static func pet(w: Dictionary) -> bool:
 
 
 ## Шлёпнуть: страх растёт быстрее, чем любовь от поглаживания. Не чаще раза в тик.
-static func slap(w: Dictionary) -> bool:
-	var h: Dictionary = w["human"]
-	if not _touchable(w):
+static func slap(w: Dictionary, h: Dictionary) -> bool:
+	if not _touchable(w, h):
 		return false
 	scare(h, SLAP_FEAR)
 	h["love"] = maxf(0.0, h["love"] - SLAP_LOVE)
 	return true
 
 
-static func _touchable(w: Dictionary) -> bool:
-	var h: Dictionary = w["human"]
+static func _touchable(w: Dictionary, h: Dictionary) -> bool:
 	if not h["spawned"] or not h["alive"] or h["held"] or int(h["touch_tick"]) == int(w["tick"]):
 		return false
 	h["touch_tick"] = int(w["tick"])
@@ -326,12 +377,11 @@ static func position_of(h: Dictionary) -> Vector2:
 	return Vector2(h["x"], h["z"])
 
 
-static func _decide(w: Dictionary, map: IslandMap) -> void:
-	var h: Dictionary = w["human"]
+static func _decide(w: Dictionary, map: IslandMap, h: Dictionary) -> void:
 	var scores := {
 		"drink": h["thirst"] / 100.0 if h["thirst"] >= THIRST_TRIGGER and not map.river.is_empty() else 0.0,
-		"eat": h["hunger"] / 100.0 if h["hunger"] >= HUNGER_TRIGGER and _nearest_food(w) >= 0 else 0.0,
-		"sleep": _sleep_score(w),
+		"eat": h["hunger"] / 100.0 if h["hunger"] >= HUNGER_TRIGGER and _nearest_food(w, h) >= 0 else 0.0,
+		"sleep": _sleep_score(w, h),
 		"wander": WANDER_SCORE,
 	}
 	var best := "wander"
@@ -345,7 +395,7 @@ static func _decide(w: Dictionary, map: IslandMap) -> void:
 			var water := _nearest_river_point(h, map)
 			_set_action(h, "drink", water.x, water.y)
 		"eat":
-			var id := _nearest_food(w)
+			var id := _nearest_food(w, h)
 			var item := Items.find(w, id)
 			_set_action(h, "eat", item["x"], item["z"])
 			h["target_item"] = id
@@ -354,12 +404,22 @@ static func _decide(w: Dictionary, map: IslandMap) -> void:
 			if not (w["camp"] as Dictionary).is_empty():
 				bed = Vector2(w["camp"]["x"], w["camp"]["z"]) + Vector2(1.5, 1.5)
 			_set_action(h, "sleep", bed.x, bed.y)
-			WorldEngine.add_log(w, "лёг спать" + (" в лагере" if not (w["camp"] as Dictionary).is_empty() else ""))
+			if is_adult(h, int(w["tick"])):
+				WorldEngine.add_log(w, "%s %s спать%s" % [h["name"], "легла" if h["sex"] == "f" else "лёг",
+					" в лагере" if not (w["camp"] as Dictionary).is_empty() else ""])
 		"wander":
+			# Ребёнок держится рядом с матерью.
+			var center := position_of(h)
+			var reach := WANDER_RADIUS
+			if not is_adult(h, int(w["tick"])):
+				var mother := find_person(w, h["mother_id"])
+				if not mother.is_empty() and mother["alive"]:
+					center = position_of(mother)
+				reach = CHILD_WANDER_RADIUS
 			for _i in WANDER_ATTEMPTS:
 				var angle: float = VgiRng.next_float(w) * TAU
-				var radius: float = VgiRng.next_float(w) * WANDER_RADIUS
-				var p := position_of(h) + Vector2(cos(angle), sin(angle)) * radius
+				var radius: float = VgiRng.next_float(w) * reach
+				var p := center + Vector2(cos(angle), sin(angle)) * radius
 				if _walkable(map, p) and map.biome_at_world(p.x, p.y) != IslandMap.Biome.RIVER:
 					_set_action(h, "wander", p.x, p.y)
 					return
@@ -405,10 +465,9 @@ static func _set_action(h: Dictionary, action: String, tx: float = NAN, tz: floa
 	h["work"] = 0
 
 
-static func _spawn(w: Dictionary, map: IslandMap) -> void:
-	var h: Dictionary = w["human"]
+static func _spawn(w: Dictionary, map: IslandMap, h: Dictionary) -> void:
 	h["spawned"] = true
-	_roll_traits(w, h)
+	roll_traits(w, h)
 	var half := map.half_extent()
 	for _i in SPAWN_ATTEMPTS:
 		var p := Vector2(VgiRng.next_float(w) - 0.5, VgiRng.next_float(w) - 0.5) * map.size * 0.4
@@ -429,7 +488,7 @@ static func _spawn(w: Dictionary, map: IslandMap) -> void:
 
 ## Пол, имя, срок жизни, навыки — случайно, но детерминированно (RNG мира).
 ## Имя и пол, выбранные игроком, сохраняются (RNG всё равно тратится одинаково — детерминизм).
-static func _roll_traits(w: Dictionary, h: Dictionary) -> void:
+static func roll_traits(w: Dictionary, h: Dictionary) -> void:
 	var rolled_sex := "m" if VgiRng.next_float(w) < 0.5 else "f"
 	if not h.get("sex_chosen", false):
 		h["sex"] = rolled_sex
@@ -447,12 +506,12 @@ static func _roll_traits(w: Dictionary, h: Dictionary) -> void:
 	h["skills"] = skills
 
 
-static func _nearest_food(w: Dictionary) -> int:
-	var pos := position_of(w["human"])
+static func _nearest_food(w: Dictionary, h: Dictionary) -> int:
+	var pos := position_of(h)
 	var best := -1
 	var best_dist := INF
 	for item: Dictionary in w["items"]:
-		if not Items.FOOD.has(item["kind"]) or item["held"] or not knows(w["human"], item["kind"]):
+		if not Items.FOOD.has(item["kind"]) or item["held"] or not knows(w, item["kind"]):
 			continue
 		var d := pos.distance_squared_to(Vector2(item["x"], item["z"]))
 		if d < best_dist:

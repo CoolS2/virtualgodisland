@@ -12,12 +12,12 @@ func _fresh() -> Array:
 	var map := IslandGenerator.generate(42)
 	var w := WorldEngine.create_world(42, 0)
 	WorldEngine.step(w, map)
-	w["human"]["action"] = "idle"
+	w["people"][0]["action"] = "idle"
 	return [w, map]
 
 
 func _human_point(w: Dictionary, offset: Vector2 = Vector2.ZERO) -> Vector2:
-	return Human.position_of(w["human"]) + offset
+	return Human.position_of(w["people"][0]) + offset
 
 
 func test_cast_needs_mana_and_spends_it() -> void:
@@ -35,12 +35,12 @@ func test_cast_needs_mana_and_spends_it() -> void:
 func test_rain_near_human_quenches_thirst_and_gives_faith() -> void:
 	var pair := _fresh()
 	var w: Dictionary = pair[0]
-	w["human"]["thirst"] = 50.0
+	w["people"][0]["thirst"] = 50.0
 	var fruits := Items.count_kind(w, "fruit")
 	var result := Miracles.cast(w, pair[1], "rain", _human_point(w, Vector2(3, 0)))
 	assert_true(result["seen"])
-	assert_lt(float(w["human"]["thirst"]), 50.0)
-	assert_gt(float(w["human"]["faith"]), 0.0)
+	assert_lt(float(w["people"][0]["thirst"]), 50.0)
+	assert_gt(float(w["people"][0]["faith"]), 0.0)
 	assert_gt(Items.count_kind(w, "fruit"), fruits, "дождь вырастил фрукты")
 
 
@@ -49,13 +49,13 @@ func test_far_miracle_is_not_seen() -> void:
 	var w: Dictionary = pair[0]
 	var result := Miracles.cast(w, pair[1], "rain", _human_point(w, Vector2(Miracles.SEE_RADIUS + 5, 0)))
 	assert_false(result["seen"])
-	assert_eq(float(w["human"]["faith"]), 0.0)
+	assert_eq(float(w["people"][0]["faith"]), 0.0)
 
 
 func test_sleeping_human_does_not_see() -> void:
 	var pair := _fresh()
 	var w: Dictionary = pair[0]
-	w["human"]["action"] = "sleep"
+	w["people"][0]["action"] = "sleep"
 	assert_false(Miracles.cast(w, pair[1], "rain", _human_point(w))["seen"])
 
 
@@ -69,12 +69,12 @@ func test_fish_appears_on_beach_and_feeds() -> void:
 	assert_eq(Items.count_kind(w, "fish"), 1)
 	# Убираем фрукты — голодный идёт к рыбе.
 	w["items"] = (w["items"] as Array).filter(func(item: Dictionary) -> bool: return item["kind"] != "fruit")
-	w["human"]["knows"] = ["fish"]
-	w["human"]["hunger"] = 80.0
+	w["knowledge"] = ["fish"]
+	w["people"][0]["hunger"] = 80.0
 	for _i in 8:
 		WorldEngine.step(w, map)
 	assert_eq(Items.count_kind(w, "fish"), 0, "рыбу съели")
-	assert_lt(float(w["human"]["hunger"]), 50.0)
+	assert_lt(float(w["people"][0]["hunger"]), 50.0)
 
 
 func test_lightning_makes_crater_that_survives_reload() -> void:
@@ -98,8 +98,8 @@ func test_lightning_scares_more_when_close() -> void:
 	Miracles.cast(near[0], near[1], "lightning", _human_point(near[0], Vector2(2, 0)))
 	var far := _fresh()
 	Miracles.cast(far[0], far[1], "lightning", _human_point(far[0], Vector2(15, 0)))
-	assert_gt(float(near[0]["human"]["fear"]), float(far[0]["human"]["fear"]))
-	assert_gt(float(far[0]["human"]["fear"]), 0.0)
+	assert_gt(float(near[0]["people"][0]["fear"]), float(far[0]["people"][0]["fear"]))
+	assert_gt(float(far[0]["people"][0]["fear"]), 0.0)
 
 
 func test_mana_regen_grows_with_faith() -> void:
@@ -107,7 +107,7 @@ func test_mana_regen_grows_with_faith() -> void:
 	var b := _fresh()
 	a[0]["mana"] = 0.0
 	b[0]["mana"] = 0.0
-	b[0]["human"]["faith"] = 80.0
+	b[0]["people"][0]["faith"] = 80.0
 	for _i in 10:
 		WorldEngine.step(a[0], a[1])
 		WorldEngine.step(b[0], b[1])
@@ -117,26 +117,26 @@ func test_mana_regen_grows_with_faith() -> void:
 func test_grab_human_scares_and_freezes_him() -> void:
 	var pair := _fresh()
 	var w: Dictionary = pair[0]
-	assert_true(Human.grab(w))
-	assert_gt(float(w["human"]["fear"]), 0.0)
+	assert_true(Human.grab(w, w["people"][0]))
+	assert_gt(float(w["people"][0]["fear"]), 0.0)
 	assert_false(Items.pick_up(w, 1), "рука занята человечком")
-	var pos := Human.position_of(w["human"])
-	w["human"]["thirst"] = 90.0
+	var pos := Human.position_of(w["people"][0])
+	w["people"][0]["thirst"] = 90.0
 	for _i in 3:
 		WorldEngine.step(w, pair[1])
-	assert_eq(Human.position_of(w["human"]), pos, "в руке не ходит")
+	assert_eq(Human.position_of(w["people"][0]), pos, "в руке не ходит")
 
 
 func test_throw_human_lands_on_ground() -> void:
 	var pair := _fresh()
 	var w: Dictionary = pair[0]
 	var map: IslandMap = pair[1]
-	Human.grab(w)
-	var p := Human.position_of(w["human"])
-	var path := Human.throw(w, map, Vector3(p.x, map.height_at_world(p.x, p.y) + 3.0, p.y), Vector3(2, 3, 1))
+	Human.grab(w, w["people"][0])
+	var p := Human.position_of(w["people"][0])
+	var path := Human.throw(w, map, w["people"][0], Vector3(p.x, map.height_at_world(p.x, p.y) + 3.0, p.y), Vector3(2, 3, 1))
 	assert_gt(path.size(), 1)
-	assert_false(w["human"]["held"])
-	var landed := Human.position_of(w["human"])
+	assert_false(w["people"][0]["held"])
+	var landed := Human.position_of(w["people"][0])
 	assert_ne(map.biome_at_world(landed.x, landed.y), IslandMap.Biome.SEA)
 
 
@@ -144,23 +144,23 @@ func test_human_thrown_into_sea_is_washed_ashore() -> void:
 	var pair := _fresh()
 	var w: Dictionary = pair[0]
 	var map: IslandMap = pair[1]
-	Human.grab(w)
+	Human.grab(w, w["people"][0])
 	var corner := Vector3(-map.half_extent() + 2, 5, -map.half_extent() + 2)
-	Human.throw(w, map, corner, Vector3(-5, 2, -5))
-	var landed := Human.position_of(w["human"])
+	Human.throw(w, map, w["people"][0], corner, Vector3(-5, 2, -5))
+	var landed := Human.position_of(w["people"][0])
 	assert_ne(map.biome_at_world(landed.x, landed.y), IslandMap.Biome.SEA, "вынесло на берег")
-	assert_gt(float(w["human"]["fear"]), Human.SEA_FEAR - 0.01)
+	assert_gt(float(w["people"][0]["fear"]), Human.SEA_FEAR - 0.01)
 
 
 func test_pet_and_slap_once_per_tick() -> void:
 	var pair := _fresh()
 	var w: Dictionary = pair[0]
-	assert_true(Human.pet(w))
-	assert_false(Human.slap(w), "не чаще раза в тик")
-	assert_gt(float(w["human"]["love"]), 0.0)
+	assert_true(Human.pet(w, w["people"][0]))
+	assert_false(Human.slap(w, w["people"][0]), "не чаще раза в тик")
+	assert_gt(float(w["people"][0]["love"]), 0.0)
 	WorldEngine.step(w, pair[1])
-	assert_true(Human.slap(w))
-	assert_gt(float(w["human"]["fear"]), 0.0)
+	assert_true(Human.slap(w, w["people"][0]))
+	assert_gt(float(w["people"][0]["fear"]), 0.0)
 	assert_gt(Human.SLAP_FEAR, Human.PET_LOVE, "шлепок действует сильнее")
 
 
@@ -193,5 +193,5 @@ func test_save_v3_migrates() -> void:
 	var w := WorldEngine.from_data(v3)
 	assert_eq(float(w["mana"]), Miracles.MANA_START)
 	assert_eq(w["craters"], [])
-	assert_eq(float(w["human"]["faith"]), 0.0)
-	assert_false(w["human"]["held"])
+	assert_eq(float(w["people"][0]["faith"]), 0.0)
+	assert_false(w["people"][0]["held"])

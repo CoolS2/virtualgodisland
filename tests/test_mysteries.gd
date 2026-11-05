@@ -7,7 +7,7 @@ func _fresh() -> Array:
 	var map := IslandGenerator.generate(42)
 	var w := WorldEngine.create_world(42, 0)
 	WorldEngine.step(w, map)
-	w["human"]["action"] = "idle"
+	w["people"][0]["action"] = "idle"
 	return [w, map]
 
 
@@ -19,7 +19,7 @@ func _run(pair: Array, ticks: int) -> void:
 ## Ближайшая к человечку клетка леса в мировых координатах.
 func _forest_near(pair: Array) -> Vector2:
 	var map: IslandMap = pair[1]
-	var pos := Human.position_of(pair[0]["human"])
+	var pos := Human.position_of(pair[0]["people"][0])
 	var half := map.half_extent()
 	var best := Vector2.INF
 	for i in map.biomes.size():
@@ -33,7 +33,7 @@ func _forest_near(pair: Array) -> Vector2:
 
 func _make_camp(pair: Array) -> Vector2:
 	var w: Dictionary = pair[0]
-	var p := Human.position_of(w["human"])
+	var p := Human.position_of(w["people"][0])
 	w["fire"] = {"x": p.x, "z": p.y}
 	Mysteries.complete_build(w, "camp", p)
 	return p
@@ -51,13 +51,13 @@ func test_human_sleeps_at_night_until_morning() -> void:
 	var pair := _fresh()
 	var w: Dictionary = pair[0]
 	w["tick"] = NIGHT_TICK
-	w["human"]["energy"] = 80.0
+	w["people"][0]["energy"] = 80.0
 	_run(pair, 2)
-	assert_eq(w["human"]["action"], "sleep", "ночью спит")
+	assert_eq(w["people"][0]["action"], "sleep", "ночью спит")
 	_run(pair, 20) # всё ещё ночь
-	assert_eq(w["human"]["action"], "sleep", "спит до утра, даже выспавшись")
+	assert_eq(w["people"][0]["action"], "sleep", "спит до утра, даже выспавшись")
 	_run(pair, 30) # утро
-	assert_ne(w["human"]["action"], "sleep", "утром проснулся")
+	assert_ne(w["people"][0]["action"], "sleep", "утром проснулся")
 
 
 func test_lightning_in_forest_leads_to_camp() -> void:
@@ -67,8 +67,8 @@ func test_lightning_in_forest_leads_to_camp() -> void:
 	assert_ne(p, Vector2.INF)
 	Miracles.cast(w, pair[1], "lightning", p)
 	assert_false((w["fire"] as Dictionary).is_empty(), "огонь")
-	w["human"]["fear"] = 0.0
-	w["human"]["action"] = "idle"
+	w["people"][0]["fear"] = 0.0
+	w["people"][0]["action"] = "idle"
 	_run(pair, 8)
 	assert_true(Mysteries.is_solved(w, "camp"), "лагерь построен")
 	assert_false((w["camp"] as Dictionary).is_empty())
@@ -78,11 +78,11 @@ func test_three_fish_make_a_fisherman() -> void:
 	var pair := _fresh()
 	var w: Dictionary = pair[0]
 	w["fish_eaten"] = Mysteries.FISH_FOR_FISHERMAN - 1
-	var p := Human.position_of(w["human"])
+	var p := Human.position_of(w["people"][0])
 	Items.add(w, "fish", Vector3(p.x + 1, 0, p.y))
 	w["items"] = (w["items"] as Array).filter(func(item: Dictionary) -> bool: return item["kind"] != "fruit")
-	w["human"]["knows"] = ["fish"]
-	w["human"]["hunger"] = 80.0
+	w["knowledge"] = ["fish"]
+	w["people"][0]["hunger"] = 80.0
 	_run(pair, 4)
 	assert_true(Mysteries.is_solved(w, "fisherman"))
 
@@ -91,7 +91,7 @@ func test_faith_builds_shrine_which_speeds_mana() -> void:
 	var pair := _fresh()
 	var w: Dictionary = pair[0]
 	_make_camp(pair)
-	w["human"]["faith"] = 90.0
+	w["people"][0]["faith"] = 90.0
 	_run(pair, 8)
 	assert_true(Mysteries.is_solved(w, "shrine"))
 	var a := float(w["mana"])
@@ -137,7 +137,7 @@ func test_raft_from_branches_and_love() -> void:
 	for i in Mysteries.RAFT_BRANCHES:
 		Items.add(w, "branch", Vector3(camp.x + 1 + i * 0.3, 0, camp.y))
 	var branches := Items.count_kind(w, "branch")
-	w["human"]["love"] = 80.0
+	w["people"][0]["love"] = 80.0
 	_run(pair, 12)
 	assert_true(Mysteries.is_solved(w, "raft"))
 	assert_lte(Items.count_kind(w, "branch"), branches - Mysteries.RAFT_BRANCHES + 1, "ветки ушли на плот")

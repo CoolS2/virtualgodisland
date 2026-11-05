@@ -7,7 +7,9 @@ extends RefCounted
 ##   tick: int         — номер тика
 ##   last_seen: int    — реальное время последнего обновления, мс. Читается только в catch_up.
 ##   rng_state: int    — состояние VgiRng (int32)
-##   human: Dictionary — человечек (формат — sim/human.gd)
+##   people: Array        — люди (формат — sim/human.gd), next_person_id: int (ADR-0007)
+##   knowledge: Array     — какую еду знает племя; bonds: Dictionary — привязанность пар (sim/family.gd)
+##   newcomer_due: int, newcomer_arrived: bool — прибытие второго человека после дома
 ##   log: Array[String] — события для экрана «Пока тебя не было…»
 ##   items: Array        — предметы (формат — sim/items.gd)
 ##   next_item_id: int   — следующий свободный id предмета
@@ -38,6 +40,7 @@ const LOG_MAX := 200
 ## options: {"name": String, "sex": "m"|"f"} — выбор игрока в новой игре (остальное — случайно по seed).
 static func create_world(world_seed: int, now_ms: int, options: Dictionary = {}) -> Dictionary:
 	var human := Human.default_state()
+	human["id"] = 1
 	if options.has("name") and not str(options["name"]).strip_edges().is_empty():
 		human["name"] = str(options["name"]).strip_edges().left(Human.NAME_MAX)
 	if options.get("sex", "") == "m" or options.get("sex", "") == "f":
@@ -48,7 +51,12 @@ static func create_world(world_seed: int, now_ms: int, options: Dictionary = {})
 		"tick": 0,
 		"last_seen": now_ms,
 		"rng_state": VgiRng.to_i32(world_seed),
-		"human": human,
+		"people": [human],
+		"next_person_id": 2,
+		"knowledge": [],
+		"bonds": {},
+		"newcomer_due": -1,
+		"newcomer_arrived": false,
 		"log": [],
 		"items": [],
 		"next_item_id": 1,
@@ -64,17 +72,18 @@ static func create_world(world_seed: int, now_ms: int, options: Dictionary = {})
 ## Один тик симуляции. Детерминирован: зависит только от мира и карты (карта — из seed).
 static func step(w: Dictionary, map: IslandMap) -> void:
 	Items.spawn_initial(w, map)
-	var h: Dictionary = w["human"]
-	if not h["alive"]:
+	if is_game_over(w):
 		return
 
-	h["hunger"] = minf(100.0, h["hunger"] + HUNGER_PER_TICK)
-	h["thirst"] = minf(100.0, h["thirst"] + THIRST_PER_TICK)
-	if h["action"] != "sleep":
-		h["energy"] = maxf(0.0, h["energy"] - ENERGY_PER_TICK)
+	for h: Dictionary in Human.living(w):
+		h["hunger"] = minf(100.0, h["hunger"] + HUNGER_PER_TICK)
+		h["thirst"] = minf(100.0, h["thirst"] + THIRST_PER_TICK)
+		if h["action"] != "sleep":
+			h["energy"] = maxf(0.0, h["energy"] - ENERGY_PER_TICK)
 
 	Human.update(w, map)
 	Mysteries.update(w, map)
+	Family.update(w, map)
 	Miracles.regen(w)
 
 	if int(w["tick"]) % FRUIT_REGROW_TICKS == 0 and Items.count_kind(w, "fruit") < FRUIT_MAX:
@@ -82,19 +91,21 @@ static func step(w: Dictionary, map: IslandMap) -> void:
 	if int(w["tick"]) % BRANCH_REGROW_TICKS == 0 and Items.count_kind(w, "branch") < BRANCH_MAX:
 		Items.grow_branch(w, map)
 
-	if h["hunger"] >= 100.0:
-		Human.die(w, "голод")
-	elif h["thirst"] >= 100.0:
-		Human.die(w, "жажда")
-	elif h["spawned"] and Human.age(h, int(w["tick"])) >= float(h["lifespan"]):
-		Human.die(w, "старость, %d лет" % int(Human.age(h, int(w["tick"]))))
+	for h: Dictionary in Human.living(w):
+		if h["hunger"] >= 100.0:
+			Human.die(w, h, "голод")
+		elif h["thirst"] >= 100.0:
+			Human.die(w, h, "жажда")
+		elif Human.age(h, int(w["tick"])) >= float(h["lifespan"]):
+			Human.die(w, h, "старость, %d лет" % int(Human.age(h, int(w["tick"]))))
 	w["tick"] = int(w["tick"]) + 1
 
 
-## Игра окончена: людей на острове не осталось. Пока человек один — его смерть означает конец
-## (если он не успел завести семью и поселение — см. GAME_DESIGN «Семья»).
+## Игра окончена: люди уже появлялись, но живых не осталось (основатель не успел завести семью,
+## или поселение вымерло — см. GAME_DESIGN «Семья»).
 static func is_game_over(w: Dictionary) -> bool:
-	return w["human"]["spawned"] and not w["human"]["alive"]
+	var people: Array = w["people"]
+	return not people.is_empty() and people[0]["spawned"] and Human.living(w).is_empty()
 
 
 ## Запись в журнал (экран «Пока тебя не было…»): «день N, ЧЧ:ММ: текст». Хранятся последние LOG_MAX.
@@ -127,12 +138,39 @@ static func from_data(data: Variant) -> Dictionary:
 	if typeof(data) != TYPE_DICTIONARY:
 		return {}
 	var d: Dictionary = data
-	for key: String in ["seed", "tick", "last_seen", "rng_state", "human", "log"]:
+	for key: String in ["seed", "tick", "last_seen", "rng_state", "log"]:
 		if not d.has(key):
 			return {}
-	var h: Variant = d["human"]
-	if typeof(h) != TYPE_DICTIONARY or typeof(d["log"]) != TYPE_ARRAY:
+	if typeof(d["log"]) != TYPE_ARRAY:
 		return {}
+	# v≤7: один человек в "human" → people[0]; его знание еды → знание племени.
+	var raw_people: Array = []
+	var knowledge: Array = []
+	if typeof(d.get("people")) == TYPE_ARRAY:
+		raw_people = d["people"]
+		knowledge = _knowledge_from_data(d.get("knowledge", []))
+	elif typeof(d.get("human")) == TYPE_DICTIONARY:
+		var old: Dictionary = d["human"]
+		raw_people = [old]
+		if typeof(old.get("knows")) == TYPE_ARRAY:
+			knowledge = _knowledge_from_data(old["knows"])
+		elif old.has("spawned"):
+			knowledge = ["fruit", "fish"] # сейвы до «открытия еды» (v≤5): уже ел
+	else:
+		return {}
+	var people: Array = []
+	for i in raw_people.size():
+		if typeof(raw_people[i]) == TYPE_DICTIONARY:
+			people.append(_human_from_data(raw_people[i], i + 1))
+	if people.is_empty():
+		return {}
+	var max_id := 0
+	for p: Dictionary in people:
+		max_id = maxi(max_id, int(p["id"]))
+	var bonds := {}
+	if typeof(d.get("bonds")) == TYPE_DICTIONARY:
+		for key: Variant in d["bonds"]:
+			bonds[str(key)] = float(d["bonds"][key])
 	var entries: Array = []
 	for entry: Variant in d["log"]:
 		entries.append(str(entry))
@@ -141,7 +179,12 @@ static func from_data(data: Variant) -> Dictionary:
 		"tick": int(d["tick"]),
 		"last_seen": int(d["last_seen"]),
 		"rng_state": int(d["rng_state"]),
-		"human": _human_from_data(h),
+		"people": people,
+		"next_person_id": maxi(int(d.get("next_person_id", 0)), max_id + 1),
+		"knowledge": knowledge,
+		"bonds": bonds,
+		"newcomer_due": int(d.get("newcomer_due", -1)),
+		"newcomer_arrived": bool(d.get("newcomer_arrived", false)),
 		"log": entries,
 		"items": Items.from_data(d.get("items", [])),
 		"next_item_id": int(d.get("next_item_id", 1)),
@@ -159,8 +202,13 @@ static func from_data(data: Variant) -> Dictionary:
 	}
 
 
-static func _human_from_data(h: Dictionary) -> Dictionary:
+static func _human_from_data(h: Dictionary, fallback_id: int) -> Dictionary:
 	var result := Human.default_state()
+	result["id"] = int(h.get("id", fallback_id))
+	result["mother_id"] = int(h.get("mother_id", -1))
+	result["father_id"] = int(h.get("father_id", -1))
+	result["partner_id"] = int(h.get("partner_id", -1))
+	result["pregnant_until"] = int(h.get("pregnant_until", -1))
 	result["hunger"] = float(h.get("hunger", 0.0))
 	result["thirst"] = float(h.get("thirst", 0.0))
 	result["energy"] = float(h.get("energy", 100.0))
@@ -182,15 +230,6 @@ static func _human_from_data(h: Dictionary) -> Dictionary:
 	result["touch_tick"] = int(h.get("touch_tick", -1))
 	result["build_kind"] = str(h.get("build_kind", ""))
 	result["work"] = int(h.get("work", 0))
-	var known: Array = []
-	if typeof(h.get("knows")) == TYPE_ARRAY:
-		for kind: Variant in h["knows"]:
-			if Items.FOOD.has(str(kind)) and not known.has(str(kind)):
-				known.append(str(kind))
-	elif h.has("spawned"):
-		# Сейвы до «открытия еды» (v≤5): человечек уже ел — считаем, что фрукты он знает.
-		known = ["fruit", "fish"]
-	result["knows"] = known
 	result["name"] = str(h.get("name", "Ару"))
 	result["sex"] = "f" if str(h.get("sex", "m")) == "f" else "m"
 	result["born_tick"] = int(h.get("born_tick", 0))
@@ -202,6 +241,15 @@ static func _human_from_data(h: Dictionary) -> Dictionary:
 	for skill in Human.SKILLS:
 		skills[skill] = float((raw as Dictionary).get(skill, 1.0)) if typeof(raw) == TYPE_DICTIONARY else 1.0
 	result["skills"] = skills
+	return result
+
+
+static func _knowledge_from_data(data: Variant) -> Array:
+	var result: Array = []
+	if typeof(data) == TYPE_ARRAY:
+		for kind: Variant in data:
+			if Items.FOOD.has(str(kind)) and not result.has(str(kind)):
+				result.append(str(kind))
 	return result
 
 
