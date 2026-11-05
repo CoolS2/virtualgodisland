@@ -27,6 +27,7 @@ var _label := Label3D.new()
 var _hair: MeshInstance3D
 var _long_hair: MeshInstance3D
 var _shirt: MeshInstance3D
+var _sleeves: Array[MeshInstance3D] = []
 var _time := 0.0
 var _placed := false
 var _flight := PackedVector3Array()
@@ -49,7 +50,7 @@ func _init() -> void:
 		_legs.append(leg)
 		var arm := Node3D.new()
 		arm.position = Vector3(0.34 * side, 0.98, 0)
-		_part(arm, LowPoly.cylinder(0.06, 0.07, 0.4), LowPoly.at(Vector3(0, -0.2, 0)), LowPoly.SHIRT, mat)
+		_sleeves.append(_part(arm, LowPoly.cylinder(0.06, 0.07, 0.4), LowPoly.at(Vector3(0, -0.2, 0)), Color.WHITE, mat))
 		_part(arm, LowPoly.sphere(0.08, 6, 3), LowPoly.at(Vector3(0, -0.43, 0)), LowPoly.SKIN, mat)
 		_model.add_child(arm)
 		_arms.append(arm)
@@ -227,7 +228,10 @@ func _appearance(h: Dictionary, age: float) -> void:
 	var hair := LowPoly.HAIR.lerp(Color("#d8d8d8"), grey)
 	for inst in [_hair, _long_hair]:
 		(inst as MeshInstance3D).material_override = _tinted(hair)
-	_shirt.material_override = _tinted(Color("#d8453c") if female else LowPoly.SHIRT)
+	var shirt := _tinted(Color("#d8453c") if female else LowPoly.SHIRT)
+	_shirt.material_override = shirt
+	for sleeve in _sleeves:
+		sleeve.material_override = shirt
 
 
 var _tint_cache := {}
