@@ -1,10 +1,10 @@
 class_name WorldClock
 extends RefCounted
 ## Время суток мира. Игровые сутки — DAY_TICKS тиков (2 реальных часа), чтобы ночь наступала за сессию.
-## Тик 0 — 06:00 первого дня.
+## Тик 0 — 08:00 первого дня (новая игра начинается при ярком солнце).
 
 const DAY_TICKS := 120
-const START_HOUR := 6.0
+const START_HOUR := 8.0
 const NIGHT_START := 21.0
 const NIGHT_END := 5.0
 
@@ -14,7 +14,7 @@ static func hour(tick: float) -> float:
 	return fposmod(START_HOUR + 24.0 * tick / DAY_TICKS, 24.0)
 
 
-## Номер дня, с 1; новый день начинается в 06:00.
+## Номер дня, с 1; новый день начинается в START_HOUR.
 static func day(tick: int) -> int:
 	return 1 + floori(float(tick) / DAY_TICKS)
 

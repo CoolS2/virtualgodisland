@@ -1,6 +1,6 @@
 extends GutTest
 
-const NIGHT_TICK := 85 # 23:00 первого дня
+const NIGHT_TICK := 75 # 23:00 первого дня
 
 
 func _fresh() -> Array:
@@ -40,7 +40,7 @@ func _make_camp(pair: Array) -> Vector2:
 
 
 func test_clock() -> void:
-	assert_eq(WorldClock.hour(0), 6.0)
+	assert_eq(WorldClock.hour(0), WorldClock.START_HOUR)
 	assert_eq(WorldClock.day(0), 1)
 	assert_eq(WorldClock.day(WorldClock.DAY_TICKS), 2)
 	assert_false(WorldClock.is_night(10))

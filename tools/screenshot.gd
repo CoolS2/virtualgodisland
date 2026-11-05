@@ -128,7 +128,7 @@ func _night_camp_view(main: Node) -> Array:
 	var map := main.get("island_map") as IslandMap
 	var h: Dictionary = world["human"]
 	var camp := Human.position_of(h)
-	world["tick"] = 90 # 00:00 первого дня
+	world["tick"] = 90 # 02:00 ночи первого дня
 	world["fire"] = {"x": camp.x, "z": camp.y}
 	world["camp"] = {"x": camp.x, "z": camp.y}
 	world["shrine"] = {"x": camp.x + 4.0, "z": camp.y + 1.0}
