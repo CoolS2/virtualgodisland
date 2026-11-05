@@ -3,20 +3,20 @@ extends RefCounted
 ## Меши острова и воды из IslandMap. Low-poly: плоская нормаль на треугольник, цвет по биому.
 
 const COLORS := {
-	IslandMap.Biome.SEA: Color("#e8cf8f"), # дно под водой (у берега; глубже темнеет)
-	IslandMap.Biome.BEACH: Color("#f6dc8c"),
-	IslandMap.Biome.FIELD: Color("#7cbf4a"),
-	IslandMap.Biome.FOREST: Color("#4f9e3c"),
-	IslandMap.Biome.MOUNTAIN: Color("#9a948c"),
-	IslandMap.Biome.RIVER: Color("#b8a97c"), # дно реки
+	IslandMap.Biome.SEA: Color("#d6c296"), # дно под водой (у берега; глубже темнеет)
+	IslandMap.Biome.BEACH: Color("#e3cf9e"),
+	IslandMap.Biome.FIELD: Color("#8fa35b"),
+	IslandMap.Biome.FOREST: Color("#556f3c"),
+	IslandMap.Biome.MOUNTAIN: Color("#8a8277"),
+	IslandMap.Biome.RIVER: Color("#a8996e"), # дно реки
 }
-const SEA_DEEP := Color("#5f8f8a")
-const FIELD_HIGH := Color("#a3cc5c") # поле светлеет к холмам
-const ROCK_HIGH := Color("#b8b4ae")
-const SNOW := Color("#f4f6fb")
+const SEA_DEEP := Color("#4e7672")
+const FIELD_HIGH := Color("#ada66a") # поле светлеет к холмам
+const ROCK_HIGH := Color("#a49c91")
+const SNOW := Color("#efeee8")
 ## Крутые склоны (перепад высоты к соседям, на клетку) окрашиваются камнем.
 const CLIFF_SLOPE := 1.1
-const CLIFF := Color("#8c857c")
+const CLIFF := Color("#776e63")
 ## Разброс яркости между вершинами — «живой» мультяшный ландшафт вместо ровной заливки.
 const JITTER := 0.06
 

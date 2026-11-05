@@ -3,14 +3,14 @@ extends RefCounted
 ## Процедурные low-poly модели (деревья, камни, трава, облака) с гранёным видом:
 ## у каждого треугольника своя нормаль, цвет — в вершинах. Временная замена ассетам.
 
-const TRUNK := Color("#8a5a3b")
-const LEAVES := Color("#4caf50")
-const LEAVES_DARK := Color("#3a8f45")
-const PINE := Color("#2e7d4f")
-const PALM_LEAVES := Color("#63c35a")
-const ROCK := Color("#9b9893")
-const BUSH := Color("#5fa84a")
-const GRASS := Color("#79bf4f")
+const TRUNK := Color("#6e4a33")
+const LEAVES := Color("#5f8a45")
+const LEAVES_DARK := Color("#47693a")
+const PINE := Color("#3f6649")
+const PALM_LEAVES := Color("#6f9a4d")
+const ROCK := Color("#8e8981")
+const BUSH := Color("#678c47")
+const GRASS := Color("#8ba25a")
 const CLOUD := Color("#ffffff")
 const STONE := Color("#a3a09a")
 const BRANCH := Color("#7a4e2d")

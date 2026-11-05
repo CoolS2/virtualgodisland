@@ -9,6 +9,17 @@
 |---|---|---|---|---|
 | GUT (Godot Unit Test) | 9.7.1 | `addons/gut/` | https://github.com/bitwes/Gut (тег `v9.7.1`, ветка 9.7 — совместимость с Godot 4.7) | MIT (`addons/gut/LICENSE.md`) |
 
-## Модели, текстуры, звуки
+## Шрифты
 
-Пока нет.
+| Шрифт | Файл | Источник | Лицензия |
+|---|---|---|---|
+| Amatic SC Bold | `assets/fonts/AmaticSC-Bold.ttf` | github.com/google/fonts, `ofl/amaticsc`, коммит `bbda7253` | SIL OFL 1.1 (`assets/fonts/OFL-AmaticSC.txt`) |
+| Nunito (variable) | `assets/fonts/Nunito-Variable.ttf` | github.com/google/fonts, `ofl/nunito`, коммит `bbda7253` | SIL OFL 1.1 (`assets/fonts/OFL-Nunito.txt`) |
+
+## Текстуры интерфейса
+
+`assets/ui/*.png` — свои, сгенерированы `tools/ui_art/generate_ui_art.py` (PIL). Лицензия — проекта.
+
+## Модели, звуки
+
+Модели — процедурные (`game/low_poly.gd`). Звуков пока нет.

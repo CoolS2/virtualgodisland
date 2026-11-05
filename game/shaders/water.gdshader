@@ -4,8 +4,8 @@ shader_type spatial;
 // чтобы работать в рендерере Compatibility / WebGL2).
 render_mode blend_mix, cull_back, specular_schlick_ggx;
 
-uniform vec3 deep_color : source_color = vec3(0.02, 0.22, 0.55);
-uniform vec3 shallow_color : source_color = vec3(0.18, 0.78, 0.78);
+uniform vec3 deep_color : source_color = vec3(0.07, 0.27, 0.42);
+uniform vec3 shallow_color : source_color = vec3(0.32, 0.66, 0.62);
 uniform vec3 foam_color : source_color = vec3(1.0, 1.0, 1.0);
 uniform sampler2D depth_map : filter_linear, repeat_disable;
 uniform vec2 map_origin = vec2(0.0);

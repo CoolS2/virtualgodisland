@@ -2,8 +2,8 @@ class_name Daylight
 extends Node3D
 ## Небо, солнце и луна по времени суток (WorldClock.hour): день, закат, ночь. Только визуал.
 
-const DAY_TOP := Color("#3d8fe0")
-const DAY_HORIZON := Color("#c4e6ff")
+const DAY_TOP := Color("#5d9fd6")
+const DAY_HORIZON := Color("#d6e4e6")
 const NIGHT_TOP := Color("#0a1430")
 const NIGHT_HORIZON := Color("#22335a")
 const SUNSET := Color("#ffa968")
@@ -28,7 +28,11 @@ func _init() -> void:
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	environment.glow_enabled = true
-	environment.glow_intensity = 0.4
+	environment.glow_intensity = 0.3
+	# Чуть приглушённые цвета и тёплый тон — естественнее, без «кислоты».
+	environment.adjustment_enabled = true
+	environment.adjustment_saturation = 0.9
+	environment.adjustment_contrast = 1.05
 	environment.fog_enabled = true
 	environment.fog_density = 0.0009
 	environment.fog_sky_affect = 0.0

@@ -13,13 +13,17 @@ var _game_over := PanelContainer.new()
 var _game_over_text := Label.new()
 
 
+var _root := UiStyle.root()
+
+
 func _init() -> void:
 	name = "GameUi"
 	layer = 2
+	add_child(_root)
 	_setup_panel(_welcome, _welcome_text, "Продолжить")
 	_setup_panel(_mysteries, _mysteries_text, "Закрыть")
 	_setup_panel(_game_over, _game_over_text, "Новый остров")
-	(_game_over.get_child(0).get_child(1) as Button).pressed.connect(func() -> void: new_game_requested.emit())
+	(_game_over.get_child(0).get_child(2) as Button).pressed.connect(func() -> void: new_game_requested.emit())
 
 
 func show_welcome(text: String) -> void:
@@ -53,23 +57,22 @@ func show_mysteries(world: Dictionary) -> void:
 
 
 func _setup_panel(panel: PanelContainer, text: Label, button_text: String) -> void:
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.08, 0.1, 0.16, 0.88)
-	style.set_corner_radius_all(12)
-	style.set_content_margin_all(18)
-	panel.add_theme_stylebox_override("panel", style)
 	panel.set_anchors_preset(Control.PRESET_CENTER)
 	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
-	panel.custom_minimum_size = Vector2(460, 0)
+	panel.custom_minimum_size = Vector2(500, 0)
 	panel.visible = false
 	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 12)
+	box.add_theme_constant_override("separation", 10)
 	text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	text.add_theme_font_size_override("font_size", 16)
 	box.add_child(text)
+	box.add_child(HSeparator.new())
 	var button := Button.new()
 	button.text = button_text
+	button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	button.custom_minimum_size = Vector2(200, 42)
 	button.pressed.connect(func() -> void: panel.visible = false)
 	box.add_child(button)
 	panel.add_child(box)
-	add_child(panel)
+	_root.add_child(panel)

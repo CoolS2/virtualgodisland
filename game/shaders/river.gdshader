@@ -3,7 +3,7 @@ shader_type spatial;
 // COLOR.r = 1 на участке водопада: струи быстрее, гуще и белее.
 render_mode blend_mix, cull_disabled, specular_schlick_ggx;
 
-uniform vec3 water_color : source_color = vec3(0.2, 0.72, 0.82);
+uniform vec3 water_color : source_color = vec3(0.3, 0.6, 0.64);
 uniform vec3 foam_color : source_color = vec3(1.0, 1.0, 1.0);
 uniform float flow_speed = 1.2;
 

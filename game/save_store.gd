@@ -25,6 +25,16 @@ static func load_world(now: int) -> Dictionary:
 	return WorldEngine.create_world(randi() & 0x7FFFFFFF, now)
 
 
+## Seed сохранённого острова (для фона меню) или -1.
+static func saved_seed() -> int:
+	if not has_save():
+		return -1
+	var data: Variant = JSON.parse_string(FileAccess.get_file_as_string(PATH))
+	if typeof(data) == TYPE_DICTIONARY and typeof((data as Dictionary).get("world")) == TYPE_DICTIONARY:
+		return int(data["world"].get("seed", -1))
+	return -1
+
+
 static func has_save() -> bool:
 	return FileAccess.file_exists(PATH)
 
