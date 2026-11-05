@@ -144,6 +144,16 @@ static func _cave_spot(map: IslandMap, near: Vector2) -> Vector2:
 	return best
 
 
+## Сколько еды (фрукты, рыба) лежит у лагеря; -1 — лагеря нет.
+static func food_in_camp(w: Dictionary) -> int:
+	if (w["camp"] as Dictionary).is_empty():
+		return -1
+	var n := 0
+	for kind: String in Items.FOOD:
+		n += _near(w, _pos(w["camp"]), kind).size()
+	return n
+
+
 ## Ветки рядом с точкой, от ближних к дальним.
 static func _branches_near(w: Dictionary, center: Vector2) -> Array:
 	return _near(w, center, "branch")

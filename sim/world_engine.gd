@@ -35,13 +35,20 @@ const BRANCH_MAX := 20
 const LOG_MAX := 200
 
 
-static func create_world(world_seed: int, now_ms: int) -> Dictionary:
+## options: {"name": String, "sex": "m"|"f"} — выбор игрока в новой игре (остальное — случайно по seed).
+static func create_world(world_seed: int, now_ms: int, options: Dictionary = {}) -> Dictionary:
+	var human := Human.default_state()
+	if options.has("name") and not str(options["name"]).strip_edges().is_empty():
+		human["name"] = str(options["name"]).strip_edges().left(Human.NAME_MAX)
+	if options.get("sex", "") == "m" or options.get("sex", "") == "f":
+		human["sex"] = options["sex"]
+		human["sex_chosen"] = true
 	return {
 		"seed": world_seed,
 		"tick": 0,
 		"last_seen": now_ms,
 		"rng_state": VgiRng.to_i32(world_seed),
-		"human": Human.default_state(),
+		"human": human,
 		"log": [],
 		"items": [],
 		"next_item_id": 1,

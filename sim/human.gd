@@ -55,6 +55,7 @@ const START_AGE := 20.0
 const LIFESPAN_MIN := 60.0
 const LIFESPAN_MAX := 75.0
 const SKILLS: Array[String] = ["forage", "build", "fish", "heal"]
+const NAME_MAX := 16
 const SKILL_MIN := 0.7
 const SKILL_MAX := 1.3
 const NAMES := {
@@ -427,10 +428,16 @@ static func _spawn(w: Dictionary, map: IslandMap) -> void:
 
 
 ## Пол, имя, срок жизни, навыки — случайно, но детерминированно (RNG мира).
+## Имя и пол, выбранные игроком, сохраняются (RNG всё равно тратится одинаково — детерминизм).
 static func _roll_traits(w: Dictionary, h: Dictionary) -> void:
-	h["sex"] = "m" if VgiRng.next_float(w) < 0.5 else "f"
+	var rolled_sex := "m" if VgiRng.next_float(w) < 0.5 else "f"
+	if not h.get("sex_chosen", false):
+		h["sex"] = rolled_sex
 	var names: Array = NAMES[h["sex"]]
-	h["name"] = names[mini(int(VgiRng.next_float(w) * names.size()), names.size() - 1)]
+	var rolled_name: String = names[mini(int(VgiRng.next_float(w) * names.size()), names.size() - 1)]
+	if str(h["name"]).is_empty():
+		h["name"] = rolled_name
+	h.erase("sex_chosen")
 	h["born_tick"] = int(w["tick"])
 	h["start_age"] = START_AGE
 	h["lifespan"] = lerpf(LIFESPAN_MIN, LIFESPAN_MAX, VgiRng.next_float(w))

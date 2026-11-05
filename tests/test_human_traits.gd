@@ -78,3 +78,32 @@ func test_traits_survive_save_and_old_saves_get_defaults() -> void:
 		"human": {"hunger": 0.0, "thirst": 0.0, "energy": 100.0, "alive": true, "spawned": true}})
 	assert_eq(float(old["human"]["skills"]["build"]), 1.0)
 	assert_eq(float(old["human"]["lifespan"]), Human.LIFESPAN_MAX)
+
+
+func test_new_game_keeps_chosen_name_and_sex() -> void:
+	var w := WorldEngine.create_world(42, 0, {"name": "  Тестовый  ", "sex": "f"})
+	WorldEngine.step(w, _map)
+	assert_eq(w["human"]["name"], "Тестовый")
+	assert_eq(w["human"]["sex"], "f")
+	assert_false(w["human"].has("sex_chosen"))
+	# Остальное (навыки, срок жизни) — как без выбора: RNG тратится одинаково.
+	var plain := _world()
+	assert_eq(w["human"]["skills"], plain["human"]["skills"])
+	assert_eq(w["human"]["lifespan"], plain["human"]["lifespan"])
+
+
+func test_empty_name_gets_random_one() -> void:
+	var w := WorldEngine.create_world(42, 0, {"name": "   ", "sex": "m"})
+	WorldEngine.step(w, _map)
+	assert_true((Human.NAMES["m"] as Array).has(w["human"]["name"]))
+
+
+func test_food_in_camp() -> void:
+	var w := _world()
+	assert_eq(Mysteries.food_in_camp(w), -1, "лагеря нет")
+	var p := Human.position_of(w["human"])
+	w["camp"] = {"x": p.x, "z": p.y}
+	var before := Mysteries.food_in_camp(w)
+	Items.add(w, "fruit", Vector3(p.x + 1, 0, p.y))
+	Items.add(w, "fish", Vector3(p.x, 0, p.y + 1))
+	assert_eq(Mysteries.food_in_camp(w), before + 2)
