@@ -4,7 +4,9 @@ extends RefCounted
 ##   hunger, thirst: float — 0 норма .. 100 смерть; energy: float — 100 бодр .. 0; alive: bool
 ##   spawned: bool; x, z: float — позиция в мировых координатах (высота — по карте)
 ##   action: String — "idle" | "wander" | "drink" | "eat" | "sleep"
-##   tx, tz: float — цель движения; target_item: int — фрукт для "eat"; stuck: int — тиков без продвижения
+##   tx, tz: float — цель движения; target_item: int — еда для "eat"; stuck: int — тиков без продвижения
+##   faith, love, fear: float 0..100 — вера, любовь и страх к богу; held: bool — в руке бога;
+##   touch_tick: int — тик последнего «погладить/шлёпнуть» (не чаще раза в тик)
 ## 1 тик = 1 минута: за тик человечек проходит до WALK_PER_TICK (1 ед/с), game/ показывает это плавно.
 
 const ACTIONS: Array[String] = ["idle", "wander", "drink", "eat", "sleep"]
@@ -13,7 +15,20 @@ const WALK_PER_TICK := 60.0
 const STEP := 1.0
 const REACH := 0.8
 const DRINK_PER_TICK := 45.0
-const FRUIT_FOOD := 35.0
+## Взял рукой / бросил / шлёпнул / погладил.
+const GRAB_FEAR := 15.0
+const THROW_FEAR_PER_SPEED := 1.0
+const THROW_FEAR_MAX := 30.0
+const SEA_FEAR := 20.0
+const PET_LOVE := 8.0
+const PET_CALM := 5.0
+const SLAP_FEAR := 15.0
+const SLAP_LOVE := 3.0
+## Затухание за тик.
+const FEAR_DECAY := 0.1
+const LOVE_DECAY := 0.01
+const FAITH_DECAY := 0.005
+const SCARED := 60.0
 const SLEEP_PER_TICK := 2.0
 ## Ниже порога потребность не рассматривается.
 const THIRST_TRIGGER := 40.0
@@ -35,6 +50,7 @@ static func default_state() -> Dictionary:
 		"hunger": 0.0, "thirst": 0.0, "energy": 100.0, "alive": true,
 		"spawned": false, "x": 0.0, "z": 0.0,
 		"action": "idle", "tx": 0.0, "tz": 0.0, "target_item": -1, "stuck": 0,
+		"faith": 0.0, "love": 0.0, "fear": 0.0, "held": false, "touch_tick": -1,
 	}
 
 
@@ -43,6 +59,11 @@ static func update(w: Dictionary, map: IslandMap) -> void:
 	var h: Dictionary = w["human"]
 	if not h["spawned"]:
 		_spawn(w, map)
+	h["fear"] = maxf(0.0, h["fear"] - FEAR_DECAY)
+	h["love"] = maxf(0.0, h["love"] - LOVE_DECAY)
+	h["faith"] = maxf(0.0, h["faith"] - FAITH_DECAY)
+	if h["held"]:
+		return # в руке бога ничего не делает
 	match h["action"]:
 		"drink":
 			if _move(h, map):
@@ -51,14 +72,14 @@ static func update(w: Dictionary, map: IslandMap) -> void:
 					_set_action(h, "idle")
 		"eat":
 			var item := Items.find(w, h["target_item"])
-			if item.is_empty() or item["held"] or item["kind"] != "fruit":
+			if item.is_empty() or item["held"] or not Items.FOOD.has(item["kind"]):
 				_set_action(h, "idle")
 			else:
 				h["tx"] = item["x"]
 				h["tz"] = item["z"]
 				if _move(h, map):
 					(w["items"] as Array).erase(item)
-					h["hunger"] = maxf(0.0, h["hunger"] - FRUIT_FOOD)
+					h["hunger"] = maxf(0.0, h["hunger"] - Items.FOOD[item["kind"]])
 					_set_action(h, "idle")
 		"sleep":
 			h["energy"] = minf(100.0, h["energy"] + SLEEP_PER_TICK)
@@ -71,18 +92,106 @@ static func update(w: Dictionary, map: IslandMap) -> void:
 		_decide(w, map)
 
 
-## Настроение для лица: "dead" | "sleep" | "happy" | "ok" | "sad".
+## Настроение для лица: "dead" | "sleep" | "scared" | "happy" | "ok" | "sad".
 static func mood(h: Dictionary) -> String:
 	if not h["alive"]:
 		return "dead"
 	if h["action"] == "sleep":
 		return "sleep"
+	if h["fear"] >= SCARED:
+		return "scared"
 	var worst: float = maxf(maxf(h["hunger"], h["thirst"]), 100.0 - h["energy"])
 	if worst < 35.0:
 		return "happy"
 	if worst < 65.0:
 		return "ok"
 	return "sad"
+
+
+static func scare(h: Dictionary, amount: float) -> void:
+	h["fear"] = minf(100.0, h["fear"] + amount)
+
+
+## Вера от увиденного чуда: любовь усиливает, страх ослабляет (множитель 0.5..2).
+static func add_faith(h: Dictionary, amount: float) -> void:
+	var k: float = clampf(1.0 + (h["love"] - h["fear"] * 0.5) / 100.0, 0.5, 2.0)
+	h["faith"] = minf(100.0, h["faith"] + amount * k)
+
+
+## Взять человечка рукой (рука пуста). true — взяли.
+static func grab(w: Dictionary) -> bool:
+	var h: Dictionary = w["human"]
+	if not h["spawned"] or not h["alive"] or h["held"] or Items.held_id(w) >= 0:
+		return false
+	h["held"] = true
+	scare(h, GRAB_FEAR)
+	_set_action(h, "idle")
+	return true
+
+
+## Бросить/отпустить человечка. Упал в море — выносит на ближайший берег. Возвращает траекторию.
+static func throw(w: Dictionary, map: IslandMap, origin: Vector3, velocity: Vector3) -> PackedVector3Array:
+	var h: Dictionary = w["human"]
+	if not h["held"]:
+		return PackedVector3Array()
+	velocity = velocity.limit_length(Items.MAX_THROW_SPEED)
+	var path := Items.simulate(map, origin, velocity)
+	var landing: Vector3 = path[path.size() - 1]
+	h["held"] = false
+	scare(h, minf(THROW_FEAR_MAX, velocity.length() * THROW_FEAR_PER_SPEED))
+	var spot := Vector2(landing.x, landing.z)
+	if Items.landed_in_sea(map, landing):
+		spot = _nearest_land(map, spot)
+		scare(h, SEA_FEAR)
+		path.append(Vector3(spot.x, map.height_at_world(spot.x, spot.y), spot.y))
+	h["x"] = spot.x
+	h["z"] = spot.y
+	_set_action(h, "idle")
+	return path
+
+
+## Погладить: любовь растёт, страх уходит. Не чаще раза в тик. true — сработало.
+static func pet(w: Dictionary) -> bool:
+	var h: Dictionary = w["human"]
+	if not _touchable(w):
+		return false
+	h["love"] = minf(100.0, h["love"] + PET_LOVE)
+	h["fear"] = maxf(0.0, h["fear"] - PET_CALM)
+	return true
+
+
+## Шлёпнуть: страх растёт быстрее, чем любовь от поглаживания. Не чаще раза в тик.
+static func slap(w: Dictionary) -> bool:
+	var h: Dictionary = w["human"]
+	if not _touchable(w):
+		return false
+	scare(h, SLAP_FEAR)
+	h["love"] = maxf(0.0, h["love"] - SLAP_LOVE)
+	return true
+
+
+static func _touchable(w: Dictionary) -> bool:
+	var h: Dictionary = w["human"]
+	if not h["spawned"] or not h["alive"] or h["held"] or int(h["touch_tick"]) == int(w["tick"]):
+		return false
+	h["touch_tick"] = int(w["tick"])
+	return true
+
+
+static func _nearest_land(map: IslandMap, p: Vector2) -> Vector2:
+	var half := map.half_extent()
+	var best := p
+	var best_dist := INF
+	for i in map.biomes.size():
+		var b := map.biomes[i]
+		if b == IslandMap.Biome.SEA or b == IslandMap.Biome.RIVER:
+			continue
+		var c := Vector2(i % map.size - half, floori(float(i) / map.size) - half)
+		var d := c.distance_squared_to(p)
+		if d < best_dist:
+			best_dist = d
+			best = c
+	return best
 
 
 static func position_of(h: Dictionary) -> Vector2:
@@ -93,7 +202,7 @@ static func _decide(w: Dictionary, map: IslandMap) -> void:
 	var h: Dictionary = w["human"]
 	var scores := {
 		"drink": h["thirst"] / 100.0 if h["thirst"] >= THIRST_TRIGGER and not map.river.is_empty() else 0.0,
-		"eat": h["hunger"] / 100.0 if h["hunger"] >= HUNGER_TRIGGER and _nearest_fruit(w) >= 0 else 0.0,
+		"eat": h["hunger"] / 100.0 if h["hunger"] >= HUNGER_TRIGGER and _nearest_food(w) >= 0 else 0.0,
 		"sleep": (100.0 - h["energy"]) / 100.0 if h["energy"] <= ENERGY_TRIGGER else 0.0,
 		"wander": WANDER_SCORE,
 	}
@@ -108,7 +217,7 @@ static func _decide(w: Dictionary, map: IslandMap) -> void:
 			var water := _nearest_river_point(h, map)
 			_set_action(h, "drink", water.x, water.y)
 		"eat":
-			var id := _nearest_fruit(w)
+			var id := _nearest_food(w)
 			var item := Items.find(w, id)
 			_set_action(h, "eat", item["x"], item["z"])
 			h["target_item"] = id
@@ -183,12 +292,12 @@ static func _spawn(w: Dictionary, map: IslandMap) -> void:
 	_set_action(h, "idle")
 
 
-static func _nearest_fruit(w: Dictionary) -> int:
+static func _nearest_food(w: Dictionary) -> int:
 	var pos := position_of(w["human"])
 	var best := -1
 	var best_dist := INF
 	for item: Dictionary in w["items"]:
-		if item["kind"] != "fruit" or item["held"]:
+		if not Items.FOOD.has(item["kind"]) or item["held"]:
 			continue
 		var d := pos.distance_squared_to(Vector2(item["x"], item["z"]))
 		if d < best_dist:

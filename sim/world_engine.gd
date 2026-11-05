@@ -12,6 +12,8 @@ extends RefCounted
 ##   items: Array        — предметы (формат — sim/items.gd)
 ##   next_item_id: int   — следующий свободный id предмета
 ##   items_spawned: bool — стартовые предметы уже разложены (Items.spawn_initial)
+##   mana: float          — мана бога (sim/miracles.gd)
+##   craters: Array       — кратеры (sim/craters.gd)
 
 ## 1 тик = 1 реальная минута.
 const TICK_MS := 60_000
@@ -38,6 +40,8 @@ static func create_world(world_seed: int, now_ms: int) -> Dictionary:
 		"items": [],
 		"next_item_id": 1,
 		"items_spawned": false,
+		"mana": Miracles.MANA_START,
+		"craters": [],
 	}
 
 
@@ -54,6 +58,7 @@ static func step(w: Dictionary, map: IslandMap) -> void:
 		h["energy"] = maxf(0.0, h["energy"] - ENERGY_PER_TICK)
 
 	Human.update(w, map)
+	Miracles.regen(w)
 
 	if int(w["tick"]) % FRUIT_REGROW_TICKS == 0 and Items.count_kind(w, "fruit") < FRUIT_MAX:
 		Items.grow_fruit(w, map)
@@ -103,6 +108,8 @@ static func from_data(data: Variant) -> Dictionary:
 		"items": Items.from_data(d.get("items", [])),
 		"next_item_id": int(d.get("next_item_id", 1)),
 		"items_spawned": bool(d.get("items_spawned", false)),
+		"mana": float(d.get("mana", Miracles.MANA_START)),
+		"craters": Craters.from_data(d.get("craters", [])),
 	}
 
 
@@ -122,4 +129,9 @@ static func _human_from_data(h: Dictionary) -> Dictionary:
 	result["tz"] = float(h.get("tz", result["z"]))
 	result["target_item"] = int(h.get("target_item", -1))
 	result["stuck"] = int(h.get("stuck", 0))
+	result["faith"] = float(h.get("faith", 0.0))
+	result["love"] = float(h.get("love", 0.0))
+	result["fear"] = float(h.get("fear", 0.0))
+	result["held"] = false # рука в сейв не попадает
+	result["touch_tick"] = int(h.get("touch_tick", -1))
 	return result

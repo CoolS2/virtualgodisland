@@ -7,12 +7,15 @@ extends RefCounted
 ## Бросок (ADR-0006): полёт считается сразу целиком с фиксированным шагом — детерминированно,
 ## без физики движка. Мир хранит только итог; траекторию возвращаем для анимации в game/.
 
-const KINDS: Array[String] = ["stone", "branch", "fruit"]
+const KINDS: Array[String] = ["stone", "branch", "fruit", "fish"]
+## Сытность еды (сколько голода снимает).
+const FOOD := {"fruit": 35.0, "fish": 50.0}
 ## Сколько предметов каждого вида появляется на новом острове и в каких биомах.
 const SPAWN := {
 	"stone": [14, [IslandMap.Biome.BEACH, IslandMap.Biome.MOUNTAIN, IslandMap.Biome.FIELD]],
 	"branch": [16, [IslandMap.Biome.FOREST, IslandMap.Biome.BEACH]], # на пляже — выброшенные морем
 	"fruit": [10, [IslandMap.Biome.FIELD, IslandMap.Biome.FOREST]],
+	"fish": [0, []], # только чудом
 }
 const SPAWN_SALT := 0x17E5
 const SPAWN_ATTEMPTS := 4000
@@ -29,6 +32,13 @@ const MIN_BOUNCE_SPEED := 1.5
 const MAX_THROW_SPEED := 45.0
 ## Радиус, в котором рука находит предмет вокруг точки под курсором.
 const PICK_RADIUS := 1.6
+## Камень, ударившийся о землю быстрее этого, оставляет кратер.
+const STONE_CRATER_SPEED := 22.0
+const STONE_CRATER_RADIUS := 1.3
+const STONE_CRATER_DEPTH := 0.5
+## Предмет упал так близко к человечку — испугал.
+const HIT_RADIUS := 1.5
+const HIT_FEAR := 25.0
 
 
 ## Разложить стартовые предметы по острову (один раз на мир; повторный вызов ничего не делает).
@@ -51,7 +61,7 @@ static func spawn_initial(w: Dictionary, map: IslandMap) -> void:
 			var h := map.sample_height(fx, fy)
 			if not biomes.has(map.biome_at(x, y)) or h > SPAWN_MAX_HEIGHT or h < 0.1:
 				continue
-			_add(w, kind, Vector3(fx - map.half_extent(), h, fy - map.half_extent()))
+			add(w, kind, Vector3(fx - map.half_extent(), h, fy - map.half_extent()))
 			placed += 1
 
 
@@ -63,7 +73,7 @@ static func grow_fruit(w: Dictionary, map: IslandMap) -> bool:
 		var biome := map.biome_at(roundi(fx), roundi(fy))
 		var h := map.sample_height(fx, fy)
 		if (biome == IslandMap.Biome.FIELD or biome == IslandMap.Biome.FOREST) and h > 0.1 and h <= SPAWN_MAX_HEIGHT:
-			_add(w, "fruit", Vector3(fx - map.half_extent(), h, fy - map.half_extent()))
+			add(w, "fruit", Vector3(fx - map.half_extent(), h, fy - map.half_extent()))
 			return true
 	return false
 
@@ -90,9 +100,29 @@ static func find_near(w: Dictionary, point: Vector3, radius: float = PICK_RADIUS
 	return best
 
 
-## Взять предмет. Рука держит не больше одного. Возвращает true при успехе.
+## Вырастить фрукт рядом с точкой (дождь). true — вырос.
+static func grow_fruit_near(w: Dictionary, map: IslandMap, center: Vector2, radius: float) -> bool:
+	for _attempt in 30:
+		var angle: float = VgiRng.next_float(w) * TAU
+		var p := center + Vector2(cos(angle), sin(angle)) * radius * VgiRng.next_float(w)
+		var biome := map.biome_at_world(p.x, p.y)
+		var h := map.height_at_world(p.x, p.y)
+		if (biome == IslandMap.Biome.FIELD or biome == IslandMap.Biome.FOREST) and h > 0.1:
+			add(w, "fruit", Vector3(p.x, h, p.y))
+			return true
+	return false
+
+
+## Опустить лежащие предметы на землю (после изменения рельефа).
+static func settle(w: Dictionary, map: IslandMap) -> void:
+	for item: Dictionary in w["items"]:
+		if not item["held"]:
+			item["y"] = map.height_at_world(item["x"], item["z"])
+
+
+## Взять предмет. Рука держит не больше одного (предмет или человечка). Возвращает true при успехе.
 static func pick_up(w: Dictionary, id: int) -> bool:
-	if held_id(w) >= 0:
+	if held_id(w) >= 0 or w["human"]["held"]:
 		return false
 	var item := find(w, id)
 	if item.is_empty():
@@ -122,9 +152,26 @@ static func throw_item(w: Dictionary, map: IslandMap, id: int, origin: Vector3, 
 	if landed_in_sea(map, landing):
 		(w["items"] as Array).erase(item)
 		(w["log"] as Array).append("tick %d: %s утонул в море" % [w["tick"], item["kind"]])
-	else:
-		_set_position(item, landing)
+		return path
+	_set_position(item, landing)
+	var impact := first_impact(map, path)
+	if not impact.is_empty():
+		var at: Vector3 = impact["at"]
+		var h: Dictionary = w["human"]
+		if h["spawned"] and h["alive"] and not h["held"] and Human.position_of(h).distance_to(Vector2(at.x, at.z)) <= HIT_RADIUS:
+			Human.scare(h, HIT_FEAR)
+		if item["kind"] == "stone" and float(impact["speed"]) >= STONE_CRATER_SPEED:
+			Craters.add(w, map, Craters.make(Vector2(at.x, at.z), STONE_CRATER_RADIUS, STONE_CRATER_DEPTH))
 	return path
+
+
+## Первое касание земли на траектории: {"at": Vector3, "speed": float}; пусто, если не было (упал в море).
+static func first_impact(map: IslandMap, path: PackedVector3Array) -> Dictionary:
+	for i in range(1, path.size()):
+		var p := path[i]
+		if p.y <= map.height_at_world(p.x, p.z) + 0.0001 and map.height_at_world(p.x, p.z) >= IslandMap.SEA_LEVEL:
+			return {"at": p, "speed": (path[i] - path[i - 1]).length() / DT}
+	return {}
 
 
 ## Полёт с гравитацией и затухающими отскоками до остановки или падения в море.
@@ -185,7 +232,7 @@ static func from_data(data: Variant) -> Array:
 	return result
 
 
-static func _add(w: Dictionary, kind: String, pos: Vector3) -> void:
+static func add(w: Dictionary, kind: String, pos: Vector3) -> void:
 	var item := {"id": int(w["next_item_id"]), "kind": kind, "x": 0.0, "y": 0.0, "z": 0.0, "held": false}
 	_set_position(item, pos)
 	(w["items"] as Array).append(item)
