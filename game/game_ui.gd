@@ -1,11 +1,16 @@
 class_name GameUi
 extends CanvasLayer
-## Панели поверх игры: «Пока тебя не было…» при входе и список тайн (M).
+## Панели поверх игры: «Пока тебя не было…» при входе, список открытий (обелиск / M), конец игры.
+
+## Нажата «Новый остров» на экране конца игры.
+signal new_game_requested
 
 var _welcome := PanelContainer.new()
 var _welcome_text := Label.new()
 var _mysteries := PanelContainer.new()
 var _mysteries_text := Label.new()
+var _game_over := PanelContainer.new()
+var _game_over_text := Label.new()
 
 
 func _init() -> void:
@@ -13,11 +18,20 @@ func _init() -> void:
 	layer = 2
 	_setup_panel(_welcome, _welcome_text, "Продолжить")
 	_setup_panel(_mysteries, _mysteries_text, "Закрыть")
+	_setup_panel(_game_over, _game_over_text, "Новый остров")
+	(_game_over.get_child(0).get_child(1) as Button).pressed.connect(func() -> void: new_game_requested.emit())
 
 
 func show_welcome(text: String) -> void:
 	_welcome_text.text = text
 	_welcome.visible = true
+
+
+func show_game_over(text: String) -> void:
+	_welcome.visible = false
+	_mysteries.visible = false
+	_game_over_text.text = text
+	_game_over.visible = true
 
 
 func toggle_mysteries(world: Dictionary) -> void:

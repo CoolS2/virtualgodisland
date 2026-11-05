@@ -75,10 +75,19 @@ static func step(w: Dictionary, map: IslandMap) -> void:
 	if int(w["tick"]) % BRANCH_REGROW_TICKS == 0 and Items.count_kind(w, "branch") < BRANCH_MAX:
 		Items.grow_branch(w, map)
 
-	if h["hunger"] >= 100.0 or h["thirst"] >= 100.0:
-		h["alive"] = false
-		add_log(w, "человечек погиб")
+	if h["hunger"] >= 100.0:
+		Human.die(w, "голод")
+	elif h["thirst"] >= 100.0:
+		Human.die(w, "жажда")
+	elif h["spawned"] and Human.age(h, int(w["tick"])) >= float(h["lifespan"]):
+		Human.die(w, "старость, %d лет" % int(Human.age(h, int(w["tick"]))))
 	w["tick"] = int(w["tick"]) + 1
+
+
+## Игра окончена: людей на острове не осталось. Пока человек один — его смерть означает конец
+## (если он не успел завести семью и поселение — см. GAME_DESIGN «Семья»).
+static func is_game_over(w: Dictionary) -> bool:
+	return w["human"]["spawned"] and not w["human"]["alive"]
 
 
 ## Запись в журнал (экран «Пока тебя не было…»): «день N, ЧЧ:ММ: текст». Хранятся последние LOG_MAX.
@@ -175,6 +184,17 @@ static func _human_from_data(h: Dictionary) -> Dictionary:
 		# Сейвы до «открытия еды» (v≤5): человечек уже ел — считаем, что фрукты он знает.
 		known = ["fruit", "fish"]
 	result["knows"] = known
+	result["name"] = str(h.get("name", "Ару"))
+	result["sex"] = "f" if str(h.get("sex", "m")) == "f" else "m"
+	result["born_tick"] = int(h.get("born_tick", 0))
+	result["start_age"] = float(h.get("start_age", Human.START_AGE))
+	result["lifespan"] = float(h.get("lifespan", Human.LIFESPAN_MAX))
+	result["cause"] = str(h.get("cause", ""))
+	var skills := {}
+	var raw: Variant = h.get("skills", {})
+	for skill in Human.SKILLS:
+		skills[skill] = float((raw as Dictionary).get(skill, 1.0)) if typeof(raw) == TYPE_DICTIONARY else 1.0
+	result["skills"] = skills
 	return result
 
 

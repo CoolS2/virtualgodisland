@@ -24,6 +24,9 @@ var _arms: Array[Node3D] = []
 var _eyes: Array[Node3D] = []
 var _mouth_sides: Array[Node3D] = []
 var _label := Label3D.new()
+var _hair: MeshInstance3D
+var _long_hair: MeshInstance3D
+var _shirt: MeshInstance3D
 var _time := 0.0
 var _placed := false
 var _flight := PackedVector3Array()
@@ -36,7 +39,7 @@ func _init() -> void:
 	name = "Human"
 	var mat := LowPoly.material()
 	add_child(_model)
-	_part(_model, LowPoly.sphere(0.32), LowPoly.at(Vector3(0, 0.78, 0), Vector3(1.0, 1.15, 0.85)), LowPoly.SHIRT, mat)
+	_shirt = _part(_model, LowPoly.sphere(0.32), LowPoly.at(Vector3(0, 0.78, 0), Vector3(1.0, 1.15, 0.85)), Color.WHITE, mat)
 	for side in [-1.0, 1.0]:
 		var leg := Node3D.new()
 		leg.position = Vector3(0.13 * side, 0.5, 0)
@@ -54,7 +57,8 @@ func _init() -> void:
 	_head.position = Vector3(0, 1.12, 0)
 	_model.add_child(_head)
 	_part(_head, LowPoly.sphere(0.36, 10, 6), LowPoly.at(Vector3(0, 0.3, 0)), LowPoly.SKIN, mat)
-	_part(_head, LowPoly.sphere(0.37, 10, 4), LowPoly.at(Vector3(0, 0.42, 0.04), Vector3(1.0, 0.65, 1.0)), LowPoly.HAIR, mat)
+	_hair = _part(_head, LowPoly.sphere(0.37, 10, 4), LowPoly.at(Vector3(0, 0.42, 0.04), Vector3(1.0, 0.65, 1.0)), Color.WHITE, mat)
+	_long_hair = _part(_head, LowPoly.sphere(0.36, 8, 4), LowPoly.at(Vector3(0, 0.12, 0.14), Vector3(1.05, 1.0, 0.8)), Color.WHITE, mat)
 	for side in [-1.0, 1.0]:
 		var eye := Node3D.new()
 		eye.position = Vector3(0.12 * side, 0.34, -0.3)
@@ -105,7 +109,7 @@ func snap() -> void:
 
 
 ## Обновить по миру (вызывать каждый кадр).
-func show_state(h: Dictionary, delta: float) -> void:
+func show_state(h: Dictionary, delta: float, age: float = Human.START_AGE) -> void:
 	_time += delta
 	if not h["spawned"]:
 		visible = false
@@ -141,6 +145,7 @@ func show_state(h: Dictionary, delta: float) -> void:
 		walking = true
 	position = Vector3(flat.x, map.height_at_world(flat.x, flat.z) if map else 0.0, flat.z)
 
+	_appearance(h, age)
 	var action: String = h["action"]
 	_animate("walk" if walking else ("dead" if not h["alive"] else action))
 	_face(Human.mood(h))
@@ -206,8 +211,31 @@ func _update_popup(delta: float) -> void:
 		_popup.visible = false
 
 
-func _part(parent: Node3D, mesh: PrimitiveMesh, xf: Transform3D, color: Color, mat: Material) -> void:
+func _part(parent: Node3D, mesh: PrimitiveMesh, xf: Transform3D, color: Color, mat: Material) -> MeshInstance3D:
 	var inst := MeshInstance3D.new()
 	inst.mesh = LowPoly.part(mesh, xf, color)
 	inst.material_override = mat
 	parent.add_child(inst)
+	return inst
+
+
+## Внешность по полу и возрасту: у женщины длинные волосы и красная рубашка, с годами волосы седеют.
+func _appearance(h: Dictionary, age: float) -> void:
+	var female: bool = h["sex"] == "f"
+	_long_hair.visible = female
+	var grey := clampf((age - 45.0) / 20.0, 0.0, 1.0)
+	var hair := LowPoly.HAIR.lerp(Color("#d8d8d8"), grey)
+	for inst in [_hair, _long_hair]:
+		(inst as MeshInstance3D).material_override = _tinted(hair)
+	_shirt.material_override = _tinted(Color("#d8453c") if female else LowPoly.SHIRT)
+
+
+var _tint_cache := {}
+
+
+func _tinted(color: Color) -> StandardMaterial3D:
+	if not _tint_cache.has(color):
+		var mat := LowPoly.material()
+		mat.albedo_color = color
+		_tint_cache[color] = mat
+	return _tint_cache[color]

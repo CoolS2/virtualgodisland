@@ -8,6 +8,9 @@ extends RefCounted
 ##   faith, love, fear: float 0..100 — вера, любовь и страх к богу; held: bool — в руке бога;
 ##   touch_tick: int — тик последнего «погладить/шлёпнуть» (не чаще раза в тик)
 ##   build_kind: String, work: int — что строит (тайны) и сколько тиков уже работает
+##   name: String; sex: "m" | "f"; born_tick: int; start_age: float (лет при born_tick); lifespan: float (лет);
+##   skills: {"forage", "build", "fish", "heal"} — множители 0.7..1.3 (кто-то лучше добывает еду, кто-то строит…)
+##   cause: String — причина смерти ("" — жив)
 ##   knows: Array[String] — какую еду знает ("fruit", "fish"). Вначале не знает ничего: если не догадается
 ##   сам и бог не подскажет (подкинет еду рядом), умрёт от голода (голод 0→100 ≈ 33 ч).
 ## 1 тик = 1 минута: за тик человечек проходит до WALK_PER_TICK (1 ед/с), game/ показывает это плавно.
@@ -46,6 +49,18 @@ const LEARN_RADIUS := 2.5
 const SELF_LEARN_HUNGER := 50.0
 const SELF_LEARN_RADIUS := 4.0
 const SELF_LEARN_CHANCE := 0.03
+## Возраст: 1 игровой год = 4 игровых дня (8 реальных часов). Первый человечек появляется взрослым.
+const TICKS_PER_YEAR := 4 * WorldClock.DAY_TICKS
+const START_AGE := 20.0
+const LIFESPAN_MIN := 60.0
+const LIFESPAN_MAX := 75.0
+const SKILLS: Array[String] = ["forage", "build", "fish", "heal"]
+const SKILL_MIN := 0.7
+const SKILL_MAX := 1.3
+const NAMES := {
+	"m": ["Ару", "Тоби", "Мано", "Кеа", "Ило", "Рон", "Дуи", "Тано"],
+	"f": ["Ани", "Мира", "Лея", "Нои", "Ката", "Ула", "Сина", "Эва"],
+}
 const SLEEP_PER_TICK := 2.0
 ## Ниже порога потребность не рассматривается.
 const THIRST_TRIGGER := 40.0
@@ -69,6 +84,8 @@ static func default_state() -> Dictionary:
 		"action": "idle", "tx": 0.0, "tz": 0.0, "target_item": -1, "stuck": 0,
 		"faith": 0.0, "love": 0.0, "fear": 0.0, "held": false, "touch_tick": -1,
 		"build_kind": "", "work": 0, "knows": [],
+		"name": "", "sex": "m", "born_tick": 0, "start_age": START_AGE, "lifespan": LIFESPAN_MAX,
+		"skills": {"forage": 1.0, "build": 1.0, "fish": 1.0, "heal": 1.0}, "cause": "",
 	}
 
 
@@ -118,7 +135,7 @@ static func update(w: Dictionary, map: IslandMap) -> void:
 		"build":
 			if _move(h, map):
 				h["work"] = int(h["work"]) + 1
-				if h["work"] >= Mysteries.BUILD_TICKS:
+				if h["work"] >= build_ticks(h):
 					var kind: String = h["build_kind"]
 					var at := Vector2(h["tx"], h["tz"])
 					_set_action(h, "idle")
@@ -144,6 +161,27 @@ static func mood(h: Dictionary) -> String:
 	if worst < 65.0:
 		return "ok"
 	return "sad"
+
+
+## Возраст в годах на тике tick.
+static func age(h: Dictionary, tick: int) -> float:
+	return float(h["start_age"]) + float(tick - int(h["born_tick"])) / TICKS_PER_YEAR
+
+
+## Тиков стройки с учётом навыка строителя (не меньше 1).
+static func build_ticks(h: Dictionary) -> int:
+	return maxi(1, ceili(Mysteries.BUILD_TICKS / float(h["skills"]["build"])))
+
+
+## Смерть (голод, жажда, старость) — причина в журнал.
+static func die(w: Dictionary, cause: String) -> void:
+	var h: Dictionary = w["human"]
+	if not h["alive"]:
+		return
+	h["alive"] = false
+	h["cause"] = cause
+	_set_action(h, "idle")
+	WorldEngine.add_log(w, "%s умер%s: %s" % [h["name"], "ла" if h["sex"] == "f" else "", cause])
 
 
 ## Знает ли, что этот вид еды съедобен.
@@ -177,7 +215,7 @@ static func _try_self_learn(w: Dictionary) -> void:
 	for item: Dictionary in w["items"]:
 		if Items.FOOD.has(item["kind"]) and not knows(h, item["kind"]) and not item["held"] \
 				and position_of(h).distance_to(Vector2(item["x"], item["z"])) <= SELF_LEARN_RADIUS:
-			if VgiRng.next_float(w) < SELF_LEARN_CHANCE:
+			if VgiRng.next_float(w) < SELF_LEARN_CHANCE * float(h["skills"]["forage"]):
 				learn(w, item["kind"])
 			return
 
@@ -369,6 +407,7 @@ static func _set_action(h: Dictionary, action: String, tx: float = NAN, tz: floa
 static func _spawn(w: Dictionary, map: IslandMap) -> void:
 	var h: Dictionary = w["human"]
 	h["spawned"] = true
+	_roll_traits(w, h)
 	var half := map.half_extent()
 	for _i in SPAWN_ATTEMPTS:
 		var p := Vector2(VgiRng.next_float(w) - 0.5, VgiRng.next_float(w) - 0.5) * map.size * 0.4
@@ -385,6 +424,20 @@ static func _spawn(w: Dictionary, map: IslandMap) -> void:
 			h["z"] = floori(float(i) / map.size) - half
 			break
 	_set_action(h, "idle")
+
+
+## Пол, имя, срок жизни, навыки — случайно, но детерминированно (RNG мира).
+static func _roll_traits(w: Dictionary, h: Dictionary) -> void:
+	h["sex"] = "m" if VgiRng.next_float(w) < 0.5 else "f"
+	var names: Array = NAMES[h["sex"]]
+	h["name"] = names[mini(int(VgiRng.next_float(w) * names.size()), names.size() - 1)]
+	h["born_tick"] = int(w["tick"])
+	h["start_age"] = START_AGE
+	h["lifespan"] = lerpf(LIFESPAN_MIN, LIFESPAN_MAX, VgiRng.next_float(w))
+	var skills := {}
+	for skill in SKILLS:
+		skills[skill] = lerpf(SKILL_MIN, SKILL_MAX, VgiRng.next_float(w))
+	h["skills"] = skills
 
 
 static func _nearest_food(w: Dictionary) -> int:

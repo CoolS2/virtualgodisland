@@ -3,9 +3,9 @@ extends RefCounted
 ## Сейв мира в user:// (JSON). Единственное место с randi() и реальным временем — это game/, не sim/.
 
 const PATH := "user://save_v1.json" # имя файла не меняется; версия формата — в поле version
-const VERSION := 6
+const VERSION := 7
 ## Версии сейва, которые умеем загрузить (недостающие поля заполняет WorldEngine.from_data).
-const SUPPORTED_VERSIONS := [1, 2, 3, 4, 5, 6]
+const SUPPORTED_VERSIONS := [1, 2, 3, 4, 5, 6, 7]
 
 
 static func now_ms() -> int:
@@ -23,6 +23,12 @@ static func load_world(now: int) -> Dictionary:
 					return w
 		push_warning("Сейв повреждён или устарел — начинаем новый мир")
 	return WorldEngine.create_world(randi() & 0x7FFFFFFF, now)
+
+
+## Удалить сейв (новая игра после конца).
+static func delete_save() -> void:
+	if FileAccess.file_exists(PATH):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(PATH))
 
 
 static func save_world(w: Dictionary) -> void:

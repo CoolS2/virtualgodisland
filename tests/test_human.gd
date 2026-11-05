@@ -82,7 +82,7 @@ func test_starves_without_food_knowledge() -> void:
 		w["items"] = (w["items"] as Array).filter(func(item: Dictionary) -> bool: return not Items.FOOD.has(item["kind"]))
 		WorldEngine.step(w, _map)
 	assert_false(w["human"]["alive"], "умер от голода")
-	assert_string_contains(str(w["log"]), "погиб")
+	assert_eq(w["human"]["cause"], "голод")
 
 
 func test_does_not_eat_unknown_food() -> void:

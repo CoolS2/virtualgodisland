@@ -41,6 +41,7 @@ var _offline_ticks: int
 var _hud: Label
 var _since_update := 0.0
 var _mysteries_seen := 0
+var _game_over_shown := false
 
 
 func _ready() -> void:
@@ -92,6 +93,7 @@ func _ready() -> void:
 	_setup_hud()
 	ui = GameUi.new()
 	add_child(ui)
+	ui.new_game_requested.connect(_new_game)
 	if not _is_preview() and _offline_ticks >= WELCOME_MIN_TICKS:
 		ui.show_welcome(_welcome_text(before))
 
@@ -100,7 +102,9 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	human_view.show_state(_world["human"], delta)
+	human_view.show_state(_world["human"], delta, Human.age(_world["human"], int(_world["tick"])))
+	if WorldEngine.is_game_over(_world) and not _game_over_shown:
+		_show_game_over()
 	var tick := float(_world["tick"])
 	if not _is_preview():
 		tick += clampf(float(SaveStore.now_ms() - int(_world["last_seen"])) / WorldEngine.TICK_MS, 0.0, 0.999)
@@ -128,6 +132,30 @@ func refresh_world_view() -> void:
 		_show_message("Тайна раскрыта: %s! (%d/%d)" % [Mysteries.name_of(solved.back()), solved.size(), Mysteries.LIST.size()])
 		human_view.popup("Тайна!", Color("#9ff0ff"))
 		_mysteries_seen = solved.size()
+
+
+func _show_game_over() -> void:
+	_game_over_shown = true
+	var h: Dictionary = _world["human"]
+	var age := int(Human.age(h, int(_world["tick"])))
+	ui.show_game_over("%s %s в %d %s (%s).\n\nНа острове больше никого нет — игра окончена.\nЧтобы жизнь продолжилась, первому человеку нужно успеть построить дом, встретить пару и основать поселение.\n\nПрожито дней: %d · открытий: %d/%d" % [
+		h["name"], "умерла" if h["sex"] == "f" else "умер", age, _years(age), h["cause"],
+		WorldClock.day(int(_world["tick"])), (_world["mysteries"] as Array).size(), Mysteries.LIST.size()])
+
+
+func _new_game() -> void:
+	if not _is_preview():
+		SaveStore.delete_save()
+	get_tree().reload_current_scene()
+
+
+## «год / года / лет».
+static func _years(n: int) -> String:
+	if n % 10 == 1 and n % 100 != 11:
+		return "год"
+	if n % 10 >= 2 and n % 10 <= 4 and (n % 100 < 10 or n % 100 >= 20):
+		return "года"
+	return "лет"
 
 
 func _food_knowledge(h: Dictionary) -> String:
@@ -309,12 +337,12 @@ func _setup_hud() -> void:
 	_hud.position = Vector2(8, 8)
 	var hint := Label.new()
 	hint.text = HINT
-	hint.position = Vector2(8, 74)
+	hint.position = Vector2(8, 96)
 	hint.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.5))
 	hint.add_theme_font_size_override("font_size", 13)
 	layer.add_child(hint)
 	_message = Label.new()
-	_message.position = Vector2(8, 122)
+	_message.position = Vector2(8, 144)
 	_message.add_theme_color_override("font_color", Color("#ffe066"))
 	_message.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.6))
 	layer.add_child(_message)
@@ -326,10 +354,14 @@ func _setup_hud() -> void:
 func _render_hud() -> void:
 	var h: Dictionary = _world["human"]
 	var hour := WorldClock.hour(int(_world["tick"]))
-	_hud.text = "день %d, %02d:%02d · тайны %d/%d · seed %d · tick %d · офлайн +%d\nголод %.0f · жажда %.0f · силы %.0f · %s · %s\nмана %.0f · вера %.0f · любовь %.0f · страх %.0f · %s" % [
+	var age := int(Human.age(h, int(_world["tick"])))
+	var skills: Dictionary = h["skills"]
+	_hud.text = "день %d, %02d:%02d · тайны %d/%d · seed %d · tick %d · офлайн +%d\nголод %.0f · жажда %.0f · силы %.0f · %s · %s\nмана %.0f · вера %.0f · любовь %.0f · страх %.0f · %s\n%s, %s, %d %s · собиратель %.1f · строитель %.1f · рыбак %.1f · лекарь %.1f" % [
 		WorldClock.day(int(_world["tick"])), int(hour), int(fmod(hour, 1.0) * 60.0),
 		(_world["mysteries"] as Array).size(), Mysteries.LIST.size(),
 		_world["seed"], _world["tick"], _offline_ticks, h["hunger"], h["thirst"], h["energy"],
 		HumanView.ACTION_LABELS.get(h["action"], h["action"]), MOOD_LABELS.get(Human.mood(h), ""),
 		_world["mana"], h["faith"], h["love"], h["fear"], _food_knowledge(h),
+		h["name"], "женщина" if h["sex"] == "f" else "мужчина", age, _years(age),
+		skills["forage"], skills["build"], skills["fish"], skills["heal"],
 	]

@@ -52,7 +52,8 @@ static func solve(w: Dictionary, id: String) -> void:
 static func update(w: Dictionary, map: IslandMap) -> void:
 	var h: Dictionary = w["human"]
 	var tick: int = w["tick"]
-	if is_solved(w, "fisherman") and tick % FISHING_TICKS == 0 and Items.count_kind(w, "fish") == 0 and h["spawned"]:
+	var fishing_ticks := maxi(1, roundi(FISHING_TICKS / float(h["skills"]["fish"])))
+	if is_solved(w, "fisherman") and tick % fishing_ticks == 0 and Items.count_kind(w, "fish") == 0 and h["spawned"]:
 		var shore := Miracles.nearest_beach(map, Human.position_of(h))
 		Items.add(w, "fish", Vector3(shore.x, map.height_at_world(shore.x, shore.y), shore.y))
 		WorldEngine.add_log(w, "поймал рыбу")
