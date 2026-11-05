@@ -8,7 +8,6 @@ var hand: Hand
 var held_id := -1
 
 var _meshes := {}
-var _material := LowPoly.material()
 var _nodes := {} # id -> MeshInstance3D
 var _flights := {} # id -> {"path": PackedVector3Array, "time": float, "sink": bool}
 
@@ -16,9 +15,10 @@ var _flights := {} # id -> {"path": PackedVector3Array, "time": float, "sink": b
 func _init() -> void:
 	name = "Items"
 	_meshes = {
-		"stone": LowPoly.stone_item(),
-		"branch": LowPoly.branch_item(),
-		"fruit": LowPoly.fruit_item(),
+		"stone": Models.mesh("survival/resource-stone", 3.5),
+		"branch": Models.mesh("survival/tree-log-small", 2.0),
+		"fruit": Models.mesh("food/apple", 2.6),
+		"fish": Models.mesh("food/fish", 1.5),
 	}
 
 
@@ -31,7 +31,6 @@ func sync(world: Dictionary) -> void:
 		if not _nodes.has(id):
 			var node := MeshInstance3D.new()
 			node.mesh = _meshes.get(item["kind"], _meshes["stone"])
-			node.material_override = _material
 			node.rotation.y = float(id) * 2.399 # разный поворот без случайности
 			add_child(node)
 			_nodes[id] = node

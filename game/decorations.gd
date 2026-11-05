@@ -9,14 +9,15 @@ const MAX_SLOPE := 0.9 # на крутых склонах ничего не ра
 
 
 static func build(map: IslandMap, world_seed: int, craters: Array = [], tile: float = 1.0) -> Node3D:
+	# Модели Kenney (масштаб — под остров: дерево ~3, пальма ~4, камень ~0.6).
 	var meshes := {
-		"tree": LowPoly.round_tree(),
-		"tree_dark": LowPoly.round_tree(LowPoly.LEAVES_DARK),
-		"pine": LowPoly.pine(),
-		"palm": LowPoly.palm(),
-		"rock": LowPoly.rock(),
-		"bush": LowPoly.bush(),
-		"grass": LowPoly.grass_tuft(),
+		"tree": Models.mesh("town/tree-high-round", 1.1),
+		"tree_dark": Models.mesh("town/tree", 1.25),
+		"pine": Models.mesh("survival/tree-tall", 1.8),
+		"palm": Models.mesh("pirate/palm-bend", 0.95),
+		"rock": Models.mesh("survival/rock-b", 1.4),
+		"bush": Models.mesh("pirate/grass-plant", 1.0),
+		"grass": Models.mesh("pirate/grass", 1.3),
 	}
 	var placed := {}
 	for key: String in meshes:
@@ -43,7 +44,6 @@ static func build(map: IslandMap, world_seed: int, craters: Array = [], tile: fl
 
 	var root := Node3D.new()
 	root.name = "Decorations"
-	var mat := LowPoly.material()
 	for key: String in meshes:
 		var list: Array = placed[key]
 		if list.is_empty():
@@ -57,7 +57,6 @@ static func build(map: IslandMap, world_seed: int, craters: Array = [], tile: fl
 		var inst := MultiMeshInstance3D.new()
 		inst.name = key
 		inst.multimesh = mm
-		inst.material_override = mat
 		if key == "grass":
 			inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		root.add_child(inst)

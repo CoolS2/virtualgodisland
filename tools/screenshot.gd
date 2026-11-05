@@ -162,6 +162,7 @@ func _night_camp_view(main: Node) -> Array:
 	world["fire"] = {"x": camp.x, "z": camp.y}
 	world["camp"] = {"x": camp.x, "z": camp.y}
 	world["shrine"] = {"x": camp.x + 4.0, "z": camp.y + 1.0}
+	world["house"] = {"x": camp.x - 4.0, "z": camp.y + 3.0}
 	world["mysteries"] = ["camp", "shrine"]
 	h["x"] = camp.x + 1.5
 	h["z"] = camp.y + 1.5

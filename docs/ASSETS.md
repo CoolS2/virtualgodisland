@@ -20,6 +20,17 @@
 
 `assets/ui/*.png` — свои, сгенерированы `tools/ui_art/generate_ui_art.py` (PIL). Лицензия — проекта.
 
-## Модели, звуки
+## 3D-модели
 
-Модели — процедурные (`game/low_poly.gd`). Звуков пока нет.
+Паки Kenney (www.kenney.nl), лицензия **CC0** (`assets/models/<пак>/License.txt`). Архивы загрузил владелец
+(`assets/kenney_*.zip`, коммит `4f2ff2f`); в проект скопированы только используемые GLB + `Textures/colormap.png`.
+
+| Пак | Папка | Используется |
+|---|---|---|
+| Survival Kit 2.0 | `assets/models/survival` | ели (tree, tree-tall), камни (rock-a/b/c), трава, костёр (campfire-pit), палатка (tent), предметы: камень (resource-stone), бревно (tree-log-small) |
+| Pirate Kit | `assets/models/pirate` | пальмы (palm-bend/straight), кусты и трава (grass-plant, grass), плот (boat-row-small), подсказка «обломки корабля» (ship-wreck) |
+| Fantasy Town Kit 2.0 | `assets/models/town` | лиственные деревья (tree, tree-high-round), дом из стен (wall-wood, -door, -window-shutters) и крыши (roof-gable), подсказка «развалины» (wall-wood-broken) |
+| Food Kit | `assets/models/food` | яблоко (фрукт), рыба, подсказки: половинка яблока, рыбьи кости |
+
+Свои процедурные модели (`game/low_poly.gd`) остались для: человека, руки, облаков, алтаря, пещеры, обелиска
+и части подсказок — подходящих моделей в паках нет. Звуков пока нет.

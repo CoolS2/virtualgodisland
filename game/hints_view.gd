@@ -2,6 +2,14 @@ class_name HintsView
 extends Node3D
 ## Обелиск и еле видные подсказки к тайнам (места — Hints.place, по seed). Только визуал.
 
+## Подсказки из моделей Kenney: путь, масштаб, сдвиг по высоте (утопить в землю). Остальные — свои.
+const KENNEY_HINTS := {
+	"fruit_core": ["food/apple-half", 2.4, -0.02],
+	"fish_bones": ["food/fish-bones", 1.4, -0.02],
+	"ruins": ["town/wall-wood-broken", 1.8, -0.4],
+	"raft_wreck": ["pirate/ship-wreck", 0.22, -0.6],
+}
+
 var obelisk_position := Vector2.ZERO
 
 var _runes_material := StandardMaterial3D.new()
@@ -28,6 +36,11 @@ func build(map: IslandMap) -> void:
 			_runes_material.albedo_color = Color("#8ff3ff")
 			runes.material_override = _runes_material
 			node.add_child(runes)
+		elif KENNEY_HINTS.has(key):
+			node.mesh = Models.mesh(KENNEY_HINTS[key][0], KENNEY_HINTS[key][1])
+			node.material_override = null
+			node.position.y += float(KENNEY_HINTS[key][2])
+			node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		else:
 			node.mesh = LowPoly.hint(key)
 			node.position.y -= 0.05 # чуть утоплено в землю

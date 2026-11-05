@@ -12,6 +12,8 @@ var _fire_light: OmniLight3D
 var _flame: MeshInstance3D
 var _time := 0.0
 
+const HOUSE_SCALE := 2.6
+
 
 func _init() -> void:
 	name = "Structures"
@@ -52,7 +54,7 @@ func _build(key: String) -> Node3D:
 	var mat := LowPoly.material()
 	match key:
 		"fire":
-			_mesh(root, LowPoly.campfire(), mat)
+			root.add_child(Models.instance("survival/campfire-pit", 6.0))
 			_flame = MeshInstance3D.new()
 			var cone := CylinderMesh.new()
 			cone.top_radius = 0.0
@@ -64,7 +66,7 @@ func _build(key: String) -> Node3D:
 			flame_mat.albedo_color = Color("#ffb21e")
 			cone.material = flame_mat
 			_flame.mesh = cone
-			_flame.position.y = 0.6
+			_flame.position.y = 0.75
 			_flame.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			root.add_child(_flame)
 			_fire_light = OmniLight3D.new()
@@ -73,17 +75,34 @@ func _build(key: String) -> Node3D:
 			_fire_light.position.y = 1.2
 			root.add_child(_fire_light)
 		"camp":
-			var tent := _mesh(root, LowPoly.tent(), mat)
-			tent.position = Vector3(-2.2, 0, -1.2)
+			var tent := Models.instance("survival/tent", 4.5)
+			tent.position = Vector3(-2.4, 0, -1.4)
+			tent.rotation.y = 0.6
+			root.add_child(tent)
 		"shrine":
 			_mesh(root, LowPoly.altar(), mat)
 		"house":
-			_mesh(root, LowPoly.house(), mat)
+			root.add_child(_house())
 		"cave":
 			_mesh(root, LowPoly.cave_entrance(), mat)
 		"raft":
-			_mesh(root, LowPoly.raft(), mat)
+			root.add_child(Models.instance("pirate/boat-row-small", 1.0))
 	return root
+
+
+## Домик из модулей Fantasy Town (клетка 1×1, увеличена): стены с дверью и окнами, двускатная крыша.
+func _house() -> Node3D:
+	var house := Node3D.new()
+	house.scale = Vector3.ONE * HOUSE_SCALE
+	var sides := ["town/wall-wood-door", "town/wall-wood-window-shutters", "town/wall-wood", "town/wall-wood-window-shutters"]
+	for i in sides.size():
+		var wall := Models.instance(sides[i])
+		wall.rotation.y = i * PI / 2.0
+		house.add_child(wall)
+	var roof := Models.instance("town/roof-gable")
+	roof.position.y = 1.0
+	house.add_child(roof)
+	return house
 
 
 func _mesh(parent: Node3D, mesh: Mesh, mat: Material) -> MeshInstance3D:
