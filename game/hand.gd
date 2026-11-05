@@ -12,10 +12,12 @@ const HOVER_HOLDING := 3.0
 const FOLLOW := 0.25
 const RAY_LENGTH := 1000.0
 const GRIP_SPEED := 6.0
-## Угол сгиба каждого сустава пальца в кулак.
-const CURL := -0.95
-const FINGERS := [[-0.36, 0.8], [-0.12, 0.92], [0.12, 0.88], [0.36, 0.7]] # x сустава, длина
-const FINGER_RADIUS := 0.1
+## Модель руки (assets/models/hand/hand.glb): скелет и анимация «разжатая → кулак», пальцы вдоль -X, ладонь вниз.
+const MODEL := "res://assets/models/hand/hand.glb"
+## Модель ~2.65 ед. от запястья до кончиков пальцев → ~1.85 до общего масштаба SCALE.
+const MODEL_SCALE := 0.7
+## Середина ладони в координатах модели — ставим в начало координат руки.
+const PALM_CENTER := Vector3(0.3, 0.06, 0.0)
 const SKIN := Color("#e9b893")
 const ROBE := Color("#f4efe2")
 const GOLD := Color("#e8b94a")
@@ -34,59 +36,41 @@ var _grip_target := 0.0
 var _gesture := ""
 var _gesture_offset := Vector3.ZERO
 var _gesture_time := 0.0
-## Суставы пальцев (по два на палец) и большого пальца — сгибаются при хвате.
-var _joints: Array[Node3D] = []
-var _thumb: Node3D
+## Анимация сжатия: кадр выбирается по силе хвата (0 — раскрыта, 1 — кулак).
+var _player: AnimationPlayer
+var _grip_animation := ""
 
 
-## Рука из гладких примитивов (сферы, капсулы): ладонь, четыре пальца по две фаланги, большой палец,
-## рукав светлого одеяния с золотой каймой. Ладонь смотрит вниз, пальцы — вдоль -Z.
+## Рука: модель с телесным материалом (пальцы — к -Z, запястье — к камере), рукав светлого одеяния
+## с золотой каймой.
 func _init() -> void:
 	name = "Hand"
 	scale = Vector3.ONE * SCALE
+	var model: Node3D = (load(MODEL) as PackedScene).instantiate()
+	model.scale = Vector3.ONE * MODEL_SCALE
+	model.rotation.y = -PI / 2.0 # -X модели → -Z руки
+	model.position = -(Basis(Vector3.UP, -PI / 2.0) * PALM_CENTER) * MODEL_SCALE
+	add_child(model)
 	var skin := _material(SKIN)
-	var palm := MeshInstance3D.new()
-	var palm_mesh := SphereMesh.new()
-	palm_mesh.radius = 0.5
-	palm_mesh.height = 1.0
-	palm.mesh = palm_mesh
-	palm.scale = Vector3(1.0, 0.36, 1.15)
-	palm.material_override = skin
-	add_child(palm)
-	for f: Array in FINGERS:
-		var length: float = f[1]
-		var knuckle := Node3D.new()
-		knuckle.position = Vector3(f[0], 0.0, -0.45)
-		add_child(knuckle)
-		knuckle.add_child(_segment(length * 0.55, skin))
-		var middle := Node3D.new()
-		middle.position = Vector3(0, 0, -length * 0.55)
-		knuckle.add_child(middle)
-		middle.add_child(_segment(length * 0.45, skin))
-		_joints.append(knuckle)
-		_joints.append(middle)
-	_thumb = Node3D.new()
-	_thumb.position = Vector3(0.48, -0.04, -0.05)
-	_thumb.rotation.y = -0.9
-	_thumb.add_child(_segment(0.6, skin))
-	add_child(_thumb)
+	_paint(model, skin)
+	_player = model.find_child("AnimationPlayer", true, false) as AnimationPlayer
 	var sleeve := MeshInstance3D.new()
 	var sleeve_mesh := CylinderMesh.new()
-	sleeve_mesh.top_radius = 0.42
-	sleeve_mesh.bottom_radius = 0.5
+	sleeve_mesh.top_radius = 0.3
+	sleeve_mesh.bottom_radius = 0.38
 	sleeve_mesh.height = 1.0
 	sleeve.mesh = sleeve_mesh
 	sleeve.rotation.x = PI / 2.0
-	sleeve.position = Vector3(0, 0.05, 0.95)
+	sleeve.position = Vector3(0, 0.04, 1.15)
 	sleeve.material_override = _material(ROBE)
 	add_child(sleeve)
 	var cuff := MeshInstance3D.new()
 	var cuff_mesh := TorusMesh.new()
-	cuff_mesh.inner_radius = 0.38
-	cuff_mesh.outer_radius = 0.48
+	cuff_mesh.inner_radius = 0.27
+	cuff_mesh.outer_radius = 0.35
 	cuff.mesh = cuff_mesh
 	cuff.rotation.x = PI / 2.0
-	cuff.position = Vector3(0, 0.05, 0.47)
+	cuff.position = Vector3(0, 0.04, 0.66)
 	var gold := _material(GOLD)
 	gold.metallic = 0.6
 	gold.roughness = 0.35
@@ -97,17 +81,21 @@ func _init() -> void:
 	add_child(cuff)
 
 
-## Фаланга: капсула от сустава вдоль -Z.
-func _segment(length: float, mat: Material) -> MeshInstance3D:
-	var capsule := CapsuleMesh.new()
-	capsule.radius = FINGER_RADIUS
-	capsule.height = length + FINGER_RADIUS * 2.0
-	var part := MeshInstance3D.new()
-	part.mesh = capsule
-	part.rotation.x = -PI / 2.0
-	part.position = Vector3(0, 0, -length / 2.0)
-	part.material_override = mat
-	return part
+func _ready() -> void:
+	if _player and not _player.get_animation_list().is_empty():
+		_grip_animation = _player.get_animation_list()[0]
+		_player.play(_grip_animation)
+		_player.pause()
+		_player.seek(0.0, true)
+
+
+## Телесный материал всем мешам модели (в файле материал серый).
+func _paint(node: Node, mat: Material) -> void:
+	var mesh := node as MeshInstance3D
+	if mesh:
+		mesh.material_override = mat
+	for child in node.get_children():
+		_paint(child, mat)
 
 
 func _material(color: Color) -> StandardMaterial3D:
@@ -161,9 +149,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _process(delta: float) -> void:
 	_grip = move_toward(_grip, _grip_target, delta * GRIP_SPEED)
-	for joint in _joints:
-		joint.rotation.x = CURL * _grip
-	_thumb.rotation.x = CURL * 1.2 * _grip
+	if not _grip_animation.is_empty():
+		_player.seek(_grip * _player.get_animation(_grip_animation).length, true)
 	if not _gesture.is_empty():
 		_gesture_time += delta
 		var duration := 0.8 if _gesture == "pet" else 0.3

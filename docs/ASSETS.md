@@ -41,6 +41,12 @@ buttonLong_brown, buttonLong_brown_pressed, buttonLong_grey, panelInset_beige (R
 Палитры (`Textures/colormap.png`) **перекрашены** под природную гамму (мятные зелёные → оливковые):
 `tools/ui_art/recolor_kenney.py` берёт оригиналы из архивов и пишет копии — перезапуск восстанавливает результат.
 
+### Рука бога
+
+`assets/models/hand/hand.glb` — загрузил владелец (коммит `b77093a`). Сконвертирована FBX2glTF; скелет (кисть,
+по 3–4 кости на палец) и анимация `Scene` — сжатие из раскрытой ладони в кулак (0.29 с). Материал серый, цвет кожи
+задаётся в `game/hand.gd`. **Источник, автор и лицензия не указаны — уточнить у владельца** (до релиза обязательно).
+
 ### Персонажи
 
 **Quaternius — Ultimate Animated Character Pack** (quaternius.com/packs/ultimatedanimatedcharacter.html), лицензия
