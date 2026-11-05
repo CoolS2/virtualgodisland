@@ -179,14 +179,15 @@ func _build_model(h: Dictionary) -> void:
 			var base := str(anim_name).get_slice("/", str(anim_name).get_slice_count("/") - 1)
 			anim.loop_mode = Animation.LOOP_NONE if HOLD_LAST_FRAME.has(base) or base == "RecieveHit" else Animation.LOOP_LINEAR
 	_hair_color = HAIR_COLORS[(_person_id * 3) % HAIR_COLORS.size()]
+	# У Quaternius «Face» — кожа (лицо, руки), а «Skin» — тёмные детали (глаза, брови): их не трогаем.
 	_recolor(_model, {
-		"Skin": SKIN_TONES[(_person_id * 7) % SKIN_TONES.size()],
+		"Face": SKIN_TONES[(_person_id * 7) % SKIN_TONES.size()],
 		"Shirt": SHIRT_COLORS[(_person_id * 5) % SHIRT_COLORS.size()],
 		"Hair": _hair_color,
 	})
 
 
-## Своя копия материала с цветом для поверхностей с данным именем материала (Skin, Shirt, Hair).
+## Своя копия материала с цветом для поверхностей с данным именем материала (Face, Shirt, Hair).
 func _recolor(node: Node, colors: Dictionary) -> void:
 	var mi := node as MeshInstance3D
 	if mi and mi.mesh:
