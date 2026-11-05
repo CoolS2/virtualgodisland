@@ -181,7 +181,7 @@ static func _discover(w: Dictionary, map: IslandMap, h: Dictionary) -> void:
 			continue
 		if position_of(h).distance_to(map.relics[key]) <= Hints.DISCOVER_RADIUS:
 			found.append(key)
-			WorldEngine.add_log(w, "%s %s %s" % [h["name"], _verb(h, "нашёл"), Hints.discovery_text(key)])
+			WorldEngine.add_log(w, "%s %s %s" % [h["name"], "нашла" if h["sex"] == "f" else "нашёл", Hints.discovery_text(key)])
 
 
 ## Исследует ли человек остров сам: взрослый, который ни за кем не идёт.
@@ -203,7 +203,7 @@ static func _leader(w: Dictionary, h: Dictionary) -> Dictionary:
 
 ## Прямой путь от a до b не проходит через море (люди ходят по прямой).
 static func _path_clear(map: IslandMap, a: Vector2, b: Vector2) -> bool:
-	var steps := ceili(a.distance_to(b) / 2.0)
+	var steps := ceili(a.distance_to(b) / STEP)
 	for i in steps + 1:
 		if not _walkable(map, a.lerp(b, float(i) / maxf(1.0, steps))):
 			return false
@@ -472,7 +472,7 @@ static func position_of(h: Dictionary) -> Vector2:
 static func _decide(w: Dictionary, map: IslandMap, h: Dictionary) -> void:
 	var scores := {
 		"drink": h["thirst"] / 100.0 if h["thirst"] >= THIRST_TRIGGER and not map.river.is_empty() else 0.0,
-		"eat": h["hunger"] / 100.0 if h["hunger"] >= HUNGER_TRIGGER and _nearest_food(w, h) >= 0 else 0.0,
+		"eat": h["hunger"] / 100.0 if h["hunger"] >= HUNGER_TRIGGER and _nearest_food(w, map, h) >= 0 else 0.0,
 		"sleep": _sleep_score(w, h),
 		"explore": EXPLORE_SCORE if _explorer(w, h) else 0.0,
 		"wander": WANDER_SCORE,
@@ -488,7 +488,7 @@ static func _decide(w: Dictionary, map: IslandMap, h: Dictionary) -> void:
 			var water := _nearest_river_point(h, map)
 			_set_action(h, "drink", water.x, water.y)
 		"eat":
-			var id := _nearest_food(w, h)
+			var id := _nearest_food(w, map, h)
 			var item := Items.find(w, id)
 			_set_action(h, "eat", item["x"], item["z"])
 			h["target_item"] = id
@@ -609,7 +609,8 @@ static func roll_traits(w: Dictionary, h: Dictionary) -> void:
 	h["skills"] = skills
 
 
-static func _nearest_food(w: Dictionary, h: Dictionary) -> int:
+## Ближайшая известная еда, до которой можно дойти по прямой (не через море); -1 — нет.
+static func _nearest_food(w: Dictionary, map: IslandMap, h: Dictionary) -> int:
 	var pos := position_of(h)
 	var best := -1
 	var best_dist := INF
@@ -617,7 +618,7 @@ static func _nearest_food(w: Dictionary, h: Dictionary) -> int:
 		if not Items.FOOD.has(item["kind"]) or item["held"] or not knows(w, item["kind"]):
 			continue
 		var d := pos.distance_squared_to(Vector2(item["x"], item["z"]))
-		if d < best_dist:
+		if d < best_dist and _path_clear(map, pos, Vector2(item["x"], item["z"])):
 			best_dist = d
 			best = item["id"]
 	return best
