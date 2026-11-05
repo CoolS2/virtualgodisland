@@ -7,7 +7,7 @@ extends PanelContainer
 signal clicked(point: Vector2)
 
 const SIZE := 176.0
-const FOG := Color(0.17, 0.13, 0.09, 0.88)
+const FOG := Color(0.17, 0.13, 0.09, 0.72)
 const COLORS := {
 	IslandMap.Biome.SEA: Color("#5f8fa0"), IslandMap.Biome.BEACH: Color("#e3cf9e"), IslandMap.Biome.FIELD: Color("#9aab62"),
 	IslandMap.Biome.FOREST: Color("#5d7a43"), IslandMap.Biome.MOUNTAIN: Color("#9a9184"), IslandMap.Biome.RIVER: Color("#6fa6c0"),
