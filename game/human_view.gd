@@ -12,6 +12,8 @@ const ACTION_LABELS := {
 }
 
 var map: IslandMap
+## Если задана — человечек в руке: висит под ней (выставляет main).
+var held_by: Hand
 
 var _model := Node3D.new()
 var _head := Node3D.new()
@@ -22,6 +24,10 @@ var _mouth_sides: Array[Node3D] = []
 var _label := Label3D.new()
 var _time := 0.0
 var _placed := false
+var _flight := PackedVector3Array()
+var _flight_time := 0.0
+var _popup := Label3D.new()
+var _popup_time := 0.0
 
 
 func _init() -> void:
@@ -68,6 +74,27 @@ func _init() -> void:
 	_label.position = Vector3(0, 2.25, 0)
 	_label.no_depth_test = true
 	add_child(_label)
+	_popup.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_popup.pixel_size = 0.008
+	_popup.font_size = 48
+	_popup.outline_size = 12
+	_popup.no_depth_test = true
+	_popup.visible = false
+	add_child(_popup)
+
+
+## Пролететь по траектории броска (шаг Items.DT), затем — обычная жизнь.
+func fly(path: PackedVector3Array) -> void:
+	_flight = path
+	_flight_time = 0.0
+
+
+## Всплывающая надпись над головой (реакция на руку, чудо).
+func popup(text: String, color: Color = Color.WHITE) -> void:
+	_popup.text = text
+	_popup.modulate = color
+	_popup.visible = true
+	_popup_time = 0.0
 
 
 ## Сразу поставить в позицию из мира (без «догоняющей» ходьбы).
@@ -82,6 +109,22 @@ func show_state(h: Dictionary, delta: float) -> void:
 		visible = false
 		return
 	visible = true
+	_update_popup(delta)
+	if held_by:
+		position = position.lerp(held_by.grip_point() + Vector3.DOWN * 1.2, 0.5)
+		_animate("held")
+		_face(Human.mood(h))
+		_label.text = ""
+		return
+	if not _flight.is_empty():
+		_flight_time += delta
+		var index: int = mini(int(_flight_time / Items.DT), _flight.size() - 1)
+		position = _flight[index]
+		_model.rotation.x += delta * 8.0
+		if index == _flight.size() - 1:
+			_flight = PackedVector3Array()
+			_placed = false
+		return
 	var target := Vector3(h["x"], 0.0, h["z"])
 	var flat := Vector3(position.x, 0.0, position.z)
 	var walking := false
@@ -125,6 +168,10 @@ func _animate(state: String) -> void:
 		"eat":
 			_arms[1].rotation.x = -2.2 + sin(_time * 7.0) * 0.25
 			_head.rotation.x = 0.1
+		"held":
+			for i in 2:
+				_legs[i].rotation.x = sin(_time * 14.0 + i * PI) * 0.8
+				_arms[i].rotation = Vector3(0, 0, (2.4 + sin(_time * 12.0) * 0.3) * (1 if i == 1 else -1))
 		"sleep", "dead":
 			_model.rotation.z = PI / 2.0
 			_model.position = Vector3(0.6, 0.35, 0)
@@ -135,13 +182,24 @@ func _animate(state: String) -> void:
 
 func _face(mood: String) -> void:
 	var closed := mood == "sleep" or mood == "dead"
+	var scared := mood == "scared"
 	for eye in _eyes:
-		eye.scale = Vector3(1, 0.15 if closed else 1.0, 1)
+		eye.scale = Vector3.ONE * 1.35 if scared else Vector3(1, 0.15 if closed else 1.0, 1)
 	var curve := {"happy": 0.5, "ok": 0.0, "sad": -0.5, "sleep": 0.0, "dead": -0.3}.get(mood, 0.0) as float
 	for i in 2:
 		var side := -1.0 if i == 0 else 1.0
-		_mouth_sides[i].rotation.z = curve * side
+		# Испуг — рот «О»: боковые черты встают вертикально.
+		_mouth_sides[i].rotation.z = PI / 2.0 * side if scared else curve * side
 		_mouth_sides[i].position.y = 0.16 + absf(curve) * 0.03 * signf(curve)
+
+
+func _update_popup(delta: float) -> void:
+	if not _popup.visible:
+		return
+	_popup_time += delta
+	_popup.position = Vector3(0, 2.6 + _popup_time * 0.6, 0)
+	if _popup_time > 1.5:
+		_popup.visible = false
 
 
 func _part(parent: Node3D, mesh: PrimitiveMesh, xf: Transform3D, color: Color, mat: Material) -> void:

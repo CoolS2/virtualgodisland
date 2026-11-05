@@ -6,7 +6,7 @@ extends Node
 const WARMUP_FRAMES := 30
 const DEFAULT_OUT := "user://screenshots"
 const DEFAULT_SEED := 42
-## Имя, yaw, pitch, distance[, target].
+## Имя, yaw, pitch, distance[, target[, кадров прогрева]].
 const VIEWS := [
 	["overview", PI / 4.0, 0.75, 150.0],
 	["closeup", PI * 0.9, 0.3, 70.0],
@@ -28,6 +28,7 @@ func _ready() -> void:
 	views.append(_river_view.bind(map))
 	views.append(_waterfall_view.bind(map))
 	views.append(_human_view.bind(main))
+	views.append(_miracles_view.bind(main))
 	views.append(_hand_view.bind(main))
 	for make_view in views:
 		var view: Array = make_view.call()
@@ -35,7 +36,7 @@ func _ready() -> void:
 			continue
 		var target: Vector3 = view[4] if view.size() > 4 else Vector3.ZERO
 		(main.get("camera_rig") as CameraRig).set_view(view[1], view[2], view[3], target)
-		for _i in WARMUP_FRAMES:
+		for _i in (view[5] if view.size() > 5 else WARMUP_FRAMES):
 			await get_tree().process_frame
 		await RenderingServer.frame_post_draw
 		var image := get_viewport().get_texture().get_image()
@@ -106,6 +107,18 @@ func _open_field(map: IslandMap) -> Vector2:
 			if ok:
 				best = p
 	return best
+
+
+## Чудеса рядом с человечком: дождь над ним и молния в стороне (кратер, дым). Маны в превью ровно на два.
+## Кадров прогрева мало — эффекты живут секунды, а программный рендер в CI медленный.
+func _miracles_view(main: Node) -> Array:
+	var h: Dictionary = (main.get("_world") as Dictionary)["human"]
+	var p := Human.position_of(h)
+	main.call("cast_miracle", "rain", p)
+	main.call("cast_miracle", "lightning", p + Vector2(7, 3))
+	var map := main.get("island_map") as IslandMap
+	var target := Vector3(p.x + 3.5, map.height_at_world(p.x, p.y) + 2.0, p.y + 1.5)
+	return ["miracles", PI * 0.8, 0.45, 26.0, target, 6]
 
 
 ## Рука держит ветку недалеко от центра острова.

@@ -8,7 +8,7 @@ const MIN_HEIGHT := 0.15 # не ставить у самой воды
 const MAX_SLOPE := 0.9 # на крутых склонах ничего не растёт
 
 
-static func build(map: IslandMap, world_seed: int, tile: float = 1.0) -> Node3D:
+static func build(map: IslandMap, world_seed: int, craters: Array = [], tile: float = 1.0) -> Node3D:
 	var meshes := {
 		"tree": LowPoly.round_tree(),
 		"tree_dark": LowPoly.round_tree(LowPoly.LEAVES_DARK),
@@ -32,6 +32,8 @@ static func build(map: IslandMap, world_seed: int, tile: float = 1.0) -> Node3D:
 			var yaw: float = rng.next() * TAU
 			var size: float = 0.75 + rng.next() * 0.6
 			if kind.is_empty() or Terrain.slope_at(map, x, y) > MAX_SLOPE or _near_river(map, x, y):
+				continue
+			if not craters.is_empty() and Craters.contains({"craters": craters}, Vector2(fx * tile - half, fy * tile - half), 0.5):
 				continue
 			var h := map.sample_height(fx, fy)
 			if h < MIN_HEIGHT:

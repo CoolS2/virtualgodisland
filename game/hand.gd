@@ -27,6 +27,9 @@ var _ground := Vector3.ZERO
 var _has_ground := false
 var _grip := 0.0
 var _grip_target := 0.0
+var _gesture := ""
+var _gesture_offset := Vector3.ZERO
+var _gesture_time := 0.0
 var _fingers: Array[Node3D] = []
 var _thumb: Node3D
 
@@ -56,6 +59,21 @@ func _init() -> void:
 	thumb.material_override = mat
 	_thumb.add_child(thumb)
 	add_child(_thumb)
+
+
+## Точка ландшафта под курсором (если есть).
+func ground_point() -> Vector3:
+	return _ground
+
+
+func has_ground() -> bool:
+	return _has_ground
+
+
+## Жест: "pet" — плавно погладить, "slap" — резкий шлепок (рука ныряет вниз и обратно).
+func gesture(kind: String) -> void:
+	_gesture = kind
+	_gesture_time = 0.0
 
 
 ## Сжать/разжать без мыши (утилиты, будущие подсказки).
@@ -90,6 +108,18 @@ func _process(delta: float) -> void:
 	for pivot in _fingers:
 		pivot.rotation.x = CURL * _grip
 	_thumb.rotation.x = CURL * 0.7 * _grip
+	if not _gesture.is_empty():
+		_gesture_time += delta
+		var duration := 0.8 if _gesture == "pet" else 0.3
+		var t := clampf(_gesture_time / duration, 0.0, 1.0)
+		var dip := sin(t * PI) * (1.6 if _gesture == "pet" else 2.6)
+		var stroke := sin(t * TAU * 2.0) * 0.4 if _gesture == "pet" else 0.0
+		_gesture_offset = Vector3(stroke, -dip, 0)
+		rotation.x = -0.4 * sin(t * PI) if _gesture == "slap" else 0.0
+		if t >= 1.0:
+			_gesture = ""
+			_gesture_offset = Vector3.ZERO
+			rotation.x = 0.0
 
 
 func _physics_process(delta: float) -> void:
@@ -105,7 +135,7 @@ func _physics_process(delta: float) -> void:
 	if not _has_ground:
 		return
 	var previous := position
-	var target := _ground + Vector3.UP * (HOVER_HOLDING if holding else HOVER) * SCALE * 0.5
+	var target := _ground + Vector3.UP * (HOVER_HOLDING if holding else HOVER) * SCALE * 0.5 + _gesture_offset
 	position = position.lerp(target, FOLLOW)
 	velocity = velocity.lerp((position - previous) / delta, 0.5)
 	# Пальцы смотрят от камеры.
