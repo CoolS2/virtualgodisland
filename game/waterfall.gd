@@ -33,14 +33,8 @@ static func build(map: IslandMap, tile: float = 1.0) -> Node3D:
 	foam.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	root.add_child(foam)
 
-	var puff := QuadMesh.new()
-	puff.size = Vector2.ONE * 1.3
-	var puff_mat := StandardMaterial3D.new()
-	puff_mat.albedo_color = Color(1, 1, 1, 0.7)
-	puff_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	puff_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	puff_mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
-	puff.material = puff_mat
+	var puff := LowPoly.part(LowPoly.sphere(0.55, 6, 3), Transform3D.IDENTITY, Color.WHITE)
+	puff.surface_set_material(0, LowPoly.material())
 
 	var mist := CPUParticles3D.new()
 	mist.mesh = puff

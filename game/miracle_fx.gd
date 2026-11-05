@@ -65,11 +65,9 @@ static func lightning(parent: Node, at: Vector3) -> void:
 	tween.tween_callback(bolt.queue_free)
 	tween.parallel().tween_property(flash, "light_energy", 0.0, 0.5)
 
-	var puff := QuadMesh.new()
-	puff.size = Vector2.ONE * 1.5
-	puff.material = _flat(Color(0.35, 0.35, 0.35, 0.6), 0.6, true, true)
 	var smoke := CPUParticles3D.new()
-	smoke.mesh = puff
+	smoke.mesh = LowPoly.part(LowPoly.sphere(0.7, 6, 3), Transform3D.IDENTITY, Color("#6b6b6b"))
+	smoke.mesh.surface_set_material(0, LowPoly.material())
 	smoke.amount = 30
 	smoke.lifetime = 3.0
 	smoke.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
@@ -92,13 +90,11 @@ static func _timed(parent: Node, at: Vector3, seconds: float) -> Node3D:
 	return root
 
 
-static func _flat(color: Color, alpha: float, unshaded: bool = false, billboard: bool = false) -> StandardMaterial3D:
+static func _flat(color: Color, alpha: float, unshaded: bool = false) -> StandardMaterial3D:
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = Color(color, alpha)
 	if alpha < 1.0:
 		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	if unshaded:
 		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	if billboard:
-		mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 	return mat
