@@ -78,6 +78,18 @@ static func grow_fruit(w: Dictionary, map: IslandMap) -> bool:
 	return false
 
 
+## Вырастить ветку в лесу (упала с дерева). true — выросла.
+static func grow_branch(w: Dictionary, map: IslandMap) -> bool:
+	for _attempt in 50:
+		var fx: float = 1.0 + VgiRng.next_float(w) * (map.size - 3)
+		var fy: float = 1.0 + VgiRng.next_float(w) * (map.size - 3)
+		var h := map.sample_height(fx, fy)
+		if map.biome_at(roundi(fx), roundi(fy)) == IslandMap.Biome.FOREST and h > 0.1 and h <= SPAWN_MAX_HEIGHT:
+			add(w, "branch", Vector3(fx - map.half_extent(), h, fy - map.half_extent()))
+			return true
+	return false
+
+
 static func count_kind(w: Dictionary, kind: String) -> int:
 	var n := 0
 	for item: Dictionary in w["items"]:
@@ -151,9 +163,11 @@ static func throw_item(w: Dictionary, map: IslandMap, id: int, origin: Vector3, 
 	item["held"] = false
 	if landed_in_sea(map, landing):
 		(w["items"] as Array).erase(item)
-		(w["log"] as Array).append("tick %d: %s утонул в море" % [w["tick"], item["kind"]])
+		WorldEngine.add_log(w, "%s утонул в море" % item["kind"])
 		return path
 	_set_position(item, landing)
+	if Mysteries.on_item_landed(w, map, item):
+		return path
 	var impact := first_impact(map, path)
 	if not impact.is_empty():
 		var at: Vector3 = impact["at"]

@@ -14,6 +14,7 @@ extends RefCounted
 ##   items_spawned: bool — стартовые предметы уже разложены (Items.spawn_initial)
 ##   mana: float          — мана бога (sim/miracles.gd)
 ##   craters: Array       — кратеры (sim/craters.gd)
+##   mysteries, fire, camp, shrine, cave, raft, fish_eaten — тайны (sim/mysteries.gd)
 
 ## 1 тик = 1 реальная минута.
 const TICK_MS := 60_000
@@ -27,6 +28,11 @@ const ENERGY_PER_TICK := 0.04
 ## Раз в столько тиков вырастает фрукт (если их меньше FRUIT_MAX).
 const FRUIT_REGROW_TICKS := 40
 const FRUIT_MAX := 14
+## Ветки падают с деревьев (для плота).
+const BRANCH_REGROW_TICKS := 60
+const BRANCH_MAX := 20
+## Журнал хранит только последние записи.
+const LOG_MAX := 200
 
 
 static func create_world(world_seed: int, now_ms: int) -> Dictionary:
@@ -42,6 +48,9 @@ static func create_world(world_seed: int, now_ms: int) -> Dictionary:
 		"items_spawned": false,
 		"mana": Miracles.MANA_START,
 		"craters": [],
+		"mysteries": [],
+		"fire": {}, "camp": {}, "shrine": {}, "cave": {}, "raft": {},
+		"fish_eaten": 0,
 	}
 
 
@@ -58,15 +67,28 @@ static func step(w: Dictionary, map: IslandMap) -> void:
 		h["energy"] = maxf(0.0, h["energy"] - ENERGY_PER_TICK)
 
 	Human.update(w, map)
+	Mysteries.update(w, map)
 	Miracles.regen(w)
 
 	if int(w["tick"]) % FRUIT_REGROW_TICKS == 0 and Items.count_kind(w, "fruit") < FRUIT_MAX:
 		Items.grow_fruit(w, map)
+	if int(w["tick"]) % BRANCH_REGROW_TICKS == 0 and Items.count_kind(w, "branch") < BRANCH_MAX:
+		Items.grow_branch(w, map)
 
 	if h["hunger"] >= 100.0 or h["thirst"] >= 100.0:
 		h["alive"] = false
-		(w["log"] as Array).append("tick %d: человечек погиб" % w["tick"])
+		add_log(w, "человечек погиб")
 	w["tick"] = int(w["tick"]) + 1
+
+
+## Запись в журнал (экран «Пока тебя не было…»): «день N, ЧЧ:ММ: текст». Хранятся последние LOG_MAX.
+static func add_log(w: Dictionary, text: String) -> void:
+	var tick: int = w["tick"]
+	var hour := WorldClock.hour(tick)
+	var entries: Array = w["log"]
+	entries.append("день %d, %02d:%02d — %s" % [WorldClock.day(tick), int(hour), int(fmod(hour, 1.0) * 60.0), text])
+	while entries.size() > LOG_MAX:
+		entries.pop_front()
 
 
 ## Догнать симуляцию за время отсутствия. Возвращает число прогнанных тиков.
@@ -110,6 +132,13 @@ static func from_data(data: Variant) -> Dictionary:
 		"items_spawned": bool(d.get("items_spawned", false)),
 		"mana": float(d.get("mana", Miracles.MANA_START)),
 		"craters": Craters.from_data(d.get("craters", [])),
+		"mysteries": _mysteries_from_data(d.get("mysteries", [])),
+		"fire": Mysteries.structure_from_data(d.get("fire")),
+		"camp": Mysteries.structure_from_data(d.get("camp")),
+		"shrine": Mysteries.structure_from_data(d.get("shrine")),
+		"cave": Mysteries.structure_from_data(d.get("cave")),
+		"raft": Mysteries.structure_from_data(d.get("raft")),
+		"fish_eaten": int(d.get("fish_eaten", 0)),
 	}
 
 
@@ -134,4 +163,15 @@ static func _human_from_data(h: Dictionary) -> Dictionary:
 	result["fear"] = float(h.get("fear", 0.0))
 	result["held"] = false # рука в сейв не попадает
 	result["touch_tick"] = int(h.get("touch_tick", -1))
+	result["build_kind"] = str(h.get("build_kind", ""))
+	result["work"] = int(h.get("work", 0))
+	return result
+
+
+static func _mysteries_from_data(data: Variant) -> Array:
+	var result: Array = []
+	if typeof(data) == TYPE_ARRAY:
+		for entry: Variant in data:
+			if not result.has(str(entry)):
+				result.append(str(entry))
 	return result

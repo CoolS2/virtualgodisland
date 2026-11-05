@@ -7,9 +7,10 @@ extends RefCounted
 ##   tx, tz: float — цель движения; target_item: int — еда для "eat"; stuck: int — тиков без продвижения
 ##   faith, love, fear: float 0..100 — вера, любовь и страх к богу; held: bool — в руке бога;
 ##   touch_tick: int — тик последнего «погладить/шлёпнуть» (не чаще раза в тик)
+##   build_kind: String, work: int — что строит (тайны) и сколько тиков уже работает
 ## 1 тик = 1 минута: за тик человечек проходит до WALK_PER_TICK (1 ед/с), game/ показывает это плавно.
 
-const ACTIONS: Array[String] = ["idle", "wander", "drink", "eat", "sleep"]
+const ACTIONS: Array[String] = ["idle", "wander", "drink", "eat", "sleep", "build"]
 
 const WALK_PER_TICK := 60.0
 const STEP := 1.0
@@ -29,6 +30,14 @@ const FEAR_DECAY := 0.1
 const LOVE_DECAY := 0.01
 const FAITH_DECAY := 0.005
 const SCARED := 60.0
+## Ночью ложится спать (если сил меньше порога); сон длится до утра.
+const NIGHT_SLEEP_SCORE := 0.6
+const NIGHT_SLEEP_BELOW := 95.0
+## Просыпается раньше, если голод или жажда стали опасными.
+const WAKE_NEED := 85.0
+## У лагеря спится лучше.
+const CAMP_SLEEP_BONUS := 1.5
+const CAMP_RADIUS := 4.0
 const SLEEP_PER_TICK := 2.0
 ## Ниже порога потребность не рассматривается.
 const THIRST_TRIGGER := 40.0
@@ -51,6 +60,7 @@ static func default_state() -> Dictionary:
 		"spawned": false, "x": 0.0, "z": 0.0,
 		"action": "idle", "tx": 0.0, "tz": 0.0, "target_item": -1, "stuck": 0,
 		"faith": 0.0, "love": 0.0, "fear": 0.0, "held": false, "touch_tick": -1,
+		"build_kind": "", "work": 0,
 	}
 
 
@@ -80,11 +90,30 @@ static func update(w: Dictionary, map: IslandMap) -> void:
 				if _move(h, map):
 					(w["items"] as Array).erase(item)
 					h["hunger"] = maxf(0.0, h["hunger"] - Items.FOOD[item["kind"]])
+					if item["kind"] == "fish":
+						w["fish_eaten"] = int(w["fish_eaten"]) + 1
+						if int(w["fish_eaten"]) >= Mysteries.FISH_FOR_FISHERMAN:
+							Mysteries.solve(w, "fisherman")
+					WorldEngine.add_log(w, "съел %s" % ("рыбу" if item["kind"] == "fish" else "фрукт"))
 					_set_action(h, "idle")
 		"sleep":
-			h["energy"] = minf(100.0, h["energy"] + SLEEP_PER_TICK)
-			if h["energy"] >= RESTED:
-				_set_action(h, "idle")
+			if _move(h, map):
+				var near_camp: bool = not (w["camp"] as Dictionary).is_empty() \
+					and position_of(h).distance_to(Vector2(w["camp"]["x"], w["camp"]["z"])) <= CAMP_RADIUS
+				h["energy"] = minf(100.0, h["energy"] + SLEEP_PER_TICK * (CAMP_SLEEP_BONUS if near_camp else 1.0))
+				var night := WorldClock.is_night(int(w["tick"]))
+				var urgent: bool = h["hunger"] >= WAKE_NEED or h["thirst"] >= WAKE_NEED
+				if urgent or (h["energy"] >= RESTED and not night):
+					WorldEngine.add_log(w, "проснулся")
+					_set_action(h, "idle")
+		"build":
+			if _move(h, map):
+				h["work"] = int(h["work"]) + 1
+				if h["work"] >= Mysteries.BUILD_TICKS:
+					var kind: String = h["build_kind"]
+					var at := Vector2(h["tx"], h["tz"])
+					_set_action(h, "idle")
+					Mysteries.complete_build(w, kind, at)
 		"wander":
 			if _move(h, map):
 				_set_action(h, "idle")
@@ -106,6 +135,21 @@ static func mood(h: Dictionary) -> String:
 	if worst < 65.0:
 		return "ok"
 	return "sad"
+
+
+static func _sleep_score(w: Dictionary) -> float:
+	var h: Dictionary = w["human"]
+	if h["energy"] <= ENERGY_TRIGGER:
+		return (100.0 - h["energy"]) / 100.0
+	if WorldClock.is_night(int(w["tick"])) and h["energy"] < NIGHT_SLEEP_BELOW:
+		return NIGHT_SLEEP_SCORE
+	return 0.0
+
+
+## Начать стройку (тайны): дойти до места и работать BUILD_TICKS тиков.
+static func start_build(h: Dictionary, kind: String, at: Vector2) -> void:
+	_set_action(h, "build", at.x, at.y)
+	h["build_kind"] = kind
 
 
 static func scare(h: Dictionary, amount: float) -> void:
@@ -203,7 +247,7 @@ static func _decide(w: Dictionary, map: IslandMap) -> void:
 	var scores := {
 		"drink": h["thirst"] / 100.0 if h["thirst"] >= THIRST_TRIGGER and not map.river.is_empty() else 0.0,
 		"eat": h["hunger"] / 100.0 if h["hunger"] >= HUNGER_TRIGGER and _nearest_food(w) >= 0 else 0.0,
-		"sleep": (100.0 - h["energy"]) / 100.0 if h["energy"] <= ENERGY_TRIGGER else 0.0,
+		"sleep": _sleep_score(w),
 		"wander": WANDER_SCORE,
 	}
 	var best := "wander"
@@ -222,7 +266,11 @@ static func _decide(w: Dictionary, map: IslandMap) -> void:
 			_set_action(h, "eat", item["x"], item["z"])
 			h["target_item"] = id
 		"sleep":
-			_set_action(h, "sleep", h["x"], h["z"])
+			var bed := position_of(h)
+			if not (w["camp"] as Dictionary).is_empty():
+				bed = Vector2(w["camp"]["x"], w["camp"]["z"]) + Vector2(1.5, 1.5)
+			_set_action(h, "sleep", bed.x, bed.y)
+			WorldEngine.add_log(w, "лёг спать" + (" в лагере" if not (w["camp"] as Dictionary).is_empty() else ""))
 		"wander":
 			for _i in WANDER_ATTEMPTS:
 				var angle: float = VgiRng.next_float(w) * TAU
@@ -269,6 +317,8 @@ static func _set_action(h: Dictionary, action: String, tx: float = NAN, tz: floa
 	h["tz"] = h["z"] if is_nan(tz) else tz
 	h["target_item"] = -1
 	h["stuck"] = 0
+	h["build_kind"] = ""
+	h["work"] = 0
 
 
 static func _spawn(w: Dictionary, map: IslandMap) -> void:
