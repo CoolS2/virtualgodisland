@@ -4,8 +4,8 @@ extends Control
 
 const GAME_SCENE := "res://game/main.tscn"
 const ORBIT_SPEED := 0.05
-const ORBIT_DISTANCE := 175.0
-const ORBIT_PITCH := 0.42
+const ORBIT_DISTANCE := 125.0
+const ORBIT_PITCH := 0.36
 ## Вечерний свет — тёплый и мягкий.
 const MENU_HOUR := 16.5
 
