@@ -124,6 +124,52 @@ static func hand_finger(length: float) -> ArrayMesh:
 	return st.commit()
 
 
+## Кострище: кольцо камней и сложенные шалашом поленья (пламя — отдельно, см. StructuresView).
+static func campfire() -> ArrayMesh:
+	var st := _begin()
+	for i in 7:
+		var a := TAU * i / 7.0
+		_add(st, _sphere(0.22, 5, 3), _at(Vector3(cos(a) * 0.75, 0.08, sin(a) * 0.75), Vector3(1, 0.6, 1)), ROCK)
+	for i in 3:
+		var a := TAU * i / 3.0
+		_add(st, _cylinder(0.07, 0.08, 0.9, 5), _at(Vector3(cos(a) * 0.18, 0.3, sin(a) * 0.18), Vector3.ONE, Vector3(0.6 * sin(a), 0, -0.6 * cos(a))), BRANCH)
+	return st.commit()
+
+
+static func tent() -> ArrayMesh:
+	var st := _begin()
+	_add(st, _cylinder(0.0, 1.6, 2.0, 4), _at(Vector3(0, 1.0, 0), Vector3(1.0, 1.0, 1.3), Vector3(0, PI / 4.0, 0)), Color("#d9c08c"))
+	_add(st, BoxMesh.new(), _at(Vector3(0, 0.45, -1.05), Vector3(0.6, 0.9, 0.05)), Color("#5a4630"))
+	_add(st, _cylinder(0.05, 0.05, 2.4, 4), _at(Vector3(0, 1.2, 0)), BRANCH)
+	return st.commit()
+
+
+static func altar() -> ArrayMesh:
+	var st := _begin()
+	_add(st, BoxMesh.new(), _at(Vector3(0, 0.35, 0), Vector3(1.4, 0.7, 1.0)), Color("#b9b3a8"))
+	_add(st, BoxMesh.new(), _at(Vector3(0, 0.78, 0), Vector3(1.7, 0.16, 1.2)), Color("#cfc9be"))
+	_add(st, _sphere(0.25, 8, 4), _at(Vector3(0, 1.1, 0)), Color("#ffe27a"))
+	return st.commit()
+
+
+static func cave_entrance() -> ArrayMesh:
+	var st := _begin()
+	_add(st, _sphere(1.6, 10, 5), _at(Vector3(0, 0.2, 0), Vector3(1.0, 1.0, 0.45)), Color("#1a1612"))
+	for i in 6:
+		var a := PI * (0.1 + 0.8 * i / 5.0)
+		_add(st, _sphere(0.5, 5, 3), _at(Vector3(cos(a) * 1.7, sin(a) * 1.7, -0.25), Vector3(1, 1, 0.8)), ROCK)
+	return st.commit()
+
+
+static func raft() -> ArrayMesh:
+	var st := _begin()
+	for i in 6:
+		_add(st, _cylinder(0.16, 0.16, 2.6, 6), _at(Vector3(-0.8 + i * 0.32, 0.16, 0), Vector3.ONE, Vector3(PI / 2, 0, 0)), BRANCH.lightened(0.1 * (i % 2)))
+	_add(st, _cylinder(0.05, 0.06, 2.2, 5), _at(Vector3(0, 1.2, 0)), BRANCH)
+	_add(st, BoxMesh.new(), _at(Vector3(0.35, 1.45, 0), Vector3(0.7, 1.0, 0.04)), Color("#f2ead8"))
+	return st.commit()
+
+
 ## Одна деталь отдельным мешем (для анимируемых частей).
 static func part(mesh: PrimitiveMesh, xf: Transform3D, color: Color) -> ArrayMesh:
 	var st := _begin()

@@ -2,14 +2,14 @@ extends Node3D
 ## Корневая сцена: остров, камера, рука, HUD.
 ## Раз в секунду догоняет симуляцию по реальному времени и сохраняет мир.
 
-const SKY_TOP := Color("#3d8fe0")
-const SKY_HORIZON := Color("#c4e6ff")
-const SUN_POSITION := Vector3(70, 60, 40)
 const HUD_INTERVAL := 1.0
+## «Пока тебя не было…» — если пропущено хотя бы столько тиков.
+const WELCOME_MIN_TICKS := 5
+const WELCOME_MAX_LINES := 14
 ## Бросок: скорость руки × GAIN + подброс вверх (чтобы бросок «летел», а не падал).
 const THROW_GAIN := 1.3
 const THROW_LIFT := 3.0
-const HINT := "ЛКМ — взять / бросить (и человечка) · E — погладить · Q — шлёпнуть · ПКМ — камера · колесо — зум · F — следить\n1 — дождь (20) · 2 — рыба к берегу (25) · 3 — молния (30) — там, где рука"
+const HINT := "ЛКМ — взять / бросить (и человечка) · E — погладить · Q — шлёпнуть · ПКМ — камера · колесо — зум · F — следить\n1 — дождь (20) · 2 — рыба к берегу (25) · 3 — молния (30) — там, где рука · M — тайны"
 const MOOD_LABELS := {"happy": "доволен", "ok": "спокоен", "sad": "грустит", "sleep": "спит", "dead": "погиб", "scared": "боится"}
 const MIRACLE_KEYS := {KEY_1: "rain", KEY_2: "fish", KEY_3: "lightning"}
 const MIRACLE_NAMES := {"rain": "Дождь", "fish": "Рыба к берегу", "lightning": "Молния"}
@@ -25,6 +25,9 @@ var island_map: IslandMap
 var hand: Hand
 var items_view: ItemsView
 var human_view: HumanView
+var structures_view: StructuresView
+var daylight: Daylight
+var ui: GameUi
 
 var _world: Dictionary
 var _terrain: Node3D
@@ -34,6 +37,7 @@ var _message_time := 0.0
 var _offline_ticks: int
 var _hud: Label
 var _since_update := 0.0
+var _mysteries_seen := 0
 
 
 func _ready() -> void:
@@ -42,11 +46,14 @@ func _ready() -> void:
 	var map := IslandGenerator.generate(_world["seed"])
 	Craters.apply_all(map, _world)
 	island_map = map
+	var before := _world.duplicate(true)
 	_offline_ticks = WorldEngine.catch_up(_world, map, now)
 	if not _world["human"]["spawned"]:
 		WorldEngine.step(_world, map) # новый мир: человечек и предметы появляются сразу
+	_mysteries_seen = (_world["mysteries"] as Array).size()
 
-	_setup_environment()
+	daylight = Daylight.new()
+	add_child(daylight)
 	_terrain = Terrain.build_terrain(map)
 	add_child(_terrain)
 	add_child(Water.build(map))
@@ -72,7 +79,15 @@ func _ready() -> void:
 	human_view = HumanView.new()
 	human_view.map = map
 	add_child(human_view)
+	structures_view = StructuresView.new()
+	structures_view.map = map
+	add_child(structures_view)
+	structures_view.sync(_world)
 	_setup_hud()
+	ui = GameUi.new()
+	add_child(ui)
+	if not _is_preview() and _offline_ticks >= WELCOME_MIN_TICKS:
+		ui.show_welcome(_welcome_text(before))
 
 	_save()
 	_render_hud()
@@ -80,6 +95,11 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	human_view.show_state(_world["human"], delta)
+	var tick := float(_world["tick"])
+	if not _is_preview():
+		tick += clampf(float(SaveStore.now_ms() - int(_world["last_seen"])) / WorldEngine.TICK_MS, 0.0, 0.999)
+	daylight.set_hour(WorldClock.hour(tick))
+	structures_view.night = WorldClock.is_night(tick)
 	_message_time -= delta
 	if _message_time <= 0.0:
 		_message.text = ""
@@ -88,9 +108,47 @@ func _process(delta: float) -> void:
 		return
 	_since_update = 0.0
 	if not _is_preview() and WorldEngine.catch_up(_world, island_map, SaveStore.now_ms()) > 0:
-		items_view.sync(_world)
+		refresh_world_view()
 		_save()
 	_render_hud()
+
+
+## После изменения мира: предметы, постройки, сообщение о новой тайне.
+func refresh_world_view() -> void:
+	items_view.sync(_world)
+	structures_view.sync(_world)
+	var solved: Array = _world["mysteries"]
+	if solved.size() > _mysteries_seen:
+		_show_message("Тайна раскрыта: %s! (%d/%d)" % [Mysteries.name_of(solved.back()), solved.size(), Mysteries.LIST.size()])
+		human_view.popup("Тайна!", Color("#9ff0ff"))
+		_mysteries_seen = solved.size()
+
+
+func _welcome_text(before: Dictionary) -> String:
+	var minutes := _offline_ticks
+	var lines := PackedStringArray(["Пока тебя не было (%d ч %02d мин)…" % [floori(minutes / 60.0), minutes % 60], ""])
+	var h0: Dictionary = before["human"]
+	var h: Dictionary = _world["human"]
+	if not h["alive"]:
+		lines.append("Человечек погиб.")
+	lines.append("Голод %.0f → %.0f · жажда %.0f → %.0f · силы %.0f → %.0f" % [
+		h0["hunger"], h["hunger"], h0["thirst"], h["thirst"], h0["energy"], h["energy"]])
+	var old_log: Array = before["log"]
+	var new_log: Array = _world["log"]
+	var start := 0
+	if not old_log.is_empty():
+		var last_index := new_log.rfind(old_log.back())
+		start = last_index + 1 if last_index >= 0 else 0
+	var events := new_log.slice(start)
+	if events.size() > WELCOME_MAX_LINES:
+		lines.append("… и ещё %d событий раньше" % (events.size() - WELCOME_MAX_LINES))
+		events = events.slice(events.size() - WELCOME_MAX_LINES)
+	lines.append("")
+	for entry: Variant in events:
+		lines.append(str(entry))
+	if events.is_empty():
+		lines.append("Ничего особенного не случилось.")
+	return "\n".join(lines)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -99,6 +157,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if key.keycode == KEY_F:
 		toggle_follow()
+	elif key.keycode == KEY_M:
+		ui.toggle_mysteries(_world)
 	elif MIRACLE_KEYS.has(key.keycode) and hand.has_ground():
 		var p := hand.ground_point()
 		cast_miracle(MIRACLE_KEYS[key.keycode], Vector2(p.x, p.z))
@@ -121,7 +181,7 @@ func cast_miracle(kind: String, point: Vector2) -> Dictionary:
 			MiracleFx.lightning(self, at)
 	if (_world["craters"] as Array).size() != craters_before:
 		_rebuild_terrain()
-	items_view.sync(_world)
+	refresh_world_view()
 	if result["seen"]:
 		human_view.popup("Чудо!", Color("#ffe066"))
 	_show_message(MIRACLE_NAMES[kind] + (" — человечек видел, вера растёт" if result["seen"] else " — человечек не видел"))
@@ -211,7 +271,7 @@ func _on_grab_released(origin: Vector3, velocity: Vector3) -> void:
 		_rebuild_terrain()
 	items_view.held_id = -1
 	items_view.fly(id, path, Items.find(_world, id).is_empty())
-	items_view.sync(_world)
+	refresh_world_view()
 	_save()
 
 
@@ -224,53 +284,18 @@ func _save() -> void:
 		SaveStore.save_world(_world)
 
 
-func _setup_environment() -> void:
-	var sky_mat := ProceduralSkyMaterial.new()
-	sky_mat.sky_top_color = SKY_TOP
-	sky_mat.sky_horizon_color = SKY_HORIZON
-	sky_mat.ground_horizon_color = SKY_HORIZON
-	sky_mat.ground_bottom_color = Color("#2a6fdb")
-	var sky := Sky.new()
-	sky.sky_material = sky_mat
-
-	var env := Environment.new()
-	env.background_mode = Environment.BG_SKY
-	env.sky = sky
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_energy = 0.7
-	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	env.glow_enabled = true
-	env.glow_intensity = 0.4
-	env.fog_enabled = true
-	env.fog_light_color = SKY_HORIZON
-	env.fog_density = 0.0009
-	env.fog_sky_affect = 0.0
-	var world_env := WorldEnvironment.new()
-	world_env.environment = env
-	add_child(world_env)
-
-	var sun := DirectionalLight3D.new()
-	sun.light_color = Color("#fff1d6")
-	sun.light_energy = 1.3
-	sun.shadow_enabled = true
-	sun.shadow_blur = 1.5
-	sun.directional_shadow_max_distance = 450.0
-	sun.transform = Transform3D(Basis.looking_at(-SUN_POSITION), SUN_POSITION)
-	add_child(sun)
-
-
 func _setup_hud() -> void:
 	var layer := CanvasLayer.new()
 	_hud = Label.new()
 	_hud.position = Vector2(8, 8)
 	var hint := Label.new()
 	hint.text = HINT
-	hint.position = Vector2(8, 52)
+	hint.position = Vector2(8, 74)
 	hint.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.5))
 	hint.add_theme_font_size_override("font_size", 13)
 	layer.add_child(hint)
 	_message = Label.new()
-	_message.position = Vector2(8, 100)
+	_message.position = Vector2(8, 122)
 	_message.add_theme_color_override("font_color", Color("#ffe066"))
 	_message.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.6))
 	layer.add_child(_message)
@@ -281,7 +306,10 @@ func _setup_hud() -> void:
 
 func _render_hud() -> void:
 	var h: Dictionary = _world["human"]
-	_hud.text = "seed %d · tick %d · офлайн +%d · голод %.0f · жажда %.0f · силы %.0f · %s · %s\nмана %.0f · вера %.0f · любовь %.0f · страх %.0f" % [
+	var hour := WorldClock.hour(int(_world["tick"]))
+	_hud.text = "день %d, %02d:%02d · тайны %d/%d · seed %d · tick %d · офлайн +%d\nголод %.0f · жажда %.0f · силы %.0f · %s · %s\nмана %.0f · вера %.0f · любовь %.0f · страх %.0f" % [
+		WorldClock.day(int(_world["tick"])), int(hour), int(fmod(hour, 1.0) * 60.0),
+		(_world["mysteries"] as Array).size(), Mysteries.LIST.size(),
 		_world["seed"], _world["tick"], _offline_ticks, h["hunger"], h["thirst"], h["energy"],
 		HumanView.ACTION_LABELS.get(h["action"], h["action"]), MOOD_LABELS.get(Human.mood(h), ""),
 		_world["mana"], h["faith"], h["love"], h["fear"],

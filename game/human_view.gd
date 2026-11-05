@@ -8,7 +8,7 @@ const WALK_SPEED := 1.3
 ## Если отстал сильнее (например, после офлайна) — переносимся сразу.
 const TELEPORT_DISTANCE := 40.0
 const ACTION_LABELS := {
-	"idle": "думает", "wander": "гуляет", "drink": "пьёт", "eat": "ест", "sleep": "спит",
+	"idle": "думает", "wander": "гуляет", "drink": "пьёт", "eat": "ест", "sleep": "спит", "build": "строит",
 }
 
 var map: IslandMap
