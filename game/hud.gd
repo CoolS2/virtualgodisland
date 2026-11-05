@@ -98,11 +98,11 @@ func _init() -> void:
 	_hint_panel.add_child(_hint)
 	_hint_panel.visible = false
 	_root.add_child(_hint_panel)
-	minimap.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	_root.add_child(minimap)
+	# Угол — по минимальному размеру карты, с отступом 12 от краёв экрана.
+	minimap.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT, Control.PRESET_MODE_MINSIZE, 12)
 	minimap.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	minimap.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	minimap.position = Vector2(-12, -12)
-	_root.add_child(minimap)
 
 
 func _process(delta: float) -> void:
