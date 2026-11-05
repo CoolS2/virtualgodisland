@@ -20,6 +20,7 @@ const FOLLOW_VIEW := [0.45, 25.0] # pitch, distance
 ## Рука у дерева: щелчок — потрясти (падает плод/ветка), удержать — вырвать с корнем (падают ветки).
 const FELL_HOLD := 0.4
 const FIRST_MYSTERY_HINT_SECONDS := 60.0
+const FOCUS_DISTANCE := 28.0
 const TREE_RADIUS := 1.8
 ## Рука у валуна — столкнуть (катится вниз по склону, раскалывается на камни).
 const ROCK_RADIUS := 1.6
@@ -123,6 +124,7 @@ func _ready() -> void:
 	hud.mysteries_pressed.connect(func() -> void: ui.toggle_mysteries(_world))
 	hud.card_closed.connect(func() -> void: select_person(-1))
 	hud.person_selected.connect(select_person)
+	hud.find_person_pressed.connect(focus_next_person)
 	ui = GameUi.new()
 	add_child(ui)
 	ui.new_game_requested.connect(_new_game)
@@ -311,6 +313,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		hud.close_overlays()
 	elif code == KEY_F:
 		toggle_follow()
+	elif code == KEY_TAB:
+		focus_next_person()
 	elif code == KEY_M:
 		ui.toggle_mysteries(_world)
 	elif MIRACLE_KEYS.has(code) and hand.has_ground():
@@ -400,6 +404,20 @@ func _flora_signature() -> String:
 
 func _show_message(text: String) -> void:
 	hud.toast(text)
+
+
+## Камера к следующему живому человеку (по кругу), он же выделяется — видно кольцо и карточку.
+func focus_next_person() -> void:
+	var people := Human.living(_world)
+	if people.is_empty():
+		return
+	var index := 0
+	for i in people.size():
+		if int(people[i]["id"]) == selected_id:
+			index = (i + 1) % people.size()
+	var h: Dictionary = people[index]
+	select_person(h["id"])
+	camera_rig.focus(view_of(h).global_position + Vector3.UP, FOCUS_DISTANCE)
 
 
 ## Камера: следить за выделенным (или первым живым) человеком / вернуться к общему виду острова.

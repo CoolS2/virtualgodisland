@@ -100,6 +100,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		_apply()
 
 
+## Навести камеру на точку с этого расстояния, не меняя угла обзора; слежение снимается.
+func focus(point: Vector3, distance: float) -> void:
+	follow = null
+	target = point
+	_distance = clampf(distance, MIN_DISTANCE, MAX_DISTANCE)
+	_apply()
+
+
 ## Поставить камеру в заданный ракурс (используется утилитой скриншотов).
 func set_view(yaw: float, pitch: float, distance: float, new_target: Vector3 = Vector3.ZERO) -> void:
 	target = new_target

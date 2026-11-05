@@ -6,6 +6,8 @@ extends CanvasLayer
 signal mysteries_pressed
 signal card_closed
 signal person_selected(id: int)
+## Нажата «К людям» — навести камеру на человека (каждое нажатие — на следующего).
+signal find_person_pressed
 
 const HELP := """Управление
 WASD / стрелки — двигать камеру · колесо — зум · ПКМ с протяжкой — вращать
@@ -16,7 +18,7 @@ WASD / стрелки — двигать камеру · колесо — зум
 ПКМ по человеку — карточка с параметрами
 E — погладить · Q — шлёпнуть (рука рядом с человеком)
 1 — дождь (20 маны) · 2 — рыба к берегу (25) · 3 — молния (30) — там, где рука
-F — следить за человеком
+«К людям» или Tab — камера к человеку (ещё раз — к следующему) · F — следить за человеком
 ЛКМ по обелиску или M — открытия · Esc — закрыть окна"""
 ## Показатель на верхней панели появляется, когда раскрыта тайна: мана — первая тайна (сила бога пробуждается),
 ## еда в лагере — лагерь, люди — дом (после него приплывёт второй человек), вера — алтарь.
@@ -267,6 +269,11 @@ func _build_top_bar() -> void:
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(spacer)
+	var find := Button.new()
+	find.text = "К людям"
+	find.focus_mode = Control.FOCUS_NONE
+	find.pressed.connect(func() -> void: find_person_pressed.emit())
+	row.add_child(find)
 	_mysteries.pressed.connect(func() -> void: mysteries_pressed.emit())
 	_mysteries.focus_mode = Control.FOCUS_NONE
 	row.add_child(_mysteries)

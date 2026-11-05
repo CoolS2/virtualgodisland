@@ -84,6 +84,7 @@ const WANDER_SCORE := 0.3
 ## Исследовать остров (идти к ненайденным следам прошлого, потом — в дальние места) взрослому интереснее,
 ## чем гулять рядом; ребёнок и тот, кто держится рядом с парой, не исследуют.
 const EXPLORE_SCORE := 0.35
+## Исследует только открытые места (поле, пляж) — см. _open_ground.
 const EXPLORE_MIN := 20.0
 const EXPLORE_MAX := 45.0
 ## Выше не забирается (снег, скалы).
@@ -225,7 +226,7 @@ static func _explore_target(w: Dictionary, map: IslandMap, h: Dictionary) -> Vec
 		if (w["found"] as Array).has(key) or not map.relics.has(key):
 			continue
 		var p: Vector2 = map.relics[key]
-		if p.distance_to(pos) < best.distance_to(pos) and _path_clear(map, pos, p):
+		if _open_ground(map, p) and p.distance_to(pos) < best.distance_to(pos) and _path_clear(map, pos, p):
 			best = p
 	if best != Vector2.INF:
 		return best
@@ -233,10 +234,16 @@ static func _explore_target(w: Dictionary, map: IslandMap, h: Dictionary) -> Vec
 		var angle: float = VgiRng.next_float(w) * TAU
 		var radius: float = lerpf(EXPLORE_MIN, EXPLORE_MAX, VgiRng.next_float(w))
 		var p := pos + Vector2(cos(angle), sin(angle)) * radius
-		if _walkable(map, p) and map.biome_at_world(p.x, p.y) != IslandMap.Biome.RIVER \
-				and map.height_at_world(p.x, p.y) <= EXPLORE_MAX_HEIGHT:
+		if _open_ground(map, p) and map.height_at_world(p.x, p.y) <= EXPLORE_MAX_HEIGHT:
 			return p
 	return Vector2.INF
+
+
+## Открытое место — поле или пляж. Сам по себе человек ходит только туда (в лес и на гору — за едой, водой,
+## за ведущим или если отнесёт бог): так его легко найти глазами.
+static func _open_ground(map: IslandMap, p: Vector2) -> bool:
+	var biome := map.biome_at_world(p.x, p.y)
+	return biome == IslandMap.Biome.FIELD or biome == IslandMap.Biome.BEACH
 
 
 ## Настроение для лица: "dead" | "sleep" | "scared" | "happy" | "ok" | "sad".
@@ -536,7 +543,9 @@ static func _wander(w: Dictionary, map: IslandMap, h: Dictionary) -> void:
 		var angle: float = VgiRng.next_float(w) * TAU
 		var radius: float = VgiRng.next_float(w) * reach
 		var p := center + Vector2(cos(angle), sin(angle)) * radius
-		if _walkable(map, p) and map.biome_at_world(p.x, p.y) != IslandMap.Biome.RIVER:
+		# За ведущим — куда угодно на суше; сам — только по открытым местам.
+		if (_open_ground(map, p) or (not leader.is_empty() and _walkable(map, p)
+				and map.biome_at_world(p.x, p.y) != IslandMap.Biome.RIVER)):
 			_set_action(h, "wander", p.x, p.y)
 			return
 
@@ -589,7 +598,7 @@ static func _spawn(w: Dictionary, map: IslandMap, h: Dictionary) -> void:
 	for _i in SPAWN_ATTEMPTS:
 		var p := Vector2(VgiRng.next_float(w) - 0.5, VgiRng.next_float(w) - 0.5) * map.size * 0.4
 		var biome := map.biome_at_world(p.x, p.y)
-		if (biome == IslandMap.Biome.FIELD or biome == IslandMap.Biome.FOREST) and map.height_at_world(p.x, p.y) < SPAWN_MAX_HEIGHT:
+		if biome == IslandMap.Biome.FIELD and map.height_at_world(p.x, p.y) < SPAWN_MAX_HEIGHT:
 			h["x"] = p.x
 			h["z"] = p.y
 			_set_action(h, "idle")
