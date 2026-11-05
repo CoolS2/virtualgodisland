@@ -100,13 +100,14 @@ func _build_panel() -> void:
 	column.add_theme_constant_override("separation", 10)
 	panel.add_child(column)
 
-	var head := HBoxContainer.new()
-	head.alignment = BoxContainer.ALIGNMENT_CENTER
-	head.add_child(_leaf(false))
-	var title := UiStyle.title("Virtual God Island", 56)
-	head.add_child(title)
-	head.add_child(_leaf(true))
-	column.add_child(head)
+	var banner := PanelContainer.new()
+	banner.theme_type_variation = "Banner"
+	var title := UiStyle.title("Virtual God Island", 52)
+	title.add_theme_color_override("font_color", UiStyle.CREAM)
+	title.add_theme_color_override("font_shadow_color", Color(0.35, 0.08, 0.05, 0.8))
+	title.add_theme_constant_override("shadow_offset_y", 2)
+	banner.add_child(title)
+	column.add_child(banner)
 	var subtitle := UiStyle.label("Маленький остров. Один человек. И ты — его бог.", 15, UiStyle.INK_SOFT)
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	column.add_child(subtitle)
@@ -144,16 +145,6 @@ func _build_panel() -> void:
 	_form.add_child(_button("Начать", _start))
 	_form.add_child(_button("Назад", func() -> void: _show_form(false)))
 	column.add_child(_form)
-
-
-func _leaf(flip: bool) -> TextureRect:
-	var leaf := TextureRect.new()
-	leaf.texture = load("res://assets/ui/leaf.png")
-	leaf.flip_h = flip
-	leaf.custom_minimum_size = Vector2(64, 32)
-	leaf.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	leaf.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	return leaf
 
 
 func _show_form(on: bool) -> void:

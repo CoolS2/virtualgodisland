@@ -251,6 +251,7 @@ func _build_top_bar() -> void:
 
 
 func _build_people_panel() -> void:
+	_people_panel.theme_type_variation = "Card"
 	_people_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	_people_panel.position = Vector2(12, 74)
 	_people_panel.custom_minimum_size = Vector2(230, 0)
@@ -261,6 +262,7 @@ func _build_people_panel() -> void:
 
 
 func _build_card() -> void:
+	_card.theme_type_variation = "Card"
 	_card.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	_card.position = Vector2(-322, 74)
 	_card.custom_minimum_size = Vector2(310, 0)
@@ -271,8 +273,9 @@ func _build_card() -> void:
 	var head := HBoxContainer.new()
 	_card_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(_card_title)
-	var close := Button.new()
-	close.text = "×"
+	var close := TextureButton.new()
+	close.texture_normal = load("res://assets/ui/kenney/button_brown_close.png")
+	close.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	close.focus_mode = Control.FOCUS_NONE
 	close.pressed.connect(func() -> void:
 		_card.visible = false

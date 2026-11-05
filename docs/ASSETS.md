@@ -18,7 +18,12 @@
 
 ## Текстуры интерфейса
 
-`assets/ui/*.png` — свои, сгенерированы `tools/ui_art/generate_ui_art.py` (PIL). Лицензия — проекта.
+Kenney **UI Pack Adventure** и **UI Pack RPG Expansion** (www.kenney.nl), лицензия **CC0**
+(`assets/ui/kenney/License-*.txt`). Архивы загрузил владелец (`assets/kenney_ui-pack-*.zip`, коммит `0149e4e`);
+в `assets/ui/kenney` скопированы используемые PNG: panel_brown, panel_brown_dark, panel_brown_corners_a,
+banner_hanging, progress_transparent_small, progress_white_small, button_brown_close (Adventure);
+buttonLong_brown, buttonLong_brown_pressed, buttonLong_grey, panelInset_beige (RPG Expansion).
+Прежние самодельные текстуры и их генератор удалены.
 
 ## 3D-модели
 
