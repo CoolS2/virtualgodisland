@@ -9,8 +9,9 @@ const WELCOME_MAX_LINES := 14
 ## Бросок: скорость руки × GAIN + подброс вверх (чтобы бросок «летел», а не падал).
 const THROW_GAIN := 1.3
 const THROW_LIFT := 3.0
-const HINT := "ЛКМ — взять / бросить (и человечка) · E — погладить · Q — шлёпнуть · ПКМ — камера · колесо — зум · F — следить\n1 — дождь (20) · 2 — рыба к берегу (25) · 3 — молния (30) — там, где рука · ЛКМ по обелиску (или M) — открытия"
-const MOOD_LABELS := {"happy": "доволен", "ok": "спокоен", "sad": "грустит", "sleep": "спит", "dead": "погиб", "scared": "боится"}
+## Короткий клик по человеку — выделить; удержать дольше — взять рукой.
+const HOLD_TO_GRAB := 0.25
+const MENU_SCENE := "res://game/menu.tscn"
 const MIRACLE_KEYS := {KEY_1: "rain", KEY_2: "fish", KEY_3: "lightning"}
 const MIRACLE_NAMES := {"rain": "Дождь", "fish": "Рыба к берегу", "lightning": "Молния"}
 ## Рука «рядом» с человечком — для взять/погладить/шлёпнуть.
@@ -35,10 +36,10 @@ var ui: GameUi
 var _world: Dictionary
 var _terrain: Node3D
 var _decorations: Node3D
-var _message: Label
-var _message_time := 0.0
+var hud: Hud
+var _pending_human := false
+var _press_time := 0.0
 var _offline_ticks: int
-var _hud: Label
 var _since_update := 0.0
 var _mysteries_seen := 0
 var _game_over_shown := false
@@ -46,7 +47,13 @@ var _game_over_shown := false
 
 func _ready() -> void:
 	var now := SaveStore.now_ms()
-	_world = WorldEngine.create_world(preview_seed, now) if _is_preview() else SaveStore.load_world(now)
+	if _is_preview():
+		_world = WorldEngine.create_world(preview_seed, now)
+	elif not GameStart.new_game.is_empty():
+		_world = WorldEngine.create_world(randi() & 0x7FFFFFFF, now, GameStart.new_game)
+		GameStart.new_game = {}
+	else:
+		_world = SaveStore.load_world(now)
 	var map := IslandGenerator.generate(_world["seed"])
 	Craters.apply_all(map, _world)
 	island_map = map
@@ -90,7 +97,10 @@ func _ready() -> void:
 	hints_view = HintsView.new()
 	hints_view.build(map)
 	add_child(hints_view)
-	_setup_hud()
+	hud = Hud.new()
+	add_child(hud)
+	hud.mysteries_pressed.connect(func() -> void: ui.toggle_mysteries(_world))
+	hud.card_closed.connect(func() -> void: human_view.set_selected(false))
 	ui = GameUi.new()
 	add_child(ui)
 	ui.new_game_requested.connect(_new_game)
@@ -102,6 +112,11 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if _pending_human:
+		_press_time += delta
+		if _press_time >= HOLD_TO_GRAB and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+			_pending_human = false
+			_grab_human()
 	human_view.show_state(_world["human"], delta, Human.age(_world["human"], int(_world["tick"])))
 	if WorldEngine.is_game_over(_world) and not _game_over_shown:
 		_show_game_over()
@@ -110,9 +125,7 @@ func _process(delta: float) -> void:
 		tick += clampf(float(SaveStore.now_ms() - int(_world["last_seen"])) / WorldEngine.TICK_MS, 0.0, 0.999)
 	daylight.set_hour(WorldClock.hour(tick))
 	structures_view.night = WorldClock.is_night(tick)
-	_message_time -= delta
-	if _message_time <= 0.0:
-		_message.text = ""
+	hud.update_card(_world["human"], int(_world["tick"]))
 	_since_update += delta
 	if _since_update < HUD_INTERVAL:
 		return
@@ -139,33 +152,28 @@ func _show_game_over() -> void:
 	var h: Dictionary = _world["human"]
 	var age := int(Human.age(h, int(_world["tick"])))
 	ui.show_game_over("%s %s в %d %s (%s).\n\nНа острове больше никого нет — игра окончена.\nЧтобы жизнь продолжилась, первому человеку нужно успеть построить дом, встретить пару и основать поселение.\n\nПрожито дней: %d · открытий: %d/%d" % [
-		h["name"], "умерла" if h["sex"] == "f" else "умер", age, _years(age), h["cause"],
+		h["name"], "умерла" if h["sex"] == "f" else "умер", age, Hud.years(age), h["cause"],
 		WorldClock.day(int(_world["tick"])), (_world["mysteries"] as Array).size(), Mysteries.LIST.size()])
 
 
 func _new_game() -> void:
 	if not _is_preview():
 		SaveStore.delete_save()
-	get_tree().reload_current_scene()
+	get_tree().change_scene_to_file(MENU_SCENE)
 
 
-## «год / года / лет».
-static func _years(n: int) -> String:
-	if n % 10 == 1 and n % 100 != 11:
-		return "год"
-	if n % 10 >= 2 and n % 10 <= 4 and (n % 100 < 10 or n % 100 >= 20):
-		return "года"
-	return "лет"
+## Выделить человека: кольцо под ногами и карточка с параметрами.
+func select_human() -> void:
+	human_view.set_selected(true)
+	hud.show_card(true)
+	hud.update_card(_world["human"], int(_world["tick"]))
 
 
-func _food_knowledge(h: Dictionary) -> String:
-	var known: Array = h["knows"]
-	if known.is_empty():
-		return "не знает, что можно есть"
-	var names := PackedStringArray()
-	for kind: String in known:
-		names.append({"fruit": "фрукты", "fish": "рыбу"}.get(kind, kind))
-	return "ест: " + ", ".join(names)
+func _grab_human() -> void:
+	if Human.grab(_world):
+		human_view.held_by = hand
+		human_view.popup("Ой!", Color("#ffd166"))
+		hand.holding = true
 
 
 func _welcome_text(before: Dictionary) -> String:
@@ -199,7 +207,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	var key := event as InputEventKey
 	if not key or not key.pressed or key.echo:
 		return
-	if key.keycode == KEY_F:
+	if key.keycode == KEY_ESCAPE:
+		hud.close_overlays()
+	elif key.keycode == KEY_F:
 		toggle_follow()
 	elif key.keycode == KEY_M:
 		ui.toggle_mysteries(_world)
@@ -263,8 +273,7 @@ func _rebuild_terrain() -> void:
 
 
 func _show_message(text: String) -> void:
-	_message.text = text
-	_message_time = 3.0
+	hud.toast(text)
 
 
 ## Камера: следить за человечком / вернуться к общему виду острова.
@@ -287,11 +296,11 @@ func pick_item_at(point: Vector3) -> bool:
 	if Vector2(point.x, point.z).distance_to(hints_view.obelisk_position) <= OBELISK_RADIUS:
 		ui.show_mysteries(_world)
 		return false
-	if Vector2(point.x, point.z).distance_to(Human.position_of(_world["human"])) <= TOUCH_RADIUS and Human.grab(_world):
-		human_view.held_by = hand
-		human_view.popup("Ой!", Color("#ffd166"))
-		hand.holding = true
-		return true
+	var h: Dictionary = _world["human"]
+	if h["spawned"] and Vector2(point.x, point.z).distance_to(Human.position_of(h)) <= TOUCH_RADIUS:
+		_pending_human = true
+		_press_time = 0.0
+		return false
 	var id := Items.find_near(_world, point)
 	if id < 0 or not Items.pick_up(_world, id):
 		return false
@@ -301,6 +310,10 @@ func pick_item_at(point: Vector3) -> bool:
 
 
 func _on_grab_released(origin: Vector3, velocity: Vector3) -> void:
+	if _pending_human:
+		_pending_human = false
+		select_human()
+		return
 	hand.holding = false
 	var throw_velocity := velocity * THROW_GAIN + Vector3.UP * THROW_LIFT
 	if _world["human"]["held"]:
@@ -331,37 +344,6 @@ func _save() -> void:
 		SaveStore.save_world(_world)
 
 
-func _setup_hud() -> void:
-	var layer := CanvasLayer.new()
-	_hud = Label.new()
-	_hud.position = Vector2(8, 8)
-	var hint := Label.new()
-	hint.text = HINT
-	hint.position = Vector2(8, 110)
-	hint.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.5))
-	hint.add_theme_font_size_override("font_size", 13)
-	layer.add_child(hint)
-	_message = Label.new()
-	_message.position = Vector2(8, 158)
-	_message.add_theme_color_override("font_color", Color("#ffe066"))
-	_message.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.6))
-	layer.add_child(_message)
-	_hud.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.5))
-	layer.add_child(_hud)
-	add_child(layer)
-
-
 func _render_hud() -> void:
-	var h: Dictionary = _world["human"]
-	var hour := WorldClock.hour(int(_world["tick"]))
-	var age := int(Human.age(h, int(_world["tick"])))
-	var skills: Dictionary = h["skills"]
-	_hud.text = "день %d, %02d:%02d · тайны %d/%d · seed %d · tick %d · офлайн +%d\nголод %.0f · жажда %.0f · силы %.0f · %s · %s\nмана %.0f · вера %.0f · любовь %.0f · страх %.0f · %s\n%s, %s, %d %s · собиратель %.1f · строитель %.1f · рыбак %.1f · лекарь %.1f" % [
-		WorldClock.day(int(_world["tick"])), int(hour), int(fmod(hour, 1.0) * 60.0),
-		(_world["mysteries"] as Array).size(), Mysteries.LIST.size(),
-		_world["seed"], _world["tick"], _offline_ticks, h["hunger"], h["thirst"], h["energy"],
-		HumanView.ACTION_LABELS.get(h["action"], h["action"]), MOOD_LABELS.get(Human.mood(h), ""),
-		_world["mana"], h["faith"], h["love"], h["fear"], _food_knowledge(h),
-		h["name"], "женщина" if h["sex"] == "f" else "мужчина", age, _years(age),
-		skills["forage"], skills["build"], skills["fish"], skills["heal"],
-	]
+	hud.update_world(_world, WorldClock.hour(int(_world["tick"])))
+	hud.update_card(_world["human"], int(_world["tick"]))

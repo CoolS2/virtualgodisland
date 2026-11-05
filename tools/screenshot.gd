@@ -32,6 +32,7 @@ func _ready() -> void:
 	views.append(_night_camp_view.bind(main))
 	views.append(_obelisk_view.bind(main))
 	views.append(_hand_view.bind(main))
+	views.append(_menu_view.bind(main))
 	for make_view in views:
 		var view: Array = make_view.call()
 		if view.is_empty():
@@ -88,6 +89,7 @@ func _human_view(main: Node) -> Array:
 	h["tz"] = spot.y
 	h["action"] = "idle"
 	(main.get("human_view") as HumanView).snap()
+	main.call("select_human")
 	var p := Vector3(spot.x, map.height_at_world(spot.x, spot.y) + 1.0, spot.y)
 	return ["human", PI, 0.4, 8.0, p]
 
@@ -168,6 +170,15 @@ func _hand_view(main: Node) -> Array:
 	hand.set_grip(true)
 	main.call("pick_item_at", p)
 	return ["hand", PI / 4.0, 0.45, 22.0, p + Vector3.UP * 1.5]
+
+
+## Стартовое меню с формой новой игры поверх сцены.
+func _menu_view(main: Node) -> Array:
+	(main.get("hud") as Hud).close_overlays()
+	var menu: Control = load("res://game/menu.tscn").instantiate()
+	add_child(menu)
+	menu.call("show_new_game_form")
+	return ["menu", PI / 4.0, 0.6, 150.0]
 
 
 ## Уменьшенная JPEG-копия одной строкой base64 — чтобы посмотреть кадр по логу CI, не скачивая артефакт.

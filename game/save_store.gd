@@ -25,6 +25,10 @@ static func load_world(now: int) -> Dictionary:
 	return WorldEngine.create_world(randi() & 0x7FFFFFFF, now)
 
 
+static func has_save() -> bool:
+	return FileAccess.file_exists(PATH)
+
+
 ## Удалить сейв (новая игра после конца).
 static func delete_save() -> void:
 	if FileAccess.file_exists(PATH):

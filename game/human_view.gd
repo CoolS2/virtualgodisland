@@ -24,6 +24,7 @@ var _arms: Array[Node3D] = []
 var _eyes: Array[Node3D] = []
 var _mouth_sides: Array[Node3D] = []
 var _label := Label3D.new()
+var _ring := MeshInstance3D.new()
 var _hair: MeshInstance3D
 var _long_hair: MeshInstance3D
 var _shirt: MeshInstance3D
@@ -81,6 +82,20 @@ func _init() -> void:
 	_label.position = Vector3(0, 2.25, 0)
 	_label.no_depth_test = true
 	add_child(_label)
+	var torus := TorusMesh.new()
+	torus.inner_radius = 0.55
+	torus.outer_radius = 0.7
+	torus.rings = 24
+	torus.ring_segments = 4
+	var ring_mat := StandardMaterial3D.new()
+	ring_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	ring_mat.albedo_color = Color("#ffe066")
+	torus.material = ring_mat
+	_ring.mesh = torus
+	_ring.position.y = 0.05
+	_ring.visible = false
+	_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_ring)
 	_popup.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	_popup.pixel_size = 0.008
 	_popup.font_size = 48
@@ -88,6 +103,11 @@ func _init() -> void:
 	_popup.no_depth_test = true
 	_popup.visible = false
 	add_child(_popup)
+
+
+## Выделен игроком — кольцо под ногами.
+func set_selected(on: bool) -> void:
+	_ring.visible = on
 
 
 ## Пролететь по траектории броска (шаг Items.DT), затем — обычная жизнь.
