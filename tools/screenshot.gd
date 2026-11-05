@@ -175,8 +175,12 @@ func _hand_view(main: Node) -> Array:
 ## Стартовое меню с формой новой игры поверх сцены.
 func _menu_view(main: Node) -> Array:
 	(main.get("hud") as Hud).close_overlays()
+	# Поверх интерфейса игры (в игре меню — отдельная сцена, здесь — слой выше всех).
+	var layer := CanvasLayer.new()
+	layer.layer = 100
+	add_child(layer)
 	var menu: Control = load("res://game/menu.tscn").instantiate()
-	add_child(menu)
+	layer.add_child(menu)
 	menu.call("show_new_game_form")
 	return ["menu", PI / 4.0, 0.6, 150.0]
 
