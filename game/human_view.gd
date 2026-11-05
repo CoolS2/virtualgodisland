@@ -10,7 +10,7 @@ const TELEPORT_DISTANCE := 90.0
 ## С этого голода над человеком «голоден…» — подсказка игроку, что еды он не нашёл.
 const HUNGRY_LABEL := 60.0
 const ACTION_LABELS := {
-	"idle": "думает", "wander": "гуляет", "explore": "исследует", "drink": "пьёт", "eat": "ест", "sleep": "спит", "build": "строит",
+	"idle": "думает", "wander": "гуляет", "explore": "исследует", "study": "изучает", "drink": "пьёт", "eat": "ест", "sleep": "спит", "build": "строит",
 }
 ## Модели по полу (без головных уборов); вариант выбирается по id человека.
 const MODELS := {
@@ -23,11 +23,12 @@ const MODELS := {
 const MODEL_SCALE := 0.48
 ## Состояние → анимация пака (сна и еды в паке нет — ближайшие по смыслу).
 const ANIMATIONS := {
-	"walk": "Walk", "idle": "Idle", "wander": "Idle", "explore": "Idle", "drink": "PickUp", "eat": "PickUp", "build": "Punch",
+	"walk": "Walk", "idle": "Idle", "wander": "Idle", "explore": "Idle", "drink": "PickUp", "eat": "PickUp",
+	"build": "Punch", "study": "SitDown",
 	"sleep": "Death", "dead": "Death", "held": "Jump", "sad": "Defeat", "scared": "RecieveHit",
 }
 ## Анимации, которые не повторяются, а замирают на последнем кадре (лёг спать / упал).
-const HOLD_LAST_FRAME: Array[String] = ["Death", "Defeat"]
+const HOLD_LAST_FRAME: Array[String] = ["Death", "Defeat", "SitDown"]
 ## Тёплые и насыщенные: после тонкоррекции и приглушения кадра бледные тона выглядят серыми.
 const SKIN_TONES: Array[Color] = [Color("#f2b48c"), Color("#e09a6c"), Color("#c47a4c"), Color("#9a5a34"), Color("#70401f")]
 const HAIR_COLORS: Array[Color] = [Color("#3b2416"), Color("#5a3820"), Color("#8a5a2b"), Color("#1d1a18"), Color("#b98a4e")]

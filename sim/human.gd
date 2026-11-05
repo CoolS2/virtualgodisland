@@ -5,11 +5,12 @@ extends RefCounted
 ##   id: int; mother_id, father_id, partner_id: int (-1 — нет); pregnant_until: int (тик родов, -1 — нет)
 ##   hunger, thirst: float — 0 норма .. 100 смерть; energy: float — 100 бодр .. 0; alive: bool
 ##   spawned: bool; x, z: float — позиция в мировых координатах (высота — по карте)
-##   action: String — "idle" | "wander" | "explore" | "drink" | "eat" | "sleep" | "build"
+##   action: String — "idle" | "wander" | "explore" | "drink" | "eat" | "sleep" | "build" | "study"
 ##   tx, tz: float — цель движения; target_item: int — еда для "eat"; stuck: int — тиков без продвижения
 ##   faith, love, fear: float 0..100 — вера, любовь и страх к богу; held: bool — в руке бога;
 ##   touch_tick: int — тик последнего «погладить/шлёпнуть» (не чаще раза в тик)
 ##   build_kind: String, work: int — что строит (тайны) и сколько тиков уже работает
+##   study: String — какой след изучает (sim/studies.gd), "" — ничего
 ##   name: String; sex: "m" | "f"; born_tick: int; start_age: float (лет при born_tick); lifespan: float (лет);
 ##   skills: {"forage", "build", "fish", "heal"} — множители 0.7..1.3 (кто-то лучше добывает еду, кто-то строит…)
 ##   cause: String — причина смерти ("" — жив)
@@ -17,7 +18,7 @@ extends RefCounted
 ## сами и бог не подскажет (подкинет еду рядом), умрут от голода (голод 0→100 ≈ 33 ч).
 ## 1 тик = 1 минута: за тик человечек проходит до WALK_PER_TICK (1 ед/с), game/ показывает это плавно.
 
-const ACTIONS: Array[String] = ["idle", "wander", "explore", "drink", "eat", "sleep", "build"]
+const ACTIONS: Array[String] = ["idle", "wander", "explore", "drink", "eat", "sleep", "build", "study"]
 ## Свободен: ничем важным не занят (может строить, подбирать дела).
 const FREE_ACTIONS: Array[String] = ["idle", "wander", "explore"]
 
@@ -100,7 +101,7 @@ static func default_state() -> Dictionary:
 		"spawned": false, "x": 0.0, "z": 0.0,
 		"action": "idle", "tx": 0.0, "tz": 0.0, "target_item": -1, "stuck": 0,
 		"faith": 0.0, "love": 0.0, "fear": 0.0, "held": false, "touch_tick": -1,
-		"build_kind": "", "work": 0,
+		"build_kind": "", "work": 0, "study": "",
 		"id": 1, "mother_id": -1, "father_id": -1, "partner_id": -1, "pregnant_until": -1,
 		"name": "", "sex": "m", "born_tick": 0, "start_age": START_AGE, "lifespan": LIFESPAN_MAX,
 		"skills": {"forage": 1.0, "build": 1.0, "fish": 1.0, "heal": 1.0}, "cause": "",
@@ -163,6 +164,12 @@ static func _update_one(w: Dictionary, map: IslandMap, h: Dictionary) -> void:
 					var at := Vector2(h["tx"], h["tz"])
 					_set_action(h, "idle")
 					Mysteries.complete_build(w, kind, at)
+		"study":
+			h["work"] = int(h["work"]) + 1
+			if h["work"] >= Studies.STUDY_TICKS:
+				var key: String = h["study"]
+				_set_action(h, "idle")
+				Studies.complete(w, h, key)
 		"wander", "explore":
 			if _move(h, map):
 				_set_action(h, "idle")
@@ -384,6 +391,12 @@ static func start_build(h: Dictionary, kind: String, at: Vector2) -> void:
 	h["build_kind"] = kind
 
 
+## Сесть изучать след (бог опустил рядом).
+static func start_study(h: Dictionary, key: String) -> void:
+	_set_action(h, "study")
+	h["study"] = key
+
+
 static func scare(h: Dictionary, amount: float) -> void:
 	h["fear"] = minf(100.0, h["fear"] + amount)
 
@@ -566,6 +579,7 @@ static func _set_action(h: Dictionary, action: String, tx: float = NAN, tz: floa
 	h["stuck"] = 0
 	h["build_kind"] = ""
 	h["work"] = 0
+	h["study"] = ""
 
 
 static func _spawn(w: Dictionary, map: IslandMap, h: Dictionary) -> void:

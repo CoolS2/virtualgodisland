@@ -10,11 +10,17 @@ signal person_selected(id: int)
 const HELP := """Управление
 WASD / стрелки — двигать камеру · колесо — зум · ПКМ с протяжкой — вращать
 ЛКМ — взять и бросить предмет или человека (быстрее движешь мышь — дальше бросок)
+Опусти человека у следа прошлого — он попробует его изучить
+ЛКМ по дереву — потрясти (плод или ветка) · удержать — вырвать с корнем (ветки)
+ЛКМ по валуну — столкнуть: катится с горы и раскалывается на камни
 ПКМ по человеку — карточка с параметрами
 E — погладить · Q — шлёпнуть (рука рядом с человеком)
 1 — дождь (20 маны) · 2 — рыба к берегу (25) · 3 — молния (30) — там, где рука
 F — следить за человеком
 ЛКМ по обелиску или M — открытия · Esc — закрыть окна"""
+## Показатель на верхней панели появляется, когда раскрыта тайна: мана — первая тайна (сила бога пробуждается),
+## еда в лагере — лагерь, люди — дом (после него приплывёт второй человек), вера — алтарь.
+const CHIP_UNLOCK := {"mana": "food", "food": "camp", "people": "house", "faith": "shrine"}
 ## Цвета полосок карточки — приглушённые, «природные».
 const BAR_COLORS := {
 	"hunger": "#d9963f", "thirst": "#4f9fc4", "energy": "#7fa34f",
@@ -22,11 +28,16 @@ const BAR_COLORS := {
 }
 const MOODS := {"happy": "доволен", "ok": "спокоен", "sad": "грустит", "sleep": "спит", "dead": "погиб", "scared": "боится"}
 const ACTIONS := {
-	"idle": "думает", "wander": "гуляет", "explore": "исследует", "drink": "пьёт", "eat": "ест", "sleep": "спит", "build": "строит",
+	"idle": "думает", "wander": "гуляет", "explore": "исследует", "study": "изучает", "drink": "пьёт", "eat": "ест", "sleep": "спит", "build": "строит",
 }
 const SKILL_NAMES := {"forage": "Собиратель", "build": "Строитель", "fish": "Рыбак", "heal": "Лекарь"}
 
 var _root := UiStyle.root()
+## Квадратики показателей (кроме дня), которые открываются тайнами — CHIP_UNLOCK.
+var _chips := {}
+## Подсказка внизу по центру (обучение: первая тайна).
+var _hint_panel := PanelContainer.new()
+var _hint := UiStyle.label("", 15)
 var _day := UiStyle.bold("", 16)
 var _mana_bar := UiStyle.bar(Color("#7cc4e0"), 90)
 var _mana := UiStyle.bold("", 16)
@@ -71,12 +82,30 @@ func _init() -> void:
 	_toast_panel.add_child(_toast)
 	_toast_panel.visible = false
 	_root.add_child(_toast_panel)
+	_hint_panel.theme_type_variation = "Card"
+	_hint_panel.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_hint_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_hint_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_hint_panel.position.y = -16
+	_hint_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_hint.custom_minimum_size = Vector2(560, 0)
+	_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_hint_panel.add_child(_hint)
+	_hint_panel.visible = false
+	_root.add_child(_hint_panel)
 
 
 func _process(delta: float) -> void:
 	_toast_time -= delta
 	if _toast_time <= 0.0 and _toast_panel.visible:
 		_toast_panel.visible = false
+
+
+## Подсказка внизу экрана; "" — спрятать.
+func set_hint(text: String) -> void:
+	_hint.text = text
+	_hint_panel.visible = not text.is_empty()
 
 
 ## Верхняя панель по миру.
@@ -95,6 +124,8 @@ func update_world(world: Dictionary, hour: float) -> void:
 	var food := Mysteries.food_in_camp(world)
 	_food.text = "Еда в лагере —" if food < 0 else "Еда в лагере %d" % food
 	_mysteries.text = "Тайны %d/%d" % [(world["mysteries"] as Array).size(), Mysteries.LIST.size()]
+	for key: String in CHIP_UNLOCK:
+		_chips[key].visible = Mysteries.is_solved(world, CHIP_UNLOCK[key])
 
 
 func show_card(visible_now: bool) -> void:
@@ -226,10 +257,13 @@ func _build_top_bar() -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	row.add_child(UiStyle.chip(_day))
-	row.add_child(UiStyle.chip(_mana, "minimap_icon_jewel_white.png", _mana_bar, Color("#7cc4e0")))
-	row.add_child(UiStyle.chip(_people_count))
-	row.add_child(UiStyle.chip(_faith, "minimap_icon_star_yellow.png"))
-	row.add_child(UiStyle.chip(_food))
+	_chips["mana"] = UiStyle.chip(_mana, "minimap_icon_jewel_white.png", _mana_bar, Color("#7cc4e0"))
+	_chips["people"] = UiStyle.chip(_people_count)
+	_chips["faith"] = UiStyle.chip(_faith, "minimap_icon_star_yellow.png")
+	_chips["food"] = UiStyle.chip(_food)
+	for key: String in ["mana", "people", "faith", "food"]:
+		row.add_child(_chips[key])
+		_chips[key].visible = false
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(spacer)

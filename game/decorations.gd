@@ -1,17 +1,15 @@
 class_name Decorations
 extends RefCounted
-## Растительность и камни на острове — только визуал (в мире не хранятся, ресурсами станут на этапе 1 через sim/).
-## Расстановка детерминирована по seed мира: один и тот же остров всегда выглядит одинаково.
+## Растительность и валуны на экране (MultiMesh). Где что растёт — sim/flora.gd (по seed), что вырвано или
+## скатилось — в мире.
 
-const SEED_SALT := 0x5EED
-const MIN_HEIGHT := 0.15 # не ставить у самой воды
-const MAX_SLOPE := 0.9 # на крутых склонах ничего не растёт
-## Вокруг следов прошлого деревья и камни не ставим — чтобы их было видно (трава — можно).
-const RELIC_CLEARANCE := {"ruins": 8.0, "stone_circle": 5.0, "old_hearth": 3.0, "obelisk": 3.0, "torch_stub": 3.5,
-	"raft_wreck": 6.0}
+## Вокруг построек (лагерь, дом…) не рисуем траву и кусты — места видно (деревья там тоже прячем).
+const STRUCTURE_CLEARANCE := {"fire": 2.5, "camp": 5.0, "shrine": 3.5, "house": 5.0, "cave": 3.0, "raft": 3.0}
 
 
-static func build(map: IslandMap, world_seed: int, craters: Array = [], tile: float = 1.0) -> Node3D:
+## Растительность из map.flora. world (может быть пустым — фон меню): вырванные деревья, скатившиеся валуны,
+## кратеры и постройки — там ничего не рисуем.
+static func build(map: IslandMap, world: Dictionary = {}) -> Node3D:
 	# Модели Kenney (масштаб — под остров: дерево ~3, пальма ~4, камень ~0.6).
 	var meshes := {
 		"tree": Models.mesh("town/tree-high-round", 1.1),
@@ -25,27 +23,16 @@ static func build(map: IslandMap, world_seed: int, craters: Array = [], tile: fl
 	var placed := {}
 	for key: String in meshes:
 		placed[key] = []
-
-	var rng := VgiRng.new(world_seed ^ SEED_SALT)
-	var half: float = (map.size - 1) * tile / 2.0
-	for y in range(1, map.size - 2):
-		for x in range(1, map.size - 2):
-			var kind := _pick(map, x, y, rng.next(), rng.next())
-			var fx: float = x + rng.next()
-			var fy: float = y + rng.next()
-			var yaw: float = rng.next() * TAU
-			var size: float = 0.75 + rng.next() * 0.6
-			if kind.is_empty() or Terrain.slope_at(map, x, y) > MAX_SLOPE or _near_river(map, x, y):
-				continue
-			if kind != "grass" and _near_relic(map, Vector2(fx * tile - half, fy * tile - half)):
-				continue
-			if not craters.is_empty() and Craters.contains({"craters": craters}, Vector2(fx * tile - half, fy * tile - half), 0.5):
-				continue
-			var h := map.sample_height(fx, fy)
-			if h < MIN_HEIGHT:
-				continue
-			var basis := Basis(Vector3.UP, yaw).scaled(Vector3.ONE * size)
-			(placed[kind] as Array).append(Transform3D(basis, Vector3(fx * tile - half, h - 0.05, fy * tile - half)))
+	var clear := _clearings(world)
+	for cell: int in map.flora:
+		var e: Array = map.flora[cell]
+		if not world.is_empty() and not Flora.present(world, map, cell):
+			continue
+		var p := Vector2(e[Flora.X], e[Flora.Z])
+		if _in_clearing(p, clear):
+			continue
+		var basis := Basis(Vector3.UP, e[Flora.YAW]).scaled(Vector3.ONE * float(e[Flora.SIZE]))
+		(placed[e[Flora.KIND]] as Array).append(Transform3D(basis, Vector3(p.x, float(e[Flora.HEIGHT]) - 0.05, p.y)))
 
 	var root := Node3D.new()
 	root.name = "Decorations"
@@ -68,54 +55,18 @@ static func build(map: IslandMap, world_seed: int, craters: Array = [], tile: fl
 	return root
 
 
-## Рядом с руслом (в радиусе 2 клеток) ничего не ставим — не загораживать воду.
-static func _near_river(map: IslandMap, x: int, y: int) -> bool:
-	for dy in range(-2, 3):
-		for dx in range(-2, 3):
-			var nx: int = clampi(x + dx, 0, map.size - 1)
-			var ny: int = clampi(y + dy, 0, map.size - 1)
-			if map.biome_at(nx, ny) == IslandMap.Biome.RIVER:
-				return true
-	return false
+## Круги [центр, радиус] вокруг построек мира.
+static func _clearings(world: Dictionary) -> Array:
+	var result: Array = []
+	for key: String in STRUCTURE_CLEARANCE:
+		var data: Dictionary = world.get(key, {})
+		if not data.is_empty():
+			result.append([Vector2(data["x"], data["z"]), STRUCTURE_CLEARANCE[key]])
+	return result
 
 
-## Что растёт в клетке. roll и variant — случайные 0..1.
-static func _pick(map: IslandMap, x: int, y: int, roll: float, variant: float) -> String:
-	var h := map.height_at(x, y)
-	match map.biome_at(x, y):
-		IslandMap.Biome.FOREST:
-			if roll < 0.32:
-				return "pine" if variant < 0.35 else ("tree" if variant < 0.7 else "tree_dark")
-			if roll < 0.40:
-				return "bush"
-			if roll < 0.55:
-				return "grass"
-		IslandMap.Biome.FIELD:
-			if roll < 0.30:
-				return "grass"
-			if roll < 0.34:
-				return "bush"
-			if roll < 0.35:
-				return "tree"
-			if roll < 0.36:
-				return "rock"
-		IslandMap.Biome.MOUNTAIN:
-			if h > IslandGenerator.SNOW_LINE:
-				return "rock" if roll < 0.03 else ""
-			if roll < 0.07:
-				return "rock"
-			if h < IslandGenerator.ROCK_LINE + 4.0 and roll < 0.14:
-				return "pine"
-		IslandMap.Biome.BEACH:
-			if roll < 0.035:
-				return "palm"
-			if roll < 0.05:
-				return "rock"
-	return ""
-
-
-static func _near_relic(map: IslandMap, p: Vector2) -> bool:
-	for key: String in RELIC_CLEARANCE:
-		if map.relics.has(key) and p.distance_to(map.relics[key]) < float(RELIC_CLEARANCE[key]):
+static func _in_clearing(p: Vector2, clear: Array) -> bool:
+	for c: Array in clear:
+		if p.distance_to(c[0]) < float(c[1]):
 			return true
 	return false

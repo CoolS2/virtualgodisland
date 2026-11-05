@@ -85,7 +85,8 @@ func _relic_view(map: IslandMap, key: String, pitch: float, distance: float) -> 
 		return []
 	var p: Vector2 = map.relics[key]
 	var target := Vector3(p.x, map.height_at_world(p.x, p.y) + 1.0, p.y)
-	return [key, atan2(-p.x, -p.y), pitch, distance, target]
+	# Камера — за следом со стороны берега (ближе к центру острова его закрывают деревья).
+	return [key, atan2(p.x, p.y), pitch, distance, target]
 
 
 ## Человечек крупным планом, лицом к камере. Для кадра ставим его на открытое место в поле
@@ -207,6 +208,7 @@ func _hand_view(main: Node) -> Array:
 	if best.is_empty():
 		return []
 	var p := Items.position_of(best)
+	(main.get("ui") as GameUi).close_mysteries()
 	var hand := main.get("hand") as Hand
 	hand.position = p + Vector3.UP * 3.0
 	hand.set_grip(true)

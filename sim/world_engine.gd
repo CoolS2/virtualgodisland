@@ -18,6 +18,8 @@ extends RefCounted
 ##   craters: Array       — кратеры (sim/craters.gd)
 ##   mysteries, fire, camp, shrine, cave, raft, fish_eaten — тайны (sim/mysteries.gd)
 ##   found: Array[String] — найденные людьми следы прошлого (ключи Hints.DISCOVERABLE)
+##   studied: Array[String] — изученные следы (sim/studies.gd)
+##   felled, shaken, rolled — что рука сделала с деревьями и валунами (sim/flora.gd)
 
 ## 1 тик = 1 реальная минута.
 const TICK_MS := 60_000
@@ -68,6 +70,10 @@ static func create_world(world_seed: int, now_ms: int, options: Dictionary = {})
 		"fire": {}, "camp": {}, "shrine": {}, "house": {}, "cave": {}, "raft": {},
 		"fish_eaten": 0,
 		"found": [],
+		"studied": [],
+		"felled": {},
+		"shaken": {},
+		"rolled": [],
 	}
 
 
@@ -87,6 +93,7 @@ static func step(w: Dictionary, map: IslandMap) -> void:
 	Mysteries.update(w, map)
 	Family.update(w, map)
 	Miracles.regen(w)
+	Flora.regrow(w)
 
 	if int(w["tick"]) % FRUIT_REGROW_TICKS == 0 and Items.count_kind(w, "fruit") < FRUIT_MAX:
 		Items.grow_fruit(w, map)
@@ -176,7 +183,7 @@ static func from_data(data: Variant) -> Dictionary:
 	var entries: Array = []
 	for entry: Variant in d["log"]:
 		entries.append(str(entry))
-	return {
+	var result := {
 		"seed": int(d["seed"]),
 		"tick": int(d["tick"]),
 		"last_seen": int(d["last_seen"]),
@@ -202,7 +209,10 @@ static func from_data(data: Variant) -> Dictionary:
 		"raft": Mysteries.structure_from_data(d.get("raft")),
 		"fish_eaten": int(d.get("fish_eaten", 0)),
 		"found": _strings_from_data(d.get("found", [])),
+		"studied": _strings_from_data(d.get("studied", [])),
 	}
+	result.merge(Flora.from_data(d))
+	return result
 
 
 static func _human_from_data(h: Dictionary, fallback_id: int) -> Dictionary:
@@ -233,6 +243,9 @@ static func _human_from_data(h: Dictionary, fallback_id: int) -> Dictionary:
 	result["touch_tick"] = int(h.get("touch_tick", -1))
 	result["build_kind"] = str(h.get("build_kind", ""))
 	result["work"] = int(h.get("work", 0))
+	result["study"] = str(h.get("study", ""))
+	if result["action"] == "study" and not Studies.NOTES.has(result["study"]):
+		result["action"] = "idle"
 	result["name"] = str(h.get("name", "Ару"))
 	result["sex"] = "f" if str(h.get("sex", "m")) == "f" else "m"
 	result["born_tick"] = int(h.get("born_tick", 0))

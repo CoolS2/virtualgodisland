@@ -98,20 +98,9 @@ static func _color_at(map: IslandMap, c: Vector2i) -> Color:
 				return SNOW
 			color = color.lerp(ROCK_HIGH, clampf((h - IslandGenerator.ROCK_LINE) / 8.0, 0.0, 1.0))
 	if biome != IslandMap.Biome.SEA and biome != IslandMap.Biome.BEACH and biome != IslandMap.Biome.RIVER:
-		color = color.lerp(CLIFF, smoothstep(CLIFF_SLOPE * 0.7, CLIFF_SLOPE * 1.3, slope_at(map, c.x, c.y)))
+		color = color.lerp(CLIFF, smoothstep(CLIFF_SLOPE * 0.7, CLIFF_SLOPE * 1.3, map.slope_at(c.x, c.y)))
 	var jitter := _jitter(c)
 	return color.lightened(jitter) if jitter > 0.0 else color.darkened(-jitter)
-
-
-## Наибольший перепад высоты к соседним клеткам.
-static func slope_at(map: IslandMap, x: int, y: int) -> float:
-	var h := map.height_at(x, y)
-	var result := 0.0
-	for offset: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
-		var nx: int = clampi(x + offset.x, 0, map.size - 1)
-		var ny: int = clampi(y + offset.y, 0, map.size - 1)
-		result = maxf(result, absf(map.height_at(nx, ny) - h))
-	return result
 
 
 ## Детерминированный разброс -JITTER..JITTER по координатам вершины.

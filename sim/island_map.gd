@@ -19,6 +19,8 @@ var river_levels := PackedFloat64Array()
 var waterfall := -1
 ## Следы прошлого и обелиск: {"ключ": Vector2 в мировых координатах} (Hints.place, заполняет генератор).
 var relics := {}
+## Растительность и валуны: {клетка: [вид, x, z, поворот, размер, высота]} (Flora.place, заполняет генератор).
+var flora := {}
 
 
 ## Уровень моря (поверхность воды) в мировых координатах.
@@ -52,6 +54,17 @@ func sample_height(fx: float, fy: float) -> float:
 	var top: float = lerpf(height_at(x0, y0), height_at(x0 + 1, y0), tx)
 	var bottom: float = lerpf(height_at(x0, y0 + 1), height_at(x0 + 1, y0 + 1), tx)
 	return lerpf(top, bottom, ty)
+
+
+## Наибольший перепад высоты к соседним клеткам (крутизна склона).
+func slope_at(x: int, y: int) -> float:
+	var h := height_at(x, y)
+	var result := 0.0
+	for offset: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+		var nx: int = clampi(x + offset.x, 0, size - 1)
+		var ny: int = clampi(y + offset.y, 0, size - 1)
+		result = maxf(result, absf(height_at(nx, ny) - h))
+	return result
 
 
 ## Мировые координаты: клетка (x, y) сетки — точка (x - half, *, y - half), half = (size - 1) / 2, клетка = 1.

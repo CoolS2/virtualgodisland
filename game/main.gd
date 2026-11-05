@@ -17,6 +17,16 @@ const TOUCH_RADIUS := 2.5
 ## Клик рукой у обелиска открывает список открытий.
 const OBELISK_RADIUS := 2.5
 const FOLLOW_VIEW := [0.45, 25.0] # pitch, distance
+## Рука у дерева: щелчок — потрясти (падает плод/ветка), удержать — вырвать с корнем (падают ветки).
+const FELL_HOLD := 0.4
+const FIRST_MYSTERY_HINT_SECONDS := 60.0
+const TREE_RADIUS := 1.8
+## Рука у валуна — столкнуть (катится вниз по склону, раскалывается на камни).
+const ROCK_RADIUS := 1.6
+const STUDY_POPUPS := {
+	"study": ["Что это?..", Color("#ffe066")], "known": ["Это я уже знаю", Color("#d9c7a3")],
+	"confused": ["Не понимаю…", Color("#b8b0a0")],
+}
 const ISLAND_VIEW := [0.6, 150.0]
 
 ## Только для tools/screenshot: показать остров с этим seed без чтения и записи сейва.
@@ -43,6 +53,12 @@ var _offline_ticks: int
 var _since_update := 0.0
 var _mysteries_seen := 0
 var _found_seen := 0
+var _pending_tree := -1
+## Когда (сек. с запуска) впервые увидели раскрытую первую тайну; -1 — ещё нет.
+var _first_mystery_time := -1.0
+var _press_time := 0.0
+## Что сейчас нарисовано из растительности (вырванные, скатившиеся, постройки) — пересобрать при изменении.
+var _flora_state := ""
 var _game_over_shown := false
 
 
@@ -77,8 +93,9 @@ func _ready() -> void:
 	var waterfall := Waterfall.build(map)
 	if waterfall:
 		add_child(waterfall)
-	_decorations = Decorations.build(map, _world["seed"], _world["craters"])
+	_decorations = Decorations.build(map, _world)
 	add_child(_decorations)
+	_flora_state = _flora_signature()
 	add_child(Clouds.new(_world["seed"]))
 	camera_rig = CameraRig.new()
 	camera_rig.map = map
@@ -117,6 +134,14 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if _pending_tree >= 0:
+		_press_time += delta
+		if _press_time >= FELL_HOLD:
+			if Flora.fell(_world, island_map, _pending_tree):
+				_show_message("Дерево вырвано с корнем — упали ветки (вырастет через %d дня)" % roundi(Flora.REGROW_TICKS / float(WorldClock.DAY_TICKS)))
+				refresh_world_view()
+				_save()
+			_pending_tree = -1
 	for h: Dictionary in _world["people"]:
 		if people_views.has(h["id"]):
 			(people_views[h["id"]] as HumanView).show_state(h, delta, Human.age(h, int(_world["tick"])))
@@ -143,6 +168,8 @@ func refresh_world_view() -> void:
 	items_view.sync(_world)
 	structures_view.sync(_world)
 	hints_view.sync(_world)
+	if _flora_signature() != _flora_state:
+		_rebuild_decorations() # дерево выросло, появилась постройка
 	_sync_people()
 	var found: Array = _world["found"]
 	if found.size() > _found_seen:
@@ -353,9 +380,22 @@ func _rebuild_terrain() -> void:
 	_terrain.queue_free()
 	_terrain = Terrain.build_terrain(island_map)
 	add_child(_terrain)
+	_rebuild_decorations()
+
+
+func _rebuild_decorations() -> void:
 	_decorations.queue_free()
-	_decorations = Decorations.build(island_map, _world["seed"], _world["craters"])
+	_decorations = Decorations.build(island_map, _world)
 	add_child(_decorations)
+	_flora_state = _flora_signature()
+
+
+## Сводка того, от чего зависит растительность на экране.
+func _flora_signature() -> String:
+	var parts := PackedStringArray([str((_world["felled"] as Dictionary).size()), str((_world["rolled"] as Array).size())])
+	for key: String in Decorations.STRUCTURE_CLEARANCE:
+		parts.append("1" if not (_world[key] as Dictionary).is_empty() else "0")
+	return ",".join(parts)
 
 
 func _show_message(text: String) -> void:
@@ -393,20 +433,53 @@ func pick_item_at(point: Vector3) -> bool:
 		_grab_person(h["id"])
 		return false
 	var id := Items.find_near(_world, point)
-	if id < 0 or not Items.pick_up(_world, id):
+	if id >= 0 and Items.pick_up(_world, id):
+		items_view.held_id = id
+		hand.holding = true
+		return true
+	var at := Vector2(point.x, point.z)
+	var rock := Flora.nearest(_world, island_map, at, ROCK_RADIUS, Flora.BOULDERS)
+	if rock >= 0:
+		_roll_boulder(rock)
 		return false
-	items_view.held_id = id
-	hand.holding = true
-	return true
+	_pending_tree = Flora.nearest(_world, island_map, at, TREE_RADIUS, Flora.TREES)
+	_press_time = 0.0
+	return false
+
+
+## Столкнуть валун: sim считает путь и где он расколется, здесь — анимация; камни появляются, когда докатился.
+func _roll_boulder(cell: int) -> void:
+	var path := Flora.roll(_world, island_map, cell)
+	if path.is_empty():
+		return
+	_rebuild_decorations()
+	var fx := BoulderFx.new(path)
+	fx.finished.connect(refresh_world_view)
+	add_child(fx)
+	_save()
 
 
 func _on_grab_released(origin: Vector3, velocity: Vector3) -> void:
+	if _pending_tree >= 0:
+		var dropped := Flora.shake(_world, island_map, _pending_tree)
+		_pending_tree = -1
+		if not dropped.is_empty():
+			refresh_world_view()
+			_save()
+		return
 	hand.holding = false
 	var throw_velocity := velocity * THROW_GAIN + Vector3.UP * THROW_LIFT
 	var held := Human.held_person(_world)
 	if not held.is_empty():
 		view_of(held).held_by = null
-		view_of(held).fly(Human.throw(_world, island_map, held, origin + Vector3.DOWN * 1.2, throw_velocity))
+		var path := Human.throw(_world, island_map, held, origin + Vector3.DOWN * 1.2, throw_velocity)
+		view_of(held).fly(path)
+		var study := Studies.on_dropped(_world, island_map, held)
+		if STUDY_POPUPS.has(study):
+			# Реакция — когда долетел.
+			var view := view_of(held)
+			get_tree().create_timer(path.size() * Items.DT).timeout.connect(
+				func() -> void: view.popup(STUDY_POPUPS[study][0], STUDY_POPUPS[study][1]))
 		_save()
 		_render_hud()
 		return
@@ -423,6 +496,40 @@ func _on_grab_released(origin: Vector3, velocity: Vector3) -> void:
 	_save()
 
 
+## Обучение: первая тайна («Еда») должна раскрыться быстро — пока её нет, внизу подсказка, над ближайшим
+## к человеку фруктом — искры. Раскрыта — на минуту подсказка про ману и чудеса.
+func _tutorial_hint() -> String:
+	var people := Human.living(_world)
+	if people.is_empty():
+		return ""
+	if not Mysteries.is_solved(_world, "food"):
+		var h: Dictionary = people[0]
+		return ("%s ещё не знает, что здесь можно есть, и без еды погибнет. Возьми яблоко рукой (ЛКМ) и брось рядом — "
+			+ "или потряси дерево щелчком по нему, а можно опустить человека у огрызка яблока.") % h["name"]
+	if _first_mystery_time < 0.0:
+		_first_mystery_time = Time.get_ticks_msec() / 1000.0
+	if Time.get_ticks_msec() / 1000.0 - _first_mystery_time < FIRST_MYSTERY_HINT_SECONDS:
+		return "Первая тайна раскрыта! Пробудилась сила бога — мана. Клавиши 1, 2, 3 — чудеса там, где рука: дождь, рыба, молния."
+	return ""
+
+
+## Фрукт, над которым искры (пока еда не открыта): ближайший к первому живому человеку; -1 — нет.
+func _tutorial_fruit() -> int:
+	var people := Human.living(_world)
+	if people.is_empty() or Mysteries.is_solved(_world, "food"):
+		return -1
+	var pos := Human.position_of(people[0])
+	var best := -1
+	var best_dist := INF
+	for item: Dictionary in _world["items"]:
+		if item["kind"] == "fruit" and not item["held"]:
+			var d := pos.distance_to(Vector2(item["x"], item["z"]))
+			if d < best_dist:
+				best_dist = d
+				best = item["id"]
+	return best
+
+
 func _is_preview() -> bool:
 	return preview_seed >= 0
 
@@ -434,5 +541,7 @@ func _save() -> void:
 
 func _render_hud() -> void:
 	hud.update_world(_world, WorldClock.hour(int(_world["tick"])))
+	hud.set_hint(_tutorial_hint())
+	items_view.highlight(_tutorial_fruit())
 	hud.update_people(_world, selected_id)
 	_update_card()

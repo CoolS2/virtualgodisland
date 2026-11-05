@@ -10,6 +10,9 @@ var held_id := -1
 var _meshes := {}
 var _nodes := {} # id -> MeshInstance3D
 var _flights := {} # id -> {"path": PackedVector3Array, "time": float, "sink": bool}
+## Искры над подсвеченным предметом (подсказка обучения).
+var _sparkles: CPUParticles3D
+var _highlight_id := -1
 
 
 func _init() -> void:
@@ -42,12 +45,24 @@ func sync(world: Dictionary) -> void:
 			_nodes.erase(id)
 
 
+## Подсветить предмет искрами (-1 — снять).
+func highlight(id: int) -> void:
+	_highlight_id = id
+	if _sparkles == null:
+		_sparkles = GroundPatch.sparkles(Vector3.ZERO, 0.5)
+		_sparkles.amount = 10
+		add_child(_sparkles)
+	_sparkles.emitting = _nodes.has(id)
+
+
 func fly(id: int, path: PackedVector3Array, sink: bool) -> void:
 	if _nodes.has(id) and path.size() > 1:
 		_flights[id] = {"path": path, "time": 0.0, "sink": sink}
 
 
 func _process(delta: float) -> void:
+	if _sparkles and _nodes.has(_highlight_id):
+		_sparkles.position = (_nodes[_highlight_id] as Node3D).position + Vector3.UP * 0.4
 	if held_id >= 0 and hand and _nodes.has(held_id):
 		var node: Node3D = _nodes[held_id]
 		node.position = node.position.lerp(hand.grip_point(), 0.5)

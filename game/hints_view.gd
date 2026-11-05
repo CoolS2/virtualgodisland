@@ -56,6 +56,17 @@ const LAYOUTS := {
 	"fruit_core": [["food/apple-half", 2.4, Vector2(0, 0), 0.0, 0.0, 0.02]],
 	"fish_bones": [["food/fish-bones", 1.4, Vector2(0, 0), 0.0, 0.0, 0.02]],
 }
+## Пятно на земле под следом: радиус и цвет (утоптанная земля, пепел, камень, песок) — чтобы место выделялось.
+const PATCHES := {
+	"obelisk": [3.0, Color("#bdb4a2")], "ruins": [7.5, Color("#9c8463")], "old_hearth": [2.6, Color("#4f4740")],
+	"stone_circle": [4.2, Color("#c4bba8")], "torch_stub": [3.4, Color("#857d72")], "raft_wreck": [6.0, Color("#a8916a")],
+	"burnt_tree": [2.4, Color("#3f3833")], "fruit_core": [1.0, Color("#8c7a52")], "fish_bones": [1.0, Color("#b59f72")],
+}
+## Камень Kenney (стены, колонны, валуны) — синеватый; на острове старый камень тёплый, выветренный.
+const STONE_PARTS: Array[String] = ["town/wall-broken", "town/wall-half", "town/pillar-stone", "town/rock-large"]
+const STONE := Color("#b3a68f")
+## Колонны толще, чем в паке (там — тонкие столбики).
+const PILLAR_GIRTH := 1.8
 ## Без готовой модели — свои low-poly (LowPoly.hint), чуть крупнее.
 const LOW_POLY := {"burnt_tree": 1.5}
 
@@ -63,9 +74,12 @@ var obelisk_position := Vector2.ZERO
 
 var map: IslandMap
 var _runes_material := StandardMaterial3D.new()
+var _stone := StandardMaterial3D.new()
 var _time := 0.0
 ## След -> его детали (чтобы прятать: развалины, когда дом отстроен; кострище, когда снова горит).
 var _parts := {}
+## Ненайденный след -> искры над ним (гаснут, когда человек его нашёл).
+var _sparkles := {}
 
 
 func build(island: IslandMap) -> void:
@@ -76,6 +90,12 @@ func build(island: IslandMap) -> void:
 		var p: Vector2 = spots[key]
 		var yaw := float(key.hash() % 628) / 100.0
 		_parts[key] = []
+		if PATCHES.has(key):
+			add_child(GroundPatch.build(map, p, PATCHES[key][0], PATCHES[key][1], key.hash() % 7))
+		if Hints.DISCOVERABLE.has(key):
+			var sparkles := GroundPatch.sparkles(_ground(p), minf(2.5, float(PATCHES.get(key, [2.0])[0]) * 0.5))
+			add_child(sparkles)
+			_sparkles[key] = sparkles
 		if key == "obelisk":
 			obelisk_position = p
 			_add_obelisk(p)
@@ -101,6 +121,8 @@ func sync(world: Dictionary) -> void:
 	var hearth_lit: bool = not fire.is_empty() and map.relics.has("old_hearth") \
 		and Vector2(fire["x"], fire["z"]).distance_to(map.relics["old_hearth"]) < 1.0
 	_set_visible("old_hearth", not hearth_lit)
+	for key: String in _sparkles:
+		(_sparkles[key] as CPUParticles3D).emitting = not (world["found"] as Array).has(key)
 
 
 func _process(delta: float) -> void:
@@ -117,6 +139,12 @@ func _add_layout(key: String, parts: Array, center: Vector2, yaw: float) -> void
 		var node := Models.instance(part[0], part[1])
 		node.position = _ground(center + offset) + Vector3.DOWN * float(part[5])
 		node.rotation = Vector3(float(part[4]), yaw + float(part[3]), 0.0)
+		if STONE_PARTS.has(part[0]):
+			_stone.albedo_color = STONE
+			_stone.roughness = 1.0
+			node.material_override = _stone
+		if part[0] == "town/pillar-stone":
+			node.scale = Vector3(PILLAR_GIRTH, 1.0, PILLAR_GIRTH)
 		add_child(node)
 		(_parts[key] as Array).append(node)
 

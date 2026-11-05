@@ -13,6 +13,11 @@ var _flame: MeshInstance3D
 var _time := 0.0
 
 const HOUSE_SCALE := 2.6
+## Пятно на земле под постройкой: радиус и цвет.
+const PATCHES := {
+	"fire": [2.2, Color("#4f4740")], "camp": [4.5, Color("#9c8463")], "shrine": [3.2, Color("#c4bba8")],
+	"house": [4.8, Color("#9c8463")], "cave": [3.0, Color("#857d72")], "raft": [3.0, Color("#a8916a")],
+}
 
 
 func _init() -> void:
@@ -36,8 +41,11 @@ func sync(world: Dictionary) -> void:
 		if key == "cave":
 			# Входом к центру острова.
 			node.rotation.y = atan2(p.x, p.y)
-		add_child(node)
-		_nodes[key] = node
+		var place := Node3D.new()
+		place.add_child(GroundPatch.build(map, p, PATCHES[key][0], PATCHES[key][1], key.length()))
+		place.add_child(node)
+		add_child(place)
+		_nodes[key] = place
 
 
 func _process(delta: float) -> void:
@@ -82,7 +90,7 @@ func _build(key: String) -> Node3D:
 		"shrine":
 			_mesh(root, LowPoly.altar(), mat)
 		"house":
-			root.add_child(_house())
+			root.add_child(house_model())
 		"cave":
 			_mesh(root, LowPoly.cave_entrance(), mat)
 		"raft":
@@ -91,7 +99,7 @@ func _build(key: String) -> Node3D:
 
 
 ## Домик из модулей Fantasy Town (клетка 1×1, увеличена): стены с дверью и окнами, двускатная крыша.
-func _house() -> Node3D:
+static func house_model() -> Node3D:
 	var house := Node3D.new()
 	house.scale = Vector3.ONE * HOUSE_SCALE
 	var sides := ["town/wall-wood-door", "town/wall-wood-window-shutters", "town/wall-wood", "town/wall-wood-window-shutters"]

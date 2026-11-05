@@ -106,6 +106,7 @@ static func generate(map_seed: int, size: int = DEFAULT_SIZE) -> IslandMap:
 
 	_carve_river(map, rng)
 	map.relics = Hints.place(map)
+	map.flora = Flora.place(map)
 	return map
 
 
