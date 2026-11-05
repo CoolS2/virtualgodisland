@@ -168,6 +168,7 @@ static func throw_item(w: Dictionary, map: IslandMap, id: int, origin: Vector3, 
 	_set_position(item, landing)
 	if Mysteries.on_item_landed(w, map, item):
 		return path
+	Human.notice_landed(w, item)
 	var impact := first_impact(map, path)
 	if not impact.is_empty():
 		var at: Vector3 = impact["at"]

@@ -38,6 +38,7 @@ func test_thirsty_human_goes_to_river_and_drinks() -> void:
 func test_hungry_human_eats_fruit() -> void:
 	var w := _world()
 	var fruits := Items.count_kind(w, "fruit")
+	w["human"]["knows"] = ["fruit"]
 	w["human"]["hunger"] = 80.0
 	_run(w, 6)
 	assert_lt(w["human"]["hunger"], 60.0, "поел")
@@ -64,11 +65,49 @@ func test_human_never_walks_into_sea() -> void:
 	pass_test("1500 тиков на суше")
 
 
-## Баланс-гард: при живом острове человечек сам выживает трое суток.
-func test_survives_three_days_alone() -> void:
+## Баланс-гард: зная еду, человечек сам выживает трое суток.
+func test_survives_three_days_when_knows_food() -> void:
 	var w := _world()
+	w["human"]["knows"] = ["fruit"]
 	_run(w, 3 * 24 * 60)
 	assert_true(w["human"]["alive"], "жив через 3 суток; лог: %s" % [w["log"]])
+
+
+## Не узнал, как добыть еду (и подсказать некому) — умирает от голода за ~33 ч.
+func test_starves_without_food_knowledge() -> void:
+	var w := _world()
+	w["items"] = (w["items"] as Array).filter(func(item: Dictionary) -> bool: return not Items.FOOD.has(item["kind"]))
+	w["items_spawned"] = true
+	for _i in 2100:
+		w["items"] = (w["items"] as Array).filter(func(item: Dictionary) -> bool: return not Items.FOOD.has(item["kind"]))
+		WorldEngine.step(w, _map)
+	assert_false(w["human"]["alive"], "умер от голода")
+	assert_string_contains(str(w["log"]), "погиб")
+
+
+func test_does_not_eat_unknown_food() -> void:
+	var w := _world()
+	w["human"]["hunger"] = 45.0 # ниже порога, когда пробует сам
+	_run(w, 10)
+	assert_ne(w["human"]["action"], "eat", "не идёт есть незнакомое")
+	assert_lt(float(w["human"]["hunger"]), 46.0 + 10 * WorldEngine.HUNGER_PER_TICK)
+	assert_gt(float(w["human"]["hunger"]), 45.0, "голод только растёт")
+	assert_eq(w["human"]["knows"], [])
+
+
+## Бог подкинул фрукт к ногам — человечек понял, что это еда (тайна «Еда»).
+func test_god_teaches_food_by_dropping_it_nearby() -> void:
+	var w := _world()
+	var fruit := {}
+	for item: Dictionary in w["items"]:
+		if item["kind"] == "fruit":
+			fruit = item
+			break
+	var p := Human.position_of(w["human"])
+	Items.pick_up(w, fruit["id"])
+	Items.throw_item(w, _map, fruit["id"], Vector3(p.x + 1.0, _map.height_at_world(p.x + 1.0, p.y) + 2.0, p.y), Vector3.ZERO)
+	assert_true(Human.knows(w["human"], "fruit"))
+	assert_true(Mysteries.is_solved(w, "food"))
 
 
 func test_behaviour_is_deterministic() -> void:

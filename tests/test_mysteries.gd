@@ -81,6 +81,7 @@ func test_three_fish_make_a_fisherman() -> void:
 	var p := Human.position_of(w["human"])
 	Items.add(w, "fish", Vector3(p.x + 1, 0, p.y))
 	w["items"] = (w["items"] as Array).filter(func(item: Dictionary) -> bool: return item["kind"] != "fruit")
+	w["human"]["knows"] = ["fish"]
 	w["human"]["hunger"] = 80.0
 	_run(pair, 4)
 	assert_true(Mysteries.is_solved(w, "fisherman"))
@@ -140,6 +141,36 @@ func test_raft_from_branches_and_love() -> void:
 	_run(pair, 12)
 	assert_true(Mysteries.is_solved(w, "raft"))
 	assert_lte(Items.count_kind(w, "branch"), branches - Mysteries.RAFT_BRANCHES + 1, "ветки ушли на плот")
+
+
+func test_house_from_branches_and_stones() -> void:
+	var pair := _fresh()
+	var w: Dictionary = pair[0]
+	var camp := _make_camp(pair)
+	for i in Mysteries.HOUSE_BRANCHES:
+		Items.add(w, "branch", Vector3(camp.x + 1 + i * 0.3, 0, camp.y))
+	for i in Mysteries.HOUSE_STONES:
+		Items.add(w, "stone", Vector3(camp.x, 0, camp.y + 1 + i * 0.3))
+	var stones := Items.count_kind(w, "stone")
+	_run(pair, 12)
+	assert_true(Mysteries.is_solved(w, "house"))
+	assert_false((w["house"] as Dictionary).is_empty())
+	assert_lte(Items.count_kind(w, "stone"), stones - Mysteries.HOUSE_STONES, "камни ушли на дом")
+
+
+func test_hints_and_obelisk_are_placed_on_land() -> void:
+	var map := IslandGenerator.generate(42)
+	var hints := Hints.place(map)
+	assert_true(hints.has("obelisk"))
+	assert_eq(map.biome_at_world(hints["obelisk"].x, hints["obelisk"].y), IslandMap.Biome.FIELD)
+	for key: String in Hints.FOR_MYSTERY:
+		assert_true(hints.has(key), "подсказка %s есть" % key)
+		var p: Vector2 = hints[key]
+		assert_ne(map.biome_at_world(p.x, p.y), IslandMap.Biome.SEA, "подсказка %s на суше" % key)
+	assert_eq(Hints.place(map), hints, "детерминированно")
+	# У каждой тайны есть подсказка.
+	for m: Dictionary in Mysteries.LIST:
+		assert_true(Hints.FOR_MYSTERY.values().has(m["id"]), "подсказка к тайне %s" % m["id"])
 
 
 func test_log_is_capped() -> void:

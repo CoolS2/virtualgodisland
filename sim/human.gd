@@ -8,6 +8,8 @@ extends RefCounted
 ##   faith, love, fear: float 0..100 — вера, любовь и страх к богу; held: bool — в руке бога;
 ##   touch_tick: int — тик последнего «погладить/шлёпнуть» (не чаще раза в тик)
 ##   build_kind: String, work: int — что строит (тайны) и сколько тиков уже работает
+##   knows: Array[String] — какую еду знает ("fruit", "fish"). Вначале не знает ничего: если не догадается
+##   сам и бог не подскажет (подкинет еду рядом), умрёт от голода (голод 0→100 ≈ 33 ч).
 ## 1 тик = 1 минута: за тик человечек проходит до WALK_PER_TICK (1 ед/с), game/ показывает это плавно.
 
 const ACTIONS: Array[String] = ["idle", "wander", "drink", "eat", "sleep", "build"]
@@ -38,6 +40,12 @@ const WAKE_NEED := 85.0
 ## У лагеря спится лучше.
 const CAMP_SLEEP_BONUS := 1.5
 const CAMP_RADIUS := 4.0
+## Бог подкинул еду так близко — человечек пробует и узнаёт, что это съедобно.
+const LEARN_RADIUS := 2.5
+## Сам догадывается: голодный, незнакомая еда рядом — шанс за тик.
+const SELF_LEARN_HUNGER := 50.0
+const SELF_LEARN_RADIUS := 4.0
+const SELF_LEARN_CHANCE := 0.03
 const SLEEP_PER_TICK := 2.0
 ## Ниже порога потребность не рассматривается.
 const THIRST_TRIGGER := 40.0
@@ -60,7 +68,7 @@ static func default_state() -> Dictionary:
 		"spawned": false, "x": 0.0, "z": 0.0,
 		"action": "idle", "tx": 0.0, "tz": 0.0, "target_item": -1, "stuck": 0,
 		"faith": 0.0, "love": 0.0, "fear": 0.0, "held": false, "touch_tick": -1,
-		"build_kind": "", "work": 0,
+		"build_kind": "", "work": 0, "knows": [],
 	}
 
 
@@ -74,6 +82,7 @@ static func update(w: Dictionary, map: IslandMap) -> void:
 	h["faith"] = maxf(0.0, h["faith"] - FAITH_DECAY)
 	if h["held"]:
 		return # в руке бога ничего не делает
+	_try_self_learn(w)
 	match h["action"]:
 		"drink":
 			if _move(h, map):
@@ -135,6 +144,42 @@ static func mood(h: Dictionary) -> String:
 	if worst < 65.0:
 		return "ok"
 	return "sad"
+
+
+## Знает ли, что этот вид еды съедобен.
+static func knows(h: Dictionary, kind: String) -> bool:
+	return (h["knows"] as Array).has(kind)
+
+
+## Узнал новую еду. Первая еда — тайна «Еда».
+static func learn(w: Dictionary, kind: String) -> void:
+	var h: Dictionary = w["human"]
+	if knows(h, kind) or not Items.FOOD.has(kind):
+		return
+	(h["knows"] as Array).append(kind)
+	WorldEngine.add_log(w, "попробовал %s — съедобно!" % ("фрукт" if kind == "fruit" else "рыбу"))
+	Mysteries.solve(w, "food")
+
+
+## Предмет упал рядом: если это незнакомая еда и человечек видит — пробует.
+static func notice_landed(w: Dictionary, item: Dictionary) -> void:
+	var h: Dictionary = w["human"]
+	if not h["spawned"] or not h["alive"] or h["held"] or h["action"] == "sleep":
+		return
+	if Items.FOOD.has(item["kind"]) and position_of(h).distance_to(Vector2(item["x"], item["z"])) <= LEARN_RADIUS:
+		learn(w, item["kind"])
+
+
+static func _try_self_learn(w: Dictionary) -> void:
+	var h: Dictionary = w["human"]
+	if h["hunger"] < SELF_LEARN_HUNGER or h["action"] == "sleep":
+		return
+	for item: Dictionary in w["items"]:
+		if Items.FOOD.has(item["kind"]) and not knows(h, item["kind"]) and not item["held"] \
+				and position_of(h).distance_to(Vector2(item["x"], item["z"])) <= SELF_LEARN_RADIUS:
+			if VgiRng.next_float(w) < SELF_LEARN_CHANCE:
+				learn(w, item["kind"])
+			return
 
 
 static func _sleep_score(w: Dictionary) -> float:
@@ -347,7 +392,7 @@ static func _nearest_food(w: Dictionary) -> int:
 	var best := -1
 	var best_dist := INF
 	for item: Dictionary in w["items"]:
-		if not Items.FOOD.has(item["kind"]) or item["held"]:
+		if not Items.FOOD.has(item["kind"]) or item["held"] or not knows(w["human"], item["kind"]):
 			continue
 		var d := pos.distance_squared_to(Vector2(item["x"], item["z"]))
 		if d < best_dist:

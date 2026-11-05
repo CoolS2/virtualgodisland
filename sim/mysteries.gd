@@ -4,13 +4,15 @@ extends RefCounted
 ## Мир: mysteries — раскрытые id; fire, camp, shrine, cave, raft — {} или {"x", "z"}; fish_eaten — счётчик.
 
 const LIST := [
+	{"id": "food", "name": "Еда"},
 	{"id": "camp", "name": "Лагерь у огня"},
 	{"id": "fisherman", "name": "Рыбак"},
 	{"id": "shrine", "name": "Алтарь"},
+	{"id": "house", "name": "Дом"},
 	{"id": "cave", "name": "Пещера в горе"},
 	{"id": "raft", "name": "Плот"},
 ]
-const STRUCTURES: Array[String] = ["fire", "camp", "shrine", "cave", "raft"]
+const STRUCTURES: Array[String] = ["fire", "camp", "shrine", "house", "cave", "raft"]
 const BUILD_TICKS := 3
 ## Человечек замечает огонь с такого расстояния.
 const SEE_FIRE := 30.0
@@ -21,6 +23,9 @@ const SHRINE_FAITH := 80.0
 const RAFT_LOVE := 70.0
 const RAFT_BRANCHES := 10
 const RAFT_GATHER_RADIUS := 8.0
+## Дом: у лагеря собраны ветки и камни (их приносит бог).
+const HOUSE_BRANCHES := 8
+const HOUSE_STONES := 6
 ## Ветка, упавшая так близко к огню ночью, становится факелом.
 const TORCH_RADIUS := 2.0
 
@@ -64,6 +69,9 @@ static func update(w: Dictionary, map: IslandMap) -> void:
 	if not is_solved(w, "shrine") and float(h["faith"]) >= SHRINE_FAITH:
 		var spot := camp + Vector2(3, 0)
 		Human.start_build(h, "shrine", spot if map.biome_at_world(spot.x, spot.y) != IslandMap.Biome.SEA else camp)
+	elif not is_solved(w, "house") and _near(w, camp, "branch").size() >= HOUSE_BRANCHES and _near(w, camp, "stone").size() >= HOUSE_STONES:
+		var spot := camp + Vector2(-3, 2)
+		Human.start_build(h, "house", spot if map.biome_at_world(spot.x, spot.y) != IslandMap.Biome.SEA else camp)
 	elif not is_solved(w, "raft") and float(h["love"]) >= RAFT_LOVE and _branches_near(w, camp).size() >= RAFT_BRANCHES:
 		Human.start_build(h, "raft", Miracles.nearest_beach(map, camp))
 
@@ -75,6 +83,17 @@ static func complete_build(w: Dictionary, kind: String, at: Vector2) -> void:
 			w["camp"] = _dict(at)
 		"shrine":
 			w["shrine"] = _dict(at)
+		"house":
+			var camp := _pos(w["camp"])
+			var branches := _near(w, camp, "branch")
+			var stones := _near(w, camp, "stone")
+			if branches.size() < HOUSE_BRANCHES or stones.size() < HOUSE_STONES:
+				return # материалы успели разбросать
+			for i in HOUSE_BRANCHES:
+				(w["items"] as Array).erase(branches[i])
+			for i in HOUSE_STONES:
+				(w["items"] as Array).erase(stones[i])
+			w["house"] = _dict(at)
 		"raft":
 			var branches := _branches_near(w, _pos(w["camp"]))
 			if branches.size() < RAFT_BRANCHES:
@@ -126,9 +145,14 @@ static func _cave_spot(map: IslandMap, near: Vector2) -> Vector2:
 
 ## Ветки рядом с точкой, от ближних к дальним.
 static func _branches_near(w: Dictionary, center: Vector2) -> Array:
+	return _near(w, center, "branch")
+
+
+## Предметы вида kind в радиусе сбора от точки, от ближних к дальним.
+static func _near(w: Dictionary, center: Vector2, kind: String) -> Array:
 	var result: Array = []
 	for item: Dictionary in w["items"]:
-		if item["kind"] == "branch" and not item["held"] and Vector2(item["x"], item["z"]).distance_to(center) <= RAFT_GATHER_RADIUS:
+		if item["kind"] == kind and not item["held"] and Vector2(item["x"], item["z"]).distance_to(center) <= RAFT_GATHER_RADIUS:
 			result.append(item)
 	result.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		var da := Vector2(a["x"], a["z"]).distance_squared_to(center)

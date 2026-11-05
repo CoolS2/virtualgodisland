@@ -69,6 +69,7 @@ func test_fish_appears_on_beach_and_feeds() -> void:
 	assert_eq(Items.count_kind(w, "fish"), 1)
 	# Убираем фрукты — голодный идёт к рыбе.
 	w["items"] = (w["items"] as Array).filter(func(item: Dictionary) -> bool: return item["kind"] != "fruit")
+	w["human"]["knows"] = ["fish"]
 	w["human"]["hunger"] = 80.0
 	for _i in 8:
 		WorldEngine.step(w, map)

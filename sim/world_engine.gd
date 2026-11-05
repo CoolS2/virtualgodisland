@@ -49,7 +49,7 @@ static func create_world(world_seed: int, now_ms: int) -> Dictionary:
 		"mana": Miracles.MANA_START,
 		"craters": [],
 		"mysteries": [],
-		"fire": {}, "camp": {}, "shrine": {}, "cave": {}, "raft": {},
+		"fire": {}, "camp": {}, "shrine": {}, "house": {}, "cave": {}, "raft": {},
 		"fish_eaten": 0,
 	}
 
@@ -136,6 +136,7 @@ static func from_data(data: Variant) -> Dictionary:
 		"fire": Mysteries.structure_from_data(d.get("fire")),
 		"camp": Mysteries.structure_from_data(d.get("camp")),
 		"shrine": Mysteries.structure_from_data(d.get("shrine")),
+		"house": Mysteries.structure_from_data(d.get("house")),
 		"cave": Mysteries.structure_from_data(d.get("cave")),
 		"raft": Mysteries.structure_from_data(d.get("raft")),
 		"fish_eaten": int(d.get("fish_eaten", 0)),
@@ -165,6 +166,15 @@ static func _human_from_data(h: Dictionary) -> Dictionary:
 	result["touch_tick"] = int(h.get("touch_tick", -1))
 	result["build_kind"] = str(h.get("build_kind", ""))
 	result["work"] = int(h.get("work", 0))
+	var known: Array = []
+	if typeof(h.get("knows")) == TYPE_ARRAY:
+		for kind: Variant in h["knows"]:
+			if Items.FOOD.has(str(kind)) and not known.has(str(kind)):
+				known.append(str(kind))
+	elif h.has("spawned"):
+		# Сейвы до «открытия еды» (v≤5): человечек уже ел — считаем, что фрукты он знает.
+		known = ["fruit", "fish"]
+	result["knows"] = known
 	return result
 
 
