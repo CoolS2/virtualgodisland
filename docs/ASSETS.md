@@ -13,15 +13,16 @@
 
 | Шрифт | Файл | Источник | Лицензия |
 |---|---|---|---|
-| Amatic SC Bold | `assets/fonts/AmaticSC-Bold.ttf` | github.com/google/fonts, `ofl/amaticsc`, коммит `bbda7253` | SIL OFL 1.1 (`assets/fonts/OFL-AmaticSC.txt`) |
-| Nunito (variable) | `assets/fonts/Nunito-Variable.ttf` | github.com/google/fonts, `ofl/nunito`, коммит `bbda7253` | SIL OFL 1.1 (`assets/fonts/OFL-Nunito.txt`) |
+| Lobster | `assets/fonts/Lobster-Regular.ttf` | github.com/google/fonts, `ofl/lobster`, коммит `bbda7253` | SIL OFL 1.1 (`assets/fonts/OFL-Lobster.txt`) |
+| Balsamiq Sans (Regular, Bold) | `assets/fonts/BalsamiqSans-*.ttf` | github.com/google/fonts, `ofl/balsamiqsans`, коммит `bbda7253` | SIL OFL 1.1 (`assets/fonts/OFL-BalsamiqSans.txt`) |
 
 ## Текстуры интерфейса
 
 Kenney **UI Pack Adventure** и **UI Pack RPG Expansion** (www.kenney.nl), лицензия **CC0**
 (`assets/ui/kenney/License-*.txt`). Архивы загрузил владелец (`assets/kenney_ui-pack-*.zip`, коммит `0149e4e`);
 в `assets/ui/kenney` скопированы используемые PNG: panel_brown, panel_brown_dark, panel_brown_corners_a,
-banner_hanging, progress_transparent_small, progress_white_small, button_brown_close (Adventure);
+banner_hanging, progress_transparent_small, progress_white_small, button_brown_close, minimap_icon_star_yellow,
+minimap_icon_jewel_white (Adventure);
 buttonLong_brown, buttonLong_brown_pressed, buttonLong_grey, panelInset_beige (RPG Expansion).
 Прежние самодельные текстуры и их генератор удалены.
 

@@ -27,15 +27,15 @@ const ACTIONS := {
 const SKILL_NAMES := {"forage": "Собиратель", "build": "Строитель", "fish": "Рыбак", "heal": "Лекарь"}
 
 var _root := UiStyle.root()
-var _day := UiStyle.label("", 18, UiStyle.CREAM)
-var _mana_bar := UiStyle.bar(Color("#7cc4e0"), 120)
-var _mana := UiStyle.label("", 14, UiStyle.CREAM_SOFT)
-var _faith := UiStyle.label("", 16, UiStyle.CREAM)
-var _people_count := UiStyle.label("", 16, UiStyle.CREAM)
+var _day := UiStyle.bold("", 16)
+var _mana_bar := UiStyle.bar(Color("#7cc4e0"), 90)
+var _mana := UiStyle.bold("", 16)
+var _faith := UiStyle.bold("", 16)
+var _people_count := UiStyle.bold("", 16)
 var _people_panel := PanelContainer.new()
 var _people_list := VBoxContainer.new()
 var _people_key := ""
-var _food := UiStyle.label("", 16, UiStyle.CREAM)
+var _food := UiStyle.bold("", 16)
 var _mysteries := Button.new()
 var _help_panel := PanelContainer.new()
 var _toast_panel := PanelContainer.new()
@@ -43,7 +43,7 @@ var _toast := UiStyle.label("", 18, UiStyle.CREAM)
 var _toast_time := 0.0
 
 var _card := PanelContainer.new()
-var _card_title := UiStyle.title("", 38)
+var _card_title := UiStyle.title("", 30)
 var _card_sub := UiStyle.label("", 14, UiStyle.INK_SOFT)
 var _card_state := UiStyle.label("", 15)
 var _card_bars := {}
@@ -91,9 +91,9 @@ func update_world(world: Dictionary, hour: float) -> void:
 	for h: Dictionary in people:
 		faith += float(h["faith"])
 	_faith.text = "Вера %d" % (int(faith / people.size()) if not people.is_empty() else 0)
-	_people_count.text = "Люди: %d" % people.size()
+	_people_count.text = "Люди %d" % people.size()
 	var food := Mysteries.food_in_camp(world)
-	_food.text = "Еда в лагере: —" if food < 0 else "Еда в лагере: %d" % food
+	_food.text = "Еда в лагере —" if food < 0 else "Еда в лагере %d" % food
 	_mysteries.text = "Тайны %d/%d" % [(world["mysteries"] as Array).size(), Mysteries.LIST.size()]
 
 
@@ -119,7 +119,7 @@ func update_people(world: Dictionary, selected_id: int) -> void:
 	_people_key = key
 	for child in _people_list.get_children():
 		child.queue_free()
-	_people_list.add_child(UiStyle.title("Поселение", 30))
+	_people_list.add_child(UiStyle.title("Поселение", 24))
 	for h: Dictionary in people:
 		var age := int(Human.age(h, tick))
 		var b := Button.new()
@@ -224,16 +224,12 @@ func _build_top_bar() -> void:
 	bar.theme_type_variation = "TopBar"
 	bar.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 22)
-	row.add_child(_day)
-	var mana_box := VBoxContainer.new()
-	mana_box.add_theme_constant_override("separation", 2)
-	mana_box.add_child(_mana)
-	mana_box.add_child(_mana_bar)
-	row.add_child(mana_box)
-	row.add_child(_people_count)
-	row.add_child(_faith)
-	row.add_child(_food)
+	row.add_theme_constant_override("separation", 10)
+	row.add_child(UiStyle.chip(_day))
+	row.add_child(UiStyle.chip(_mana, "minimap_icon_jewel_white.png", _mana_bar, Color("#7cc4e0")))
+	row.add_child(UiStyle.chip(_people_count))
+	row.add_child(UiStyle.chip(_faith, "minimap_icon_star_yellow.png"))
+	row.add_child(UiStyle.chip(_food))
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(spacer)

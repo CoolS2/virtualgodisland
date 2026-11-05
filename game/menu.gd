@@ -102,7 +102,7 @@ func _build_panel() -> void:
 
 	var banner := PanelContainer.new()
 	banner.theme_type_variation = "Banner"
-	var title := UiStyle.title("Virtual God Island", 52)
+	var title := UiStyle.title("Virtual God Island", 38)
 	title.add_theme_color_override("font_color", UiStyle.CREAM)
 	title.add_theme_color_override("font_shadow_color", Color(0.35, 0.08, 0.05, 0.8))
 	title.add_theme_constant_override("shadow_offset_y", 2)
@@ -121,7 +121,7 @@ func _build_panel() -> void:
 	column.add_child(_main)
 
 	_form.add_theme_constant_override("separation", 10)
-	var form_title := UiStyle.title("Первый человек", 34)
+	var form_title := UiStyle.title("Первый человек", 26)
 	_form.add_child(form_title)
 	_name.placeholder_text = "Имя (пусто — случайное)"
 	_name.max_length = Human.NAME_MAX

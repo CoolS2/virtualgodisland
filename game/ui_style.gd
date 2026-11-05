@@ -2,7 +2,7 @@ class_name UiStyle
 extends RefCounted
 ## Единый вид интерфейса (docs/ART_DIRECTION.md): элементы Kenney UI Pack Adventure и RPG Expansion
 ## (CC0, assets/ui/kenney) — кремовые панели в коричневой раме, деревянные кнопки, красный баннер;
-## шрифты Amatic SC (заголовки) и Nunito (текст).
+## шрифты Lobster (заголовки, имена) и Balsamiq Sans (текст, кнопки — жирный).
 
 const INK := Color("#3b2a1a")
 const INK_SOFT := Color("#6b5238")
@@ -13,8 +13,9 @@ const ACCENT := Color("#e8b94a")
 ## Совместимость со старыми вызовами.
 const TEXT_DIM := INK_SOFT
 
-const BODY_FONT := preload("res://assets/fonts/Nunito-Variable.ttf")
-const TITLE_FONT := preload("res://assets/fonts/AmaticSC-Bold.ttf")
+const BODY_FONT := preload("res://assets/fonts/BalsamiqSans-Regular.ttf")
+const BOLD_FONT := preload("res://assets/fonts/BalsamiqSans-Bold.ttf")
+const TITLE_FONT := preload("res://assets/fonts/Lobster-Regular.ttf")
 
 static var _theme: Theme
 
@@ -24,10 +25,7 @@ static func theme() -> Theme:
 	if _theme:
 		return _theme
 	var t := Theme.new()
-	var body := FontVariation.new()
-	body.base_font = BODY_FONT
-	body.variation_embolden = 0.35
-	t.default_font = body
+	t.default_font = BODY_FONT
 	t.default_font_size = 16
 
 	# Окна — кремовая панель с металлическими уголками; карточка/список — простая кремовая (вариант «Card»).
@@ -41,6 +39,14 @@ static func theme() -> Theme:
 	bar.content_margin_top = 8
 	bar.content_margin_bottom = 8
 	t.set_stylebox("panel", "TopBar", bar)
+	# Квадратик показателя на верхней панели.
+	t.set_type_variation("Chip", "PanelContainer")
+	var chip := _box("panel_brown.png", 12, 0)
+	chip.content_margin_left = 12
+	chip.content_margin_right = 12
+	chip.content_margin_top = 5
+	chip.content_margin_bottom = 5
+	t.set_stylebox("panel", "Chip", chip)
 	t.set_type_variation("Plaque", "PanelContainer")
 	t.set_stylebox("panel", "Plaque", _box("panel_brown_dark.png", 14, 14))
 	t.set_type_variation("Banner", "PanelContainer")
@@ -68,6 +74,7 @@ static func theme() -> Theme:
 		if state == "hover":
 			b.modulate_color = Color(1.18, 1.12, 1.05)
 		t.set_stylebox(state, "Button", b)
+	t.set_font("font", "Button", BOLD_FONT)
 	t.set_color("font_color", "Button", CREAM)
 	t.set_color("font_hover_color", "Button", Color.WHITE)
 	t.set_color("font_pressed_color", "Button", ACCENT)
@@ -80,9 +87,11 @@ static func theme() -> Theme:
 	t.set_color("font_color", "LightLabel", CREAM)
 	t.set_color("font_shadow_color", "LightLabel", Color(0, 0, 0, 0.55))
 	t.set_constant("shadow_offset_y", "LightLabel", 1)
+	t.set_type_variation("BoldLabel", "Label")
+	t.set_font("font", "BoldLabel", BOLD_FONT)
 	t.set_type_variation("TitleLabel", "Label")
 	t.set_font("font", "TitleLabel", TITLE_FONT)
-	t.set_font_size("font_size", "TitleLabel", 40)
+	t.set_font_size("font_size", "TitleLabel", 28)
 	t.set_color("font_color", "TitleLabel", TITLE)
 
 	var sep := StyleBoxLine.new()
@@ -111,6 +120,36 @@ static func root() -> Control:
 	return c
 
 
+## Подпись жирным (показатели, числа).
+static func bold(text: String = "", size: int = 16, color: Color = INK) -> Label:
+	var l := label(text, size, color)
+	l.theme_type_variation = "BoldLabel"
+	return l
+
+
+## Квадратик показателя: [значок] подпись (+ доп. элемент, например полоска).
+static func chip(content: Label, icon: String = "", extra: Control = null, icon_tint: Color = Color.WHITE) -> PanelContainer:
+	var box := PanelContainer.new()
+	box.theme_type_variation = "Chip"
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	if not icon.is_empty():
+		var tex := TextureRect.new()
+		tex.texture = load("res://assets/ui/kenney/" + icon)
+		tex.modulate = icon_tint
+		tex.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+		tex.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(tex)
+	content.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(content)
+	if extra:
+		extra.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(extra)
+	box.add_child(row)
+	return box
+
+
 ## Устаревшее имя: панели теперь берут вид из темы.
 static func panel(_margin: int = 12, _radius: int = 12) -> StyleBox:
 	return theme().get_stylebox("panel", "PanelContainer")
@@ -137,7 +176,7 @@ static func label(text: String = "", size: int = 16, color: Color = INK) -> Labe
 	return l
 
 
-static func title(text: String, size: int = 40) -> Label:
+static func title(text: String, size: int = 28) -> Label:
 	var l := Label.new()
 	l.theme_type_variation = "TitleLabel"
 	l.text = text
