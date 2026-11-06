@@ -1,6 +1,6 @@
 class_name GameUi
 extends CanvasLayer
-## Панели поверх игры: «Пока тебя не было…» при входе, список открытий (обелиск / M), конец игры.
+## Панели поверх игры: список открытий (обелиск / M), конец игры.
 
 ## Нажата «Новый остров» на экране конца игры.
 signal new_game_requested
@@ -9,9 +9,9 @@ signal dialogue_finished
 
 ## Реплика монолога держится столько секунд, если не нажать «Дальше».
 const LINE_SECONDS := 6.5
+## Окно «Тайна раскрыта!» держится столько секунд (или до щелчка).
+const REVEAL_SECONDS := 6.0
 
-var _welcome := PanelContainer.new()
-var _welcome_text := Label.new()
 var _mysteries := PanelContainer.new()
 var _mysteries_title := UiStyle.title("", 26)
 ## Ячейки тайн: миниатюра (силуэт / модель), название или «???», подсказка из изученных следов.
@@ -29,26 +29,28 @@ var _dialogue_text := UiStyle.label("", 17)
 var _dialogue_lines := PackedStringArray()
 var _dialogue_index := 0
 var _dialogue_time := 0.0
+## Раскрытие тайны: окно по центру с моделью, вспышка и искры.
+var _reveal := PanelContainer.new()
+var _reveal_box := VBoxContainer.new()
+var _reveal_name := UiStyle.title("", 34)
+var _reveal_flash := ColorRect.new()
+var _reveal_sparks := CPUParticles2D.new()
+var _reveal_time := 0.0
+var _reveal_queue: Array[String] = []
 
 
 func _init() -> void:
 	name = "GameUi"
 	layer = 2
 	add_child(_root)
-	_setup_panel(_welcome, _welcome_text, "Продолжить")
 	_build_mysteries_panel()
 	_build_dialogue()
+	_build_reveal()
 	_setup_panel(_game_over, _game_over_text, "Новый остров")
 	(_game_over.get_child(0).get_child(2) as Button).pressed.connect(func() -> void: new_game_requested.emit())
 
 
-func show_welcome(text: String) -> void:
-	_welcome_text.text = text
-	_welcome.visible = true
-
-
 func show_game_over(text: String) -> void:
-	_welcome.visible = false
 	_mysteries.visible = false
 	_game_over_text.text = text
 	_game_over.visible = true
@@ -79,6 +81,11 @@ func next_line() -> void:
 
 
 func _process(delta: float) -> void:
+	if _reveal.visible:
+		_reveal_time += delta
+		_reveal_flash.color.a = maxf(0.0, 0.55 - _reveal_time * 0.9)
+		if _reveal_time >= REVEAL_SECONDS:
+			_close_reveal()
 	if _dialogue.visible:
 		_dialogue_time += delta
 		if _dialogue_time >= LINE_SECONDS:
@@ -116,6 +123,80 @@ func _build_dialogue() -> void:
 	_dialogue.add_child(box)
 	_dialogue.visible = false
 	_root.add_child(_dialogue)
+
+
+## Тайна раскрыта: окно с моделью и названием, вспышка, искры. Несколько сразу — по очереди.
+func reveal_mystery(id: String) -> void:
+	if _reveal.visible:
+		_reveal_queue.append(id)
+		return
+	for child in _reveal_box.get_children():
+		if child is MysteryIcon:
+			child.queue_free()
+	var icon := MysteryIcon.new(id, true)
+	icon.custom_minimum_size = Vector2(220, 170)
+	icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_reveal_box.add_child(icon)
+	_reveal_box.move_child(icon, 1)
+	_reveal_name.text = Mysteries.name_of(id)
+	_reveal_time = 0.0
+	_reveal.visible = true
+	_reveal_flash.visible = true
+	_reveal_sparks.position = _root.size / 2.0
+	_reveal_sparks.restart()
+	_reveal.pivot_offset = _reveal.size / 2.0
+	_reveal.scale = Vector2.ONE * 0.4
+	create_tween().tween_property(_reveal, "scale", Vector2.ONE, 0.45).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
+func _close_reveal() -> void:
+	_reveal.visible = false
+	_reveal_flash.visible = false
+	if not _reveal_queue.is_empty():
+		reveal_mystery(_reveal_queue.pop_front())
+
+
+func _build_reveal() -> void:
+	_reveal_flash.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_reveal_flash.color = Color(1.0, 0.92, 0.6, 0.0)
+	_reveal_flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_reveal_flash.visible = false
+	_root.add_child(_reveal_flash)
+	_reveal_sparks.emitting = false
+	_reveal_sparks.one_shot = true
+	_reveal_sparks.amount = 90
+	_reveal_sparks.lifetime = 1.8
+	_reveal_sparks.explosiveness = 0.95
+	_reveal_sparks.spread = 180.0
+	_reveal_sparks.initial_velocity_min = 180.0
+	_reveal_sparks.initial_velocity_max = 420.0
+	_reveal_sparks.gravity = Vector2(0, 260)
+	_reveal_sparks.scale_amount_min = 3.0
+	_reveal_sparks.scale_amount_max = 6.0
+	_reveal_sparks.color = UiStyle.ACCENT
+	_root.add_child(_reveal_sparks)
+	_reveal.set_anchors_preset(Control.PRESET_CENTER)
+	_reveal.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_reveal.grow_vertical = Control.GROW_DIRECTION_BOTH
+	_reveal.custom_minimum_size = Vector2(380, 0)
+	_reveal.mouse_filter = Control.MOUSE_FILTER_STOP
+	_reveal.gui_input.connect(func(event: InputEvent) -> void:
+		var button := event as InputEventMouseButton
+		if button and button.pressed:
+			_close_reveal())
+	_reveal_box.add_theme_constant_override("separation", 6)
+	_reveal_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var banner := PanelContainer.new()
+	banner.theme_type_variation = "Banner"
+	var title := UiStyle.title("Тайна раскрыта!", 30)
+	title.add_theme_color_override("font_color", UiStyle.CREAM)
+	banner.add_child(title)
+	_reveal_box.add_child(banner)
+	_reveal_name.add_theme_color_override("font_color", UiStyle.TITLE)
+	_reveal_box.add_child(_reveal_name)
+	_reveal.add_child(_reveal_box)
+	_reveal.visible = false
+	_root.add_child(_reveal)
 
 
 func close_mysteries() -> void:

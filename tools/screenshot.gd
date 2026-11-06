@@ -39,6 +39,7 @@ func _ready() -> void:
 	views.append(_night_camp_view.bind(main))
 	views.append(_obelisk_view.bind(main))
 	views.append(_hand_view.bind(main))
+	views.append(_reveal_view.bind(main))
 	views.append(_intro_view.bind(main))
 	views.append(_menu_view.bind(main))
 	for make_view in views:
@@ -154,6 +155,7 @@ func _family_view(main: Node) -> Array:
 	main.call("refresh_world_view")
 	main.call("select_person", first["id"])
 	main.call("_render_hud")
+	(main.get("hud") as Hud).toggle_people() # меню «Люди» с портретами
 	var target := Vector3(first["x"], map.height_at_world(first["x"], first["z"]) + 1.0, first["z"])
 	return ["family", PI, 0.35, 10.0, target]
 
@@ -161,6 +163,7 @@ func _family_view(main: Node) -> Array:
 ## Чудеса рядом с человечком: дождь над ним и молния в стороне (кратер, дым). Маны в превью ровно на два.
 ## Кадров прогрева мало — эффекты живут секунды, а программный рендер в CI медленный.
 func _miracles_view(main: Node) -> Array:
+	(main.get("hud") as Hud).close_overlays()
 	var h: Dictionary = (main.get("_world") as Dictionary)["people"][0]
 	var p := Human.position_of(h)
 	main.call("cast_miracle", "rain", p)
@@ -202,6 +205,12 @@ func _obelisk_view(main: Node) -> Array:
 
 
 ## Рука держит ветку недалеко от центра острова.
+## Окно «Тайна раскрыта!» (снимается быстро — окно само закрывается через несколько секунд).
+func _reveal_view(main: Node) -> Array:
+	(main.get("ui") as GameUi).reveal_mystery("house")
+	return ["reveal", PI / 4.0, 0.6, 150.0, Vector3.ZERO, 12]
+
+
 ## Пролог новой игры: человек у обломков корабля, монолог (в превью человек уже мог уйти — ставим обратно).
 func _intro_view(main: Node) -> Array:
 	var world: Dictionary = main.get("_world")

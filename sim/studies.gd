@@ -27,13 +27,14 @@ const NOTES := {
 
 
 ## Человека опустили на землю: если рядом след — изучает ("study"), уже изучен ("known"),
-## не может понять ("confused"); "" — следа рядом нет.
+## не может понять ("confused"); следа нет — рассматривает предмет рядом ("food_new", "food", "thing",
+## см. Human.start_examine); "" — рядом ничего.
 static func on_dropped(w: Dictionary, map: IslandMap, h: Dictionary) -> String:
 	if not h["alive"] or h["held"]:
 		return ""
 	var key := nearest_relic(map, Human.position_of(h))
 	if key.is_empty():
-		return ""
+		return Human.start_examine(w, h) # следа нет — может, рядом предмет
 	if (w["studied"] as Array).has(key):
 		return "known"
 	if not can_understand(w, key):

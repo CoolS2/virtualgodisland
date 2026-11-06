@@ -5,7 +5,7 @@ extends RefCounted
 ##   id: int; mother_id, father_id, partner_id: int (-1 — нет); pregnant_until: int (тик родов, -1 — нет)
 ##   hunger, thirst: float — 0 норма .. 100 смерть; energy: float — 100 бодр .. 0; alive: bool
 ##   spawned: bool; x, z: float — позиция в мировых координатах (высота — по карте)
-##   action: String — "idle" | "wander" | "explore" | "drink" | "eat" | "sleep" | "build" | "study"
+##   action: String — "idle" | "wander" | "explore" | "drink" | "eat" | "sleep" | "build" | "study" | "examine"
 ##   tx, tz: float — цель движения; target_item: int — еда для "eat"; stuck: int — тиков без продвижения
 ##   faith, love, fear: float 0..100 — вера, любовь и страх к богу; held: bool — в руке бога;
 ##   touch_tick: int — тик последнего «погладить/шлёпнуть» (не чаще раза в тик)
@@ -19,7 +19,11 @@ extends RefCounted
 ## сами и бог не подскажет (подкинет еду рядом), умрут от голода (голод 0→100 ≈ 33 ч).
 ## 1 тик = 1 минута: за тик человечек проходит до WALK_PER_TICK (1 ед/с), game/ показывает это плавно.
 
-const ACTIONS: Array[String] = ["idle", "wander", "explore", "drink", "eat", "sleep", "build", "study"]
+const ACTIONS: Array[String] = ["idle", "wander", "explore", "drink", "eat", "sleep", "build", "study", "examine"]
+## Бог опустил человека у предмета — тот подбирает и рассматривает его (EXAMINE_TICKS); еду пробует и съедает.
+const EXAMINE_RADIUS := 2.5
+const EXAMINE_TICKS := 1
+const THING_NAMES := {"stone": "камень", "branch": "ветку"}
 ## Свободен: ничем важным не занят (может строить, подбирать дела).
 const FREE_ACTIONS: Array[String] = ["idle", "wander", "explore"]
 
@@ -183,6 +187,13 @@ static func _update_one(w: Dictionary, map: IslandMap, h: Dictionary) -> void:
 					var at := Vector2(h["tx"], h["tz"])
 					_set_action(h, "idle")
 					Mysteries.complete_build(w, kind, at)
+		"examine":
+			h["work"] = int(h["work"]) + 1
+			if h["work"] >= EXAMINE_TICKS:
+				var item := Items.find(w, h["target_item"])
+				_set_action(h, "idle")
+				if not item.is_empty() and not item["held"]:
+					_finish_examine(w, h, item)
 		"study":
 			h["work"] = int(h["work"]) + 1
 			if h["work"] >= Studies.STUDY_TICKS:
@@ -457,6 +468,39 @@ static func fulfil_wish(w: Dictionary, h: Dictionary, kind: String) -> void:
 	add_faith(h, WISH_FAITH)
 	h["love"] = minf(100.0, float(h["love"]) + WISH_LOVE)
 	WorldEngine.add_log(w, "%s %s: желание исполнилось" % [h["name"], "счастлива" if h["sex"] == "f" else "счастлив"])
+
+
+## Человека опустили рядом с предметом: подбирает и рассматривает ближайший. Что за предмет:
+## "food_new" (незнакомая еда — попробует), "food", "thing"; "" — рядом ничего нет.
+static func start_examine(w: Dictionary, h: Dictionary) -> String:
+	var pos := position_of(h)
+	var best := {}
+	var best_dist := EXAMINE_RADIUS
+	for item: Dictionary in w["items"]:
+		var d := pos.distance_to(Vector2(item["x"], item["z"]))
+		if not item["held"] and d <= best_dist:
+			best_dist = d
+			best = item
+	if best.is_empty():
+		return ""
+	_set_action(h, "examine", best["x"], best["z"])
+	h["target_item"] = best["id"]
+	if not Items.FOOD.has(best["kind"]):
+		return "thing"
+	return "food" if knows(w, best["kind"]) else "food_new"
+
+
+## Рассмотрел: еду пробует (узнаёт, что съедобно) и съедает; остальное — повертел в руках.
+static func _finish_examine(w: Dictionary, h: Dictionary, item: Dictionary) -> void:
+	var kind: String = item["kind"]
+	if not Items.FOOD.has(kind):
+		WorldEngine.add_log(w, "%s %s в руках %s" % [h["name"], _verb(h, "повертел"), THING_NAMES.get(kind, kind)])
+		return
+	learn(w, kind, h)
+	(w["items"] as Array).erase(item)
+	h["hunger"] = maxf(0.0, h["hunger"] - Items.FOOD[kind])
+	WorldEngine.add_log(w, "%s %s %s" % [h["name"], _verb(h, "съел"), Items.FOOD_NAMES[kind]])
+	fulfil_wish(w, h, kind)
 
 
 ## Сесть изучать след (бог опустил рядом).

@@ -77,3 +77,58 @@ func test_every_relic_with_note_is_on_the_island() -> void:
 	for key: String in Studies.NOTES:
 		if not Hints.PLACES.has(key): # особых мест на острове — только часть набора
 			assert_true(_map.relics.has(key), "след %s есть на острове" % key)
+
+
+## Клетка поля вдали от следов (там бросок человека — не изучение следа).
+func _field_far_from_relics() -> Vector2:
+	var half := _map.half_extent()
+	for i in _map.biomes.size():
+		if _map.biomes[i] != IslandMap.Biome.FIELD:
+			continue
+		var p := Vector2(i % _map.size - half, floori(float(i) / _map.size) - half)
+		var far := true
+		for key: String in _map.relics:
+			if p.distance_to(_map.relics[key]) < Studies.STUDY_RADIUS + 2.0:
+				far = false
+		if far:
+			return p
+	return Vector2.INF
+
+
+func test_dropped_next_to_fruit_examines_and_eats_it() -> void:
+	var w := _world()
+	WorldEngine.step(w, _map) # очнулся
+	var h: Dictionary = w["people"][0]
+	var p := _field_far_from_relics()
+	assert_ne(p, Vector2.INF)
+	w["items"] = (w["items"] as Array).filter(func(item: Dictionary) -> bool:
+		return Vector2(item["x"], item["z"]).distance_to(p) > Human.EXAMINE_RADIUS + 1.0)
+	Items.add(w, "fruit", Vector3(p.x + 1.0, _map.height_at_world(p.x + 1.0, p.y), p.y))
+	h["x"] = p.x
+	h["z"] = p.y
+	h["hunger"] = 50.0
+	assert_eq(Studies.on_dropped(w, _map, h), "food_new", "незнакомая еда")
+	assert_eq(h["action"], "examine")
+	for _i in Human.EXAMINE_TICKS:
+		WorldEngine.step(w, _map)
+	assert_true(Human.knows(w, "fruit"), "попробовал — съедобно")
+	assert_true(Mysteries.is_solved(w, "food"))
+	assert_lt(float(h["hunger"]), 50.0, "съел")
+
+
+func test_dropped_next_to_stone_just_looks_at_it() -> void:
+	var w := _world()
+	WorldEngine.step(w, _map)
+	var h: Dictionary = w["people"][0]
+	var p := _field_far_from_relics()
+	w["items"] = (w["items"] as Array).filter(func(item: Dictionary) -> bool:
+		return Vector2(item["x"], item["z"]).distance_to(p) > Human.EXAMINE_RADIUS + 1.0)
+	Items.add(w, "stone", Vector3(p.x + 1.0, 0.0, p.y))
+	h["x"] = p.x
+	h["z"] = p.y
+	assert_eq(Studies.on_dropped(w, _map, h), "thing")
+	var stones := Items.count_kind(w, "stone")
+	for _i in Human.EXAMINE_TICKS:
+		WorldEngine.step(w, _map)
+	assert_eq(Items.count_kind(w, "stone"), stones, "камень остался")
+	assert_string_contains(str(w["log"]), "повертел")

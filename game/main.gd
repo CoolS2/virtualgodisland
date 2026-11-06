@@ -3,17 +3,12 @@ extends Node3D
 ## Раз в секунду догоняет симуляцию по реальному времени и сохраняет мир.
 
 const HUD_INTERVAL := 1.0
-## «Пока тебя не было…» — если пропущено хотя бы столько тиков.
-const WELCOME_MIN_TICKS := 5
-const WELCOME_MAX_LINES := 14
 ## Бросок: скорость руки × GAIN + подброс вверх (чтобы бросок «летел», а не падал).
 const THROW_GAIN := 1.3
 const THROW_LIFT := 3.0
 const MENU_SCENE := "res://game/menu.tscn"
 const MIRACLE_KEYS := {KEY_1: "rain", KEY_2: "fish", KEY_3: "lightning"}
 const MIRACLE_NAMES := {"rain": "Дождь", "fish": "Рыба к берегу", "lightning": "Молния"}
-## Рука «рядом» с человечком — для взять/погладить/шлёпнуть.
-const TOUCH_RADIUS := 2.5
 ## Клик рукой у обелиска открывает список открытий.
 const OBELISK_RADIUS := 2.5
 const FOLLOW_VIEW := [0.45, 25.0] # pitch, distance
@@ -21,6 +16,8 @@ const FOLLOW_VIEW := [0.45, 25.0] # pitch, distance
 const FELL_HOLD := 0.4
 const FIRST_MYSTERY_HINT_SECONDS := 60.0
 const FOCUS_DISTANCE := 28.0
+## Человек «под курсором», если до его фигуры на экране не больше стольких пикселей.
+const GRAB_PIXELS := 48.0
 ## С этого голода человек думает вслух о еде (если ещё не знает, что можно есть).
 const HUNGER_THOUGHT := 25.0
 const HUNGER_THOUGHT_SECONDS := 150.0
@@ -30,6 +27,8 @@ const ROCK_RADIUS := 1.6
 const STUDY_POPUPS := {
 	"study": ["Что это?..", Color("#ffe066")], "known": ["Это я уже знаю", Color("#d9c7a3")],
 	"confused": ["Не понимаю…", Color("#b8b0a0")],
+	"food_new": ["Что это? Пахнет вкусно…", Color("#ffe066")], "food": ["Ням!", Color("#ffb07a")],
+	"thing": ["Хм…", Color("#d9c7a3")],
 }
 const ISLAND_VIEW := [0.6, 150.0]
 
@@ -58,7 +57,6 @@ var _terrain: Node3D
 var _decorations: Node3D
 var hud: Hud
 var _people_seen := 0
-var _offline_ticks: int
 var _since_update := 0.0
 var _mysteries_seen := 0
 var _found_seen := 0
@@ -90,8 +88,7 @@ func _ready() -> void:
 	var map := IslandGenerator.generate(_world["seed"])
 	Craters.apply_all(map, _world)
 	island_map = map
-	var before := _world.duplicate(true)
-	_offline_ticks = WorldEngine.catch_up(_world, map, now)
+	WorldEngine.catch_up(_world, map, now)
 	if not _world["people"][0]["spawned"]:
 		WorldEngine.step(_world, map) # новый мир: человек и предметы появляются сразу
 	_mysteries_seen = (_world["mysteries"] as Array).size()
@@ -151,8 +148,7 @@ func _ready() -> void:
 	add_child(hud)
 	hud.mysteries_pressed.connect(func() -> void: ui.toggle_mysteries(_world))
 	hud.card_closed.connect(func() -> void: select_person(-1))
-	hud.person_selected.connect(select_person)
-	hud.find_person_pressed.connect(focus_next_person)
+	hud.person_selected.connect(_on_person_chosen)
 	hud.minimap.build(map)
 	hud.minimap.clicked.connect(func(p: Vector2) -> void:
 		camera_rig.focus(Vector3(p.x, maxf(0.0, map.height_at_world(p.x, p.y)), p.y), FOCUS_DISTANCE * 1.5))
@@ -160,8 +156,6 @@ func _ready() -> void:
 	add_child(ui)
 	ui.new_game_requested.connect(_new_game)
 	ui.dialogue_finished.connect(_on_dialogue_finished)
-	if not _is_preview() and _offline_ticks >= WELCOME_MIN_TICKS:
-		ui.show_welcome(_welcome_text(before))
 	if intro_pending:
 		start_intro()
 
@@ -170,6 +164,7 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	_update_cursor()
 	if _pending_tree >= 0:
 		_press_time += delta
 		if _press_time >= FELL_HOLD:
@@ -234,7 +229,9 @@ func refresh_world_view() -> void:
 		_found_seen = found.size()
 	var solved: Array = _world["mysteries"]
 	if solved.size() > _mysteries_seen:
-		_show_message("Тайна раскрыта: %s! (%d/%d)" % [Mysteries.name_of(solved.back()), solved.size(), Mysteries.LIST.size()])
+		for i in range(_mysteries_seen, solved.size()):
+			ui.reveal_mystery(solved[i])
+		_show_message("Открыто тайн: %d из %d" % [solved.size(), Mysteries.LIST.size()])
 		_popup_all("Тайна!", Color("#9ff0ff"))
 		_mysteries_seen = solved.size()
 	var people: Array = _world["people"]
@@ -278,6 +275,10 @@ func _show_game_over() -> void:
 		WorldClock.day(int(_world["tick"])), (_world["mysteries"] as Array).size(), Mysteries.LIST.size()])
 
 
+func _exit_tree() -> void:
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE # в меню курсор нужен
+
+
 func _new_game() -> void:
 	if not _is_preview():
 		SaveStore.delete_save()
@@ -319,43 +320,6 @@ func _grab_person(id: int) -> void:
 		view_of(h).held_by = hand
 		view_of(h).popup("Ой!", Color("#ffd166"))
 		hand.holding = true
-
-
-func _welcome_text(before: Dictionary) -> String:
-	var minutes := _offline_ticks
-	var lines := PackedStringArray(["Пока тебя не было (%d ч %02d мин)…" % [floori(minutes / 60.0), minutes % 60], ""])
-	for h: Dictionary in _world["people"]:
-		if not h["spawned"]:
-			continue
-		var h0: Dictionary = {}
-		for old: Dictionary in before["people"]:
-			if int(old["id"]) == int(h["id"]):
-				h0 = old
-		if not h["alive"]:
-			if h0.is_empty() or h0["alive"]:
-				lines.append("%s %s (%s)." % [h["name"], "умерла" if h["sex"] == "f" else "умер", h["cause"]])
-			continue
-		if h0.is_empty() or not h0["spawned"]:
-			lines.append("%s — новый человек на острове." % h["name"])
-			continue
-		lines.append("%s: голод %.0f → %.0f · жажда %.0f → %.0f · силы %.0f → %.0f" % [
-			h["name"], h0["hunger"], h["hunger"], h0["thirst"], h["thirst"], h0["energy"], h["energy"]])
-	var old_log: Array = before["log"]
-	var new_log: Array = _world["log"]
-	var start := 0
-	if not old_log.is_empty():
-		var last_index := new_log.rfind(old_log.back())
-		start = last_index + 1 if last_index >= 0 else 0
-	var events := new_log.slice(start)
-	if events.size() > WELCOME_MAX_LINES:
-		lines.append("… и ещё %d событий раньше" % (events.size() - WELCOME_MAX_LINES))
-		events = events.slice(events.size() - WELCOME_MAX_LINES)
-	lines.append("")
-	for entry: Variant in events:
-		lines.append(str(entry))
-	if events.is_empty():
-		lines.append("Ничего особенного не случилось.")
-	return "\n".join(lines)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -428,11 +392,28 @@ func _hand_near_human() -> bool:
 	return not _person_near_hand().is_empty()
 
 
+## Человек под курсором — по тому, где его видно на экране (вид догоняет мир шагом, поэтому позиция в мире
+## может быть впереди), с запасом GRAB_PIXELS вокруг фигуры. {} — никого.
 func _person_near_hand() -> Dictionary:
-	if not hand.has_ground():
+	var camera := get_viewport().get_camera_3d()
+	if camera == null:
 		return {}
-	var p := hand.ground_point()
-	return Human.nearest(_world, Vector2(p.x, p.z), TOUCH_RADIUS)
+	var mouse := get_viewport().get_mouse_position()
+	var best := {}
+	var best_dist := GRAB_PIXELS
+	for h: Dictionary in Human.living(_world):
+		var view := view_of(h)
+		if view == null or not view.visible or h["held"]:
+			continue
+		for height: float in [0.3, 0.9, 1.5]: # ноги, пояс, голова — попасть по любой части фигуры
+			var point := view.global_position + Vector3.UP * height * view.scale.y
+			if camera.is_position_behind(point):
+				continue
+			var d := camera.unproject_position(point).distance_to(mouse)
+			if d < best_dist:
+				best_dist = d
+				best = h
+	return best
 
 
 ## После кратера: новый меш и коллизия ландшафта, растительность без кратеров.
@@ -460,6 +441,15 @@ func _flora_signature() -> String:
 
 func _show_message(text: String) -> void:
 	hud.toast(text)
+
+
+## Выбран в меню «Люди»: выделить и навести камеру.
+func _on_person_chosen(id: int) -> void:
+	var h := Human.find_person(_world, id)
+	if h.is_empty():
+		return
+	select_person(id)
+	camera_rig.focus(view_of(h).global_position + Vector3.UP, FOCUS_DISTANCE)
 
 
 ## Камера к следующему живому человеку (по кругу), он же выделяется — видно кольцо и карточку.
@@ -502,7 +492,7 @@ func pick_item_at(point: Vector3) -> bool:
 	if Vector2(point.x, point.z).distance_to(hints_view.obelisk_position) <= OBELISK_RADIUS:
 		ui.show_mysteries(_world)
 		return false
-	var h := Human.nearest(_world, Vector2(point.x, point.z), TOUCH_RADIUS)
+	var h := _person_near_hand()
 	if not h.is_empty():
 		_grab_person(h["id"])
 		return false
@@ -646,6 +636,17 @@ func _maybe_think() -> void:
 			"Это можно есть! Теперь я не пропаду.",
 			"И всё же… кто-то будто подсказал мне. Кто-то присматривает за этим островом.",
 		]))
+
+
+## Над островом вместо курсора — рука (системный курсор спрятан); над интерфейсом — обычный курсор, рука скрыта.
+func _update_cursor() -> void:
+	if _is_preview():
+		return
+	var over_ui := get_viewport().gui_get_hovered_control() != null
+	var mode := Input.MOUSE_MODE_VISIBLE if over_ui else Input.MOUSE_MODE_HIDDEN
+	if Input.mouse_mode != mode:
+		Input.mouse_mode = mode
+	hand.visible = not over_ui
 
 
 ## Обучение: первая тайна («Еда») должна раскрыться быстро — пока её нет, внизу подсказка, над ближайшим

@@ -6,8 +6,6 @@ extends CanvasLayer
 signal mysteries_pressed
 signal card_closed
 signal person_selected(id: int)
-## Нажата «К людям» — навести камеру на человека (каждое нажатие — на следующего).
-signal find_person_pressed
 
 const HELP := """Управление
 WASD / стрелки — двигать камеру · колесо — зум · ПКМ с протяжкой — вращать
@@ -18,7 +16,7 @@ WASD / стрелки — двигать камеру · колесо — зум
 ПКМ по человеку — карточка с параметрами
 E — погладить · Q — шлёпнуть (рука рядом с человеком)
 1 — дождь (20 маны) · 2 — рыба к берегу (25) · 3 — молния (30) — там, где рука
-«К людям» или Tab — камера к человеку (ещё раз — к следующему) · F — следить за человеком
+«Люди» — все люди с портретами, щелчок — камера к человеку · Tab — к следующему · F — следить
 ЛКМ по обелиску или M — открытия · Esc — закрыть окна"""
 ## Показатель на верхней панели появляется, когда раскрыта тайна: мана — первая тайна (сила бога пробуждается),
 ## еда в лагере — лагерь, люди — дом (после него приплывёт второй человек), вера — алтарь.
@@ -30,7 +28,7 @@ const BAR_COLORS := {
 }
 const MOODS := {"happy": "доволен", "ok": "спокоен", "sad": "грустит", "sleep": "спит", "dead": "погиб", "scared": "боится"}
 const ACTIONS := {
-	"idle": "думает", "wander": "гуляет", "explore": "исследует", "study": "изучает", "drink": "пьёт", "eat": "ест", "sleep": "спит", "build": "строит",
+	"idle": "думает", "wander": "гуляет", "explore": "исследует", "study": "изучает", "examine": "рассматривает", "drink": "пьёт", "eat": "ест", "sleep": "спит", "build": "строит",
 }
 const SKILL_NAMES := {"forage": "Собиратель", "build": "Строитель", "fish": "Рыбак", "heal": "Лекарь"}
 
@@ -42,13 +40,20 @@ var minimap := Minimap.new()
 ## Подсказка внизу по центру (обучение: первая тайна).
 var _hint_panel := PanelContainer.new()
 var _hint := UiStyle.label("", 15)
+## Подсказки, закрытые крестиком (текст) — в этой сессии больше не показываются.
+var _dismissed := {}
 var _day := UiStyle.bold("", 16)
 var _mana_bar := UiStyle.bar(Color("#7cc4e0"), 90)
 var _mana := UiStyle.bold("", 16)
 var _faith := UiStyle.bold("", 16)
 var _people_count := UiStyle.bold("", 16)
 var _people_panel := PanelContainer.new()
-var _people_list := VBoxContainer.new()
+var _people_list := GridContainer.new()
+var _people_world := {}
+var _people_selected := -1
+## id -> [плитка, подпись]; какие id сейчас нарисованы.
+var _people_tiles := {}
+var _people_shown := ""
 var _people_key := ""
 var _food := UiStyle.bold("", 16)
 var _mysteries := Button.new()
@@ -91,11 +96,17 @@ func _init() -> void:
 	_hint_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_hint_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	_hint_panel.position.y = -16
-	_hint_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_hint.custom_minimum_size = Vector2(560, 0)
+	_hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_hint_panel.add_child(_hint)
+	var hint_row := HBoxContainer.new()
+	hint_row.add_theme_constant_override("separation", 8)
+	hint_row.add_child(_hint)
+	hint_row.add_child(_close_button(func() -> void:
+		_dismissed[_hint.text] = true
+		_hint_panel.visible = false))
+	_hint_panel.add_child(hint_row)
 	_hint_panel.visible = false
 	_root.add_child(_hint_panel)
 	_root.add_child(minimap)
@@ -114,7 +125,17 @@ func _process(delta: float) -> void:
 ## Подсказка внизу экрана; "" — спрятать.
 func set_hint(text: String) -> void:
 	_hint.text = text
-	_hint_panel.visible = not text.is_empty()
+	_hint_panel.visible = not text.is_empty() and not _dismissed.has(text)
+
+
+## Кнопка-крестик (Kenney) для панелей.
+static func _close_button(action: Callable) -> TextureButton:
+	var close := TextureButton.new()
+	close.texture_normal = load("res://assets/ui/kenney/button_brown_close.png")
+	close.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	close.focus_mode = Control.FOCUS_NONE
+	close.pressed.connect(action)
+	return close
 
 
 ## Верхняя панель по миру.
@@ -149,29 +170,71 @@ func is_card_visible() -> bool:
 
 ## Список людей слева (кнопки с именем и возрастом); перестраивается, когда меняется состав.
 func update_people(world: Dictionary, selected_id: int) -> void:
-	var tick: int = world["tick"]
-	var people := Human.living(world)
-	var key := ""
+	_people_world = world
+	_people_selected = selected_id
+	if _people_panel.visible:
+		_fill_people()
+
+
+## Меню «Люди»: открыть/закрыть.
+func toggle_people() -> void:
+	_people_panel.visible = not _people_panel.visible
+	_people_key = ""
+	if _people_panel.visible:
+		_fill_people()
+
+
+## Плитки людей: портрет, имя, возраст, занятие. Щелчок — выделить и навести камеру (person_selected).
+func _fill_people() -> void:
+	if _people_world.is_empty():
+		return
+	var tick: int = _people_world["tick"]
+	var people := Human.living(_people_world)
+	var key := str(_people_selected)
 	for h: Dictionary in people:
-		key += "%d:%d;" % [h["id"], int(Human.age(h, tick))]
-	key += str(selected_id)
-	_people_panel.visible = people.size() > 1
+		key += ";%d:%d:%s" % [h["id"], int(Human.age(h, tick)), h["action"]]
 	if key == _people_key:
 		return
+	var rebuild := _people_ids(people) != _people_shown
 	_people_key = key
-	for child in _people_list.get_children():
-		child.queue_free()
-	_people_list.add_child(UiStyle.title("Поселение", 24))
+	if rebuild:
+		for child in _people_list.get_children():
+			child.queue_free()
+		_people_tiles.clear()
+		_people_shown = _people_ids(people)
+		for h: Dictionary in people:
+			var tile := PanelContainer.new()
+			tile.theme_type_variation = "Card"
+			tile.mouse_filter = Control.MOUSE_FILTER_STOP
+			tile.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+			var id := int(h["id"])
+			tile.gui_input.connect(func(event: InputEvent) -> void:
+				var button := event as InputEventMouseButton
+				if button and button.pressed and button.button_index == MOUSE_BUTTON_LEFT:
+					person_selected.emit(id))
+			var box := VBoxContainer.new()
+			box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			box.add_child(PersonPortrait.new(h))
+			var label := UiStyle.bold("", 14)
+			label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			label.custom_minimum_size = Vector2(PersonPortrait.SIZE.x, 0)
+			box.add_child(label)
+			tile.add_child(box)
+			_people_list.add_child(tile)
+			_people_tiles[id] = [tile, label]
 	for h: Dictionary in people:
+		var id := int(h["id"])
 		var age := int(Human.age(h, tick))
-		var b := Button.new()
-		b.text = "%s · %d %s" % [h["name"], age, years(age)]
-		b.focus_mode = Control.FOCUS_NONE
-		b.toggle_mode = true
-		b.button_pressed = int(h["id"]) == selected_id
-		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		b.pressed.connect(func() -> void: person_selected.emit(int(h["id"])))
-		_people_list.add_child(b)
+		var parts: Array = _people_tiles[id]
+		(parts[1] as Label).text = "%s\n%d %s · %s" % [h["name"], age, years(age), ACTIONS.get(h["action"], "")]
+		(parts[0] as Control).modulate = Color(1.15, 1.1, 0.9) if id == _people_selected else Color.WHITE
+
+
+static func _people_ids(people: Array) -> String:
+	var ids := PackedStringArray()
+	for h: Dictionary in people:
+		ids.append(str(h["id"]))
+	return ",".join(ids)
 
 
 ## Карточка человека: имя, пол, возраст, семья, потребности, отношение к богу, навыки.
@@ -235,8 +298,9 @@ func toast(text: String, seconds: float = 3.0) -> void:
 
 
 func close_overlays() -> bool:
-	var closed := _help_panel.visible or _card.visible
+	var closed := _help_panel.visible or _card.visible or _people_panel.visible
 	_help_panel.visible = false
+	_people_panel.visible = false
 	if _card.visible:
 		_card.visible = false
 		card_closed.emit()
@@ -280,11 +344,11 @@ func _build_top_bar() -> void:
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(spacer)
-	var find := Button.new()
-	find.text = "К людям"
-	find.focus_mode = Control.FOCUS_NONE
-	find.pressed.connect(func() -> void: find_person_pressed.emit())
-	row.add_child(find)
+	var people := Button.new()
+	people.text = "Люди"
+	people.focus_mode = Control.FOCUS_NONE
+	people.pressed.connect(toggle_people)
+	row.add_child(people)
 	_mysteries.pressed.connect(func() -> void: mysteries_pressed.emit())
 	_mysteries.focus_mode = Control.FOCUS_NONE
 	row.add_child(_mysteries)
@@ -302,12 +366,21 @@ func _build_people_panel() -> void:
 	_people_panel.theme_type_variation = "Card"
 	_people_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	_people_panel.position = Vector2(12, 74)
-	_people_panel.custom_minimum_size = Vector2(230, 0)
-	_people_list.add_theme_constant_override("separation", 6)
-	_people_panel.add_child(_people_list)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 8)
+	var head := HBoxContainer.new()
+	var title := UiStyle.title("Люди", 24)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(title)
+	head.add_child(_close_button(func() -> void: _people_panel.visible = false))
+	box.add_child(head)
+	_people_list.columns = 4
+	_people_list.add_theme_constant_override("h_separation", 8)
+	_people_list.add_theme_constant_override("v_separation", 8)
+	box.add_child(_people_list)
+	_people_panel.add_child(box)
 	_people_panel.visible = false
 	_root.add_child(_people_panel)
-
 
 func _build_card() -> void:
 	_card.theme_type_variation = "Card"
@@ -321,14 +394,9 @@ func _build_card() -> void:
 	var head := HBoxContainer.new()
 	_card_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(_card_title)
-	var close := TextureButton.new()
-	close.texture_normal = load("res://assets/ui/kenney/button_brown_close.png")
-	close.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	close.focus_mode = Control.FOCUS_NONE
-	close.pressed.connect(func() -> void:
+	head.add_child(_close_button(func() -> void:
 		_card.visible = false
-		card_closed.emit())
-	head.add_child(close)
+		card_closed.emit()))
 	box.add_child(head)
 	box.add_child(_card_sub)
 	box.add_child(_card_state)

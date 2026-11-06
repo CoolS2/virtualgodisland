@@ -10,7 +10,7 @@ const TELEPORT_DISTANCE := 90.0
 ## С этого голода над человеком «голоден…» — подсказка игроку, что еды он не нашёл.
 const HUNGRY_LABEL := 60.0
 const ACTION_LABELS := {
-	"idle": "думает", "wander": "гуляет", "explore": "исследует", "study": "изучает", "drink": "пьёт", "eat": "ест", "sleep": "спит", "build": "строит",
+	"idle": "думает", "wander": "гуляет", "explore": "исследует", "study": "изучает", "examine": "рассматривает", "drink": "пьёт", "eat": "ест", "sleep": "спит", "build": "строит",
 }
 ## Модели по полу (без головных уборов); вариант выбирается по id человека.
 const MODELS := {
@@ -26,9 +26,10 @@ const ANIMATIONS := {
 	"walk": "Walk", "idle": "Idle", "wander": "Idle", "explore": "Idle", "drink": "PickUp", "eat": "PickUp",
 	"build": "Punch", "study": "SitDown",
 	"sleep": "Death", "dead": "Death", "held": "Jump", "sad": "Defeat", "scared": "RecieveHit",
+	"examine": "PickUp",
 }
-## Анимации, которые не повторяются, а замирают на последнем кадре (лёг спать / упал).
-const HOLD_LAST_FRAME: Array[String] = ["Death", "Defeat", "SitDown"]
+## Не повторяются: замирают на последнем кадре или играют один раз (удар, подъём, «рассмотреть»).
+const ONE_SHOT: Array[String] = ["Death", "Defeat", "SitDown", "RecieveHit", "StandUp"]
 ## Тёплые и насыщенные: после тонкоррекции и приглушения кадра бледные тона выглядят серыми.
 const SKIN_TONES: Array[Color] = [Color("#f2b48c"), Color("#e09a6c"), Color("#c47a4c"), Color("#9a5a34"), Color("#70401f")]
 const HAIR_COLORS: Array[Color] = [Color("#3b2416"), Color("#5a3820"), Color("#8a5a2b"), Color("#1d1a18"), Color("#b98a4e")]
@@ -195,29 +196,41 @@ func show_state(h: Dictionary, delta: float, age: float = Human.START_AGE) -> vo
 
 func _build_model(h: Dictionary) -> void:
 	_person_id = int(h["id"])
-	var variants: Array = MODELS["f" if h["sex"] == "f" else "m"]
-	var packed: PackedScene = load(variants[_person_id % variants.size()])
-	_model = packed.instantiate()
-	_model.scale = Vector3.ONE * MODEL_SCALE
-	_model.rotation.y = PI # модель смотрит в +Z, у нас «вперёд» — −Z
+	_model = build_model(h, _hair_materials)
+	_hair_color = hair_color(h)
 	add_child(_model)
 	_player = _model.find_child("AnimationPlayer", true, false) as AnimationPlayer
 	if _player:
 		for anim_name: StringName in _player.get_animation_list():
 			var anim := _player.get_animation(anim_name)
 			var base := str(anim_name).get_slice("/", str(anim_name).get_slice_count("/") - 1)
-			anim.loop_mode = Animation.LOOP_NONE if HOLD_LAST_FRAME.has(base) or base == "RecieveHit" or base == "StandUp" else Animation.LOOP_LINEAR
-	_hair_color = HAIR_COLORS[(_person_id * 3) % HAIR_COLORS.size()]
+			anim.loop_mode = Animation.LOOP_NONE if ONE_SHOT.has(base) else Animation.LOOP_LINEAR
+
+
+## Модель человека (по полу; вариант и цвета — по id), лицом к −Z. Материалы волос складываются в hair_out
+## (седина с возрастом). Нужна и для портретов в меню «Люди».
+static func build_model(h: Dictionary, hair_out: Array[StandardMaterial3D] = []) -> Node3D:
+	var id := int(h["id"])
+	var variants: Array = MODELS["f" if h["sex"] == "f" else "m"]
+	var packed: PackedScene = load(variants[id % variants.size()])
+	var model: Node3D = packed.instantiate()
+	model.scale = Vector3.ONE * MODEL_SCALE
+	model.rotation.y = PI # модель смотрит в +Z, у нас «вперёд» — −Z
 	# У Quaternius «Skin» — голова, руки, ноги (в паке почти чёрная), «Face» — глаза: их не трогаем.
-	_recolor(_model, {
-		"Skin": SKIN_TONES[(_person_id * 7) % SKIN_TONES.size()],
-		"Shirt": SHIRT_COLORS[(_person_id * 5) % SHIRT_COLORS.size()],
-		"Hair": _hair_color,
-	})
+	_recolor(model, {
+		"Skin": SKIN_TONES[(id * 7) % SKIN_TONES.size()],
+		"Shirt": SHIRT_COLORS[(id * 5) % SHIRT_COLORS.size()],
+		"Hair": hair_color(h),
+	}, hair_out)
+	return model
+
+
+static func hair_color(h: Dictionary) -> Color:
+	return HAIR_COLORS[(int(h["id"]) * 3) % HAIR_COLORS.size()]
 
 
 ## Своя копия материала с цветом для поверхностей с данным именем материала (Skin, Shirt, Hair).
-func _recolor(node: Node, colors: Dictionary) -> void:
+static func _recolor(node: Node, colors: Dictionary, hair_out: Array[StandardMaterial3D]) -> void:
 	var mi := node as MeshInstance3D
 	if mi and mi.mesh:
 		for s in mi.mesh.get_surface_count():
@@ -227,9 +240,9 @@ func _recolor(node: Node, colors: Dictionary) -> void:
 				copy.albedo_color = colors[mat.resource_name]
 				mi.set_surface_override_material(s, copy)
 				if mat.resource_name == "Hair":
-					_hair_materials.append(copy)
+					hair_out.append(copy)
 	for child in node.get_children():
-		_recolor(child, colors)
+		_recolor(child, colors, hair_out)
 
 
 ## Седина: с 45 лет волосы светлеют, к 65 — седые.
