@@ -119,7 +119,8 @@ var ticks := WorldEngine.catch_up(world, map, now_ms)
   (`people[]` с `id/mother_id/father_id/partner_id/pregnant_until`, `next_person_id`, `knowledge`, `bonds`,
   `newcomer_due/arrived`; из v≤7 `human` → `people[0]`, ADR-0007); 9 — находки (`found`); 10 — изученные следы (`studied`, `human.study`), деревья и валуны
 (`felled`, `shaken`, `rolled`); 11 — туман и отметки (`explored`, `marked`), тайники (`dug`, `chests`, `bonuses`),
-события (`next_storm`, `storm_until`, `next_star`, `starstones`), желания (`human.wish/wish_until/next_wish`). Загрузка старых версий: `WorldEngine.from_data` заполняет
+события (`next_storm`, `storm_until`, `next_star`, `starstones`), желания (`human.wish/wish_until/next_wish`);
+12 — огород (`garden`; лопата — `"shovel"` в `bonuses`). Загрузка старых версий: `WorldEngine.from_data` заполняет
   недостающие поля, предметы и человечек появляются на ближайшем тике.
 - Удержание предмета рукой в сейв не попадает: после загрузки рука пуста.
 - Несовместимое изменение формы мира → миграция `vN → vN+1` с тестом (предпочтительно)

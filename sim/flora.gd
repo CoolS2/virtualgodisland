@@ -18,7 +18,7 @@ const FRUIT_TREES: Array[String] = ["tree", "tree_dark", "palm"]
 ## Вокруг следов прошлого ничего не растёт — чтобы их было видно.
 const RELIC_CLEARANCE := {"ruins": 8.0, "stone_circle": 5.0, "old_hearth": 3.0, "obelisk": 3.5, "torch_stub": 3.5,
 	"raft_wreck": 6.5, "burnt_tree": 2.5, "fruit_core": 1.5, "fish_bones": 1.5, "geyser": 4.0, "berry_grove": 4.5,
-	"glow_mushrooms": 3.5, "giant_nest": 3.5, "rock_arch": 5.0}
+	"glow_mushrooms": 3.5, "giant_nest": 3.5, "rock_arch": 5.0, "wild_vegetables": 3.5}
 const REGROW_TICKS := 3 * WorldClock.DAY_TICKS
 const SHAKE_COOLDOWN := 60
 const FELL_BRANCHES := 2

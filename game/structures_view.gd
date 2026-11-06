@@ -11,11 +11,12 @@ var _state := {} # ключ -> последние данные
 var _fire_light: OmniLight3D
 var _flame: MeshInstance3D
 var _time := 0.0
+var _shovel: MeshInstance3D
 
 const HOUSE_SCALE := 2.6
 ## Пятно на земле под постройкой: радиус и цвет.
 const PATCHES := {
-	"fire": [2.2, Color("#4f4740")], "camp": [4.5, Color("#9c8463")], "shrine": [3.2, Color("#c4bba8")],
+	"fire": [2.2, Color("#4f4740")], "camp": [4.5, Color("#9c8463")], "garden": [3.6, Color("#6b5332")], "shrine": [3.2, Color("#c4bba8")],
 	"house": [4.8, Color("#9c8463")], "cave": [3.0, Color("#857d72")], "raft": [3.0, Color("#a8916a")],
 }
 
@@ -46,6 +47,22 @@ func sync(world: Dictionary) -> void:
 		place.add_child(node)
 		add_child(place)
 		_nodes[key] = place
+	_sync_shovel(world)
+
+
+## Лопата лежит у лагеря, пока огород не вскопан (потом — у грядок, см. garden_model).
+func _sync_shovel(world: Dictionary) -> void:
+	var camp: Dictionary = world["camp"]
+	var want := (world["bonuses"] as Array).has("shovel") and (world["garden"] as Dictionary).is_empty() and not camp.is_empty()
+	if want and _shovel == null:
+		var p := Vector2(camp["x"], camp["z"]) + Vector2(1.6, -1.2)
+		_shovel = Models.instance("survival/tool-shovel", 5.0)
+		_shovel.position = Vector3(p.x, map.height_at_world(p.x, p.y), p.y)
+		_shovel.rotation = Vector3(1.45, 0.7, 0.0) # лежит на земле
+		add_child(_shovel)
+	elif not want and _shovel != null:
+		_shovel.queue_free()
+		_shovel = null
 
 
 func _process(delta: float) -> void:
@@ -91,6 +108,8 @@ func _build(key: String) -> Node3D:
 			_mesh(root, LowPoly.altar(), mat)
 		"house":
 			root.add_child(house_model())
+		"garden":
+			root.add_child(garden_model())
 		"cave":
 			_mesh(root, LowPoly.cave_entrance(), mat)
 		"raft":
@@ -99,6 +118,31 @@ func _build(key: String) -> Node3D:
 
 
 ## Домик из модулей Fantasy Town (клетка 1×1, увеличена): стены с дверью и окнами, двускатная крыша.
+## Огород: три грядки вскопанной земли с ростками, у края — лопата.
+static func garden_model() -> Node3D:
+	var garden := Node3D.new()
+	var soil := StandardMaterial3D.new()
+	soil.albedo_color = Color("#5a4128")
+	soil.roughness = 1.0
+	for row in 3:
+		var bed := MeshInstance3D.new()
+		var box := BoxMesh.new()
+		box.size = Vector3(4.0, 0.25, 0.8)
+		bed.mesh = box
+		bed.material_override = soil
+		bed.position = Vector3(0, 0.05, (row - 1) * 1.2)
+		garden.add_child(bed)
+		for i in 4:
+			var sprout := Models.instance("pirate/grass", 0.9)
+			sprout.position = Vector3(-1.5 + i * 1.0, 0.15, (row - 1) * 1.2)
+			garden.add_child(sprout)
+	var shovel := Models.instance("survival/tool-shovel", 5.0)
+	shovel.position = Vector3(2.4, 0, 0.9)
+	shovel.rotation = Vector3(0.15, 0.4, 0.15)
+	garden.add_child(shovel)
+	return garden
+
+
 static func house_model() -> Node3D:
 	var house := Node3D.new()
 	house.scale = Vector3.ONE * HOUSE_SCALE

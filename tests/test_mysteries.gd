@@ -269,3 +269,37 @@ func test_explorer_finds_relics_and_walks_the_island() -> void:
 		assert_true(Hints.DISCOVERABLE.has(key))
 	var restored := WorldEngine.from_data(JSON.parse_string(JSON.stringify(w, "", true, true)))
 	assert_eq(restored["found"], w["found"], "находки сохраняются")
+
+
+## Огород: найти дикие овощи → палка и камень у лагеря → лопата → огород у лагеря растит овощи.
+func test_garden_chain_from_wild_vegetables_to_harvest() -> void:
+	var pair := _fresh()
+	var w: Dictionary = pair[0]
+	var map: IslandMap = pair[1]
+	assert_true(map.relics.has("wild_vegetables"), "на острове есть дикие овощи")
+	var camp := _make_camp(pair)
+	Items.add(w, "branch", Vector3(camp.x + 1.0, 0, camp.y))
+	Items.add(w, "stone", Vector3(camp.x, 0, camp.y + 1.0))
+	assert_eq(Mysteries.garden_step(w), "", "овощи ещё не найдены — лопату не делают")
+	(w["found"] as Array).append("wild_vegetables")
+	assert_eq(Mysteries.garden_step(w), "shovel")
+	_run(pair, Mysteries.BUILD_TICKS + 4)
+	assert_true((w["bonuses"] as Array).has("shovel"), "сделали лопату")
+	_run(pair, Mysteries.BUILD_TICKS + 4)
+	assert_true(Mysteries.is_solved(w, "garden"), "огород вскопан")
+	assert_true(Human.knows(w, "vegetable"), "свои овощи — съедобны")
+	var site := Vector2(w["garden"]["x"], w["garden"]["z"])
+	assert_lt(site.distance_to(camp), 6.0, "огород у лагеря")
+	w["tick"] = Mysteries.GARDEN_TICKS * 10 + Mysteries.GARDEN_PHASE
+	Mysteries.update(w, map)
+	assert_eq(Items.count_kind(w, "vegetable"), 1, "вырос овощ")
+
+
+func test_no_shovel_without_stick_and_stone() -> void:
+	var pair := _fresh()
+	var w: Dictionary = pair[0]
+	var camp := _make_camp(pair)
+	(w["found"] as Array).append("wild_vegetables")
+	w["items"] = (w["items"] as Array).filter(func(item: Dictionary) -> bool:
+		return Vector2(item["x"], item["z"]).distance_to(camp) > Mysteries.RAFT_GATHER_RADIUS + 1.0)
+	assert_eq(Mysteries.garden_step(w), "", "нечем делать лопату")

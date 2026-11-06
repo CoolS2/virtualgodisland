@@ -88,6 +88,15 @@ const LAYOUTS := {
 		["pirate/rocks-sand-b", 0.55, Vector2(1.8, 0.0), PI, 0.0, 0.2],
 		["town/rock-large", 1.8, Vector2(0.0, 0.0), 0.0, 0.0, -1.7],
 	],
+	"wild_vegetables": [
+		["food/pumpkin-basic", 4.0, Vector2(0.0, 0.0), 0.0, 0.0, 0.05],
+		["food/pumpkin-basic", 3.0, Vector2(1.4, 0.8), 1.0, 0.0, 0.05],
+		["food/cabbage", 4.0, Vector2(-1.2, 0.9), 2.0, 0.0, 0.05],
+		["food/carrot", 5.0, Vector2(0.6, -1.3), 0.5, 1.2, 0.0],
+		["food/carrot", 5.0, Vector2(-0.9, -1.0), 2.5, 1.3, 0.0],
+		["pirate/grass-plant", 1.2, Vector2(1.8, -0.6), 0.0, 0.0, 0.0],
+		["pirate/grass-plant", 1.1, Vector2(-1.9, -0.2), 1.0, 0.0, 0.0],
+	],
 	"fruit_core": [["food/apple-half", 2.4, Vector2(0, 0), 0.0, 0.0, 0.02]],
 	"fish_bones": [["food/fish-bones", 1.4, Vector2(0, 0), 0.0, 0.0, 0.02]],
 }
@@ -97,7 +106,7 @@ const PATCHES := {
 	"stone_circle": [4.2, Color("#c4bba8")], "torch_stub": [3.4, Color("#857d72")], "raft_wreck": [6.0, Color("#a8916a")],
 	"burnt_tree": [2.4, Color("#3f3833")], "fruit_core": [1.0, Color("#8c7a52")], "fish_bones": [1.0, Color("#b59f72")],
 	"geyser": [3.0, Color("#9fb1a8")], "berry_grove": [3.8, Color("#6f7d45")], "glow_mushrooms": [2.6, Color("#4f4560")],
-	"giant_nest": [2.8, Color("#8a7a5a")], "rock_arch": [4.5, Color("#b59f72")],
+	"giant_nest": [2.8, Color("#8a7a5a")], "rock_arch": [4.5, Color("#b59f72")], "wild_vegetables": [3.0, Color("#7d6a45")],
 }
 ## Камень Kenney (стены, колонны, валуны) — синеватый; на острове старый камень тёплый, выветренный.
 const STONE_PARTS: Array[String] = ["town/wall-broken", "town/wall-half", "town/pillar-stone", "town/rock-large"]

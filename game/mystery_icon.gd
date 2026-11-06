@@ -66,6 +66,17 @@ static func model_for(mystery: String) -> Node3D:
 			fire.position = Vector3(0.45, 0, 0.35)
 			camp.add_child(fire)
 			return camp
+		"garden":
+			var garden := Node3D.new()
+			garden.add_child(Models.instance("food/pumpkin-basic", 2.0))
+			var carrot := Models.instance("food/carrot", 2.0)
+			carrot.position = Vector3(0.45, 0, 0.2)
+			garden.add_child(carrot)
+			var shovel := Models.instance("survival/tool-shovel", 2.5)
+			shovel.position = Vector3(-0.4, 0, 0)
+			shovel.rotation.z = 0.3
+			garden.add_child(shovel)
+			return garden
 		"fisherman":
 			return Models.instance("food/fish")
 		"shrine":

@@ -6,13 +6,20 @@ extends RefCounted
 const LIST := [
 	{"id": "food", "name": "Еда"},
 	{"id": "camp", "name": "Лагерь у огня"},
+	{"id": "garden", "name": "Огород"},
 	{"id": "fisherman", "name": "Рыбак"},
 	{"id": "shrine", "name": "Алтарь"},
 	{"id": "house", "name": "Дом"},
 	{"id": "cave", "name": "Пещера в горе"},
 	{"id": "raft", "name": "Плот"},
 ]
-const STRUCTURES: Array[String] = ["fire", "camp", "shrine", "house", "cave", "raft"]
+const STRUCTURES: Array[String] = ["fire", "camp", "garden", "shrine", "house", "cave", "raft"]
+## Огород: найти дикие овощи → у лагеря палка и камень — человек делает лопату (world["bonuses"] has "shovel") →
+## вскапывает огород у лагеря; огород раз в GARDEN_TICKS выращивает овощ (не больше GARDEN_MAX рядом).
+const GARDEN_TICKS := 40
+const GARDEN_PHASE := 20
+const GARDEN_MAX := 4
+const GARDEN_RADIUS := 3.0
 const BUILD_TICKS := 3
 ## Человечек замечает огонь с такого расстояния.
 const SEE_FIRE := 30.0
@@ -56,6 +63,7 @@ static func update(w: Dictionary, map: IslandMap) -> void:
 	if people.is_empty():
 		return
 	var tick: int = w["tick"]
+	_grow_garden(w, map, tick)
 	var fisher := _best(people, "fish")
 	var fishing_ticks := maxi(1, roundi(FISHING_TICKS / float(fisher["skills"]["fish"])))
 	if is_solved(w, "fisherman") and tick % fishing_ticks == 0 and Items.count_kind(w, "fish") == 0:
@@ -79,7 +87,12 @@ static func update(w: Dictionary, map: IslandMap) -> void:
 		return
 	var camp := _pos(w["camp"])
 	var house_spot := house_site(w, map)
-	if not is_solved(w, "shrine") and _max(people, "faith") >= SHRINE_FAITH:
+	var garden := garden_step(w)
+	if garden == "shovel":
+		Human.start_build(builder, "shovel", camp)
+	elif garden == "garden":
+		Human.start_build(builder, "garden", garden_site(w, map))
+	elif not is_solved(w, "shrine") and _max(people, "faith") >= SHRINE_FAITH:
 		Human.start_build(builder, "shrine", shrine_site(w, map))
 	elif not is_solved(w, "house") and _near(w, house_spot, "branch").size() >= HOUSE_BRANCHES \
 			and _near(w, house_spot, "stone").size() >= HOUSE_STONES:
@@ -87,6 +100,45 @@ static func update(w: Dictionary, map: IslandMap) -> void:
 	elif not is_solved(w, "raft") and _max(people, "love") >= RAFT_LOVE and _branches_near(w, camp).size() >= RAFT_BRANCHES:
 		var wreck: Vector2 = map.relics.get("raft_wreck", camp)
 		Human.start_build(builder, "raft", Miracles.nearest_beach(map, wreck))
+
+
+## Следующий шаг к огороду: "shovel" — пора делать лопату (палка и камень у лагеря), "garden" — вскапывать;
+## "" — рано (дикие овощи не найдены, нет материалов) или огород уже есть.
+static func garden_step(w: Dictionary) -> String:
+	if is_solved(w, "garden") or not is_solved(w, "camp") or not (w["found"] as Array).has("wild_vegetables"):
+		return ""
+	if (w["bonuses"] as Array).has("shovel"):
+		return "garden"
+	var camp := _pos(w["camp"])
+	if not _near(w, camp, "branch").is_empty() and not _near(w, camp, "stone").is_empty():
+		return "shovel"
+	return ""
+
+
+## Где огород: рядом с лагерем (на суше).
+static func garden_site(w: Dictionary, map: IslandMap) -> Vector2:
+	var camp := _pos(w["camp"])
+	for offset: Vector2 in [Vector2(4, -3), Vector2(-4, 3), Vector2(3, 4), Vector2(-3, -4)]:
+		var spot := camp + offset
+		var biome := map.biome_at_world(spot.x, spot.y)
+		if biome != IslandMap.Biome.SEA and biome != IslandMap.Biome.RIVER:
+			return spot
+	return camp
+
+
+## Огород растит овощи.
+static func _grow_garden(w: Dictionary, map: IslandMap, tick: int) -> void:
+	if (w["garden"] as Dictionary).is_empty() or tick % GARDEN_TICKS != GARDEN_PHASE:
+		return
+	var at := _pos(w["garden"])
+	var count := 0
+	for item: Dictionary in w["items"]:
+		if item["kind"] == "vegetable" and Vector2(item["x"], item["z"]).distance_to(at) <= GARDEN_RADIUS:
+			count += 1
+	if count >= GARDEN_MAX:
+		return
+	var p := at + Vector2.from_angle(TAU * count / GARDEN_MAX) * 1.2
+	Items.add(w, "vegetable", Vector3(p.x, map.height_at_world(p.x, p.y), p.y))
 
 
 ## Где отстраивают дом: на развалинах (нет развалин — у лагеря).
@@ -133,6 +185,22 @@ static func complete_build(w: Dictionary, kind: String, at: Vector2) -> void:
 	match kind:
 		"camp":
 			w["camp"] = _dict(at)
+		"shovel":
+			var branches := _near(w, at, "branch")
+			var stones := _near(w, at, "stone")
+			if branches.is_empty() or stones.is_empty():
+				return # палку или камень унесли
+			(w["items"] as Array).erase(branches[0])
+			(w["items"] as Array).erase(stones[0])
+			(w["bonuses"] as Array).append("shovel")
+			WorldEngine.add_log(w, "у лагеря сделали лопату — из палки и камня")
+			return # лопата — шаг к огороду, не тайна
+		"garden":
+			if not (w["bonuses"] as Array).has("shovel"):
+				return
+			w["garden"] = _dict(at)
+			if not Human.knows(w, "vegetable"):
+				(w["knowledge"] as Array).append("vegetable") # сами вырастили — знают, что съедобно
 		"shrine":
 			w["shrine"] = _dict(at)
 		"house":

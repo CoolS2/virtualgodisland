@@ -16,7 +16,7 @@ extends RefCounted
 ##   items_spawned: bool — стартовые предметы уже разложены (Items.spawn_initial)
 ##   mana: float          — мана бога (sim/miracles.gd)
 ##   craters: Array       — кратеры (sim/craters.gd)
-##   mysteries, fire, camp, shrine, cave, raft, fish_eaten — тайны (sim/mysteries.gd)
+##   mysteries, fire, camp, garden, shrine, cave, raft, fish_eaten — тайны (sim/mysteries.gd)
 ##   found: Array[String] — найденные людьми следы прошлого (ключи Hints.DISCOVERABLE)
 ##   studied: Array[String] — изученные следы (sim/studies.gd)
 ##   felled, shaken, rolled — что рука сделала с деревьями и валунами (sim/flora.gd)
@@ -70,7 +70,7 @@ static func create_world(world_seed: int, now_ms: int, options: Dictionary = {})
 		"mana": Miracles.MANA_START,
 		"craters": [],
 		"mysteries": [],
-		"fire": {}, "camp": {}, "shrine": {}, "house": {}, "cave": {}, "raft": {},
+		"fire": {}, "camp": {}, "garden": {}, "shrine": {}, "house": {}, "cave": {}, "raft": {},
 		"fish_eaten": 0,
 		"found": [],
 		"studied": [],
@@ -221,6 +221,7 @@ static func from_data(data: Variant) -> Dictionary:
 		"house": Mysteries.structure_from_data(d.get("house")),
 		"cave": Mysteries.structure_from_data(d.get("cave")),
 		"raft": Mysteries.structure_from_data(d.get("raft")),
+		"garden": Mysteries.structure_from_data(d.get("garden")),
 		"fish_eaten": int(d.get("fish_eaten", 0)),
 		"found": _strings_from_data(d.get("found", [])),
 		"studied": _strings_from_data(d.get("studied", [])),

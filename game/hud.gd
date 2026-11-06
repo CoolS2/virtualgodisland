@@ -265,7 +265,7 @@ func update_card(h: Dictionary, world: Dictionary) -> void:
 	var known: Array = world["knowledge"]
 	var names := PackedStringArray()
 	for kind: String in known:
-		names.append({"fruit": "фрукты", "fish": "рыба", "egg": "яйца"}.get(kind, kind))
+		names.append({"fruit": "фрукты", "fish": "рыба", "egg": "яйца", "vegetable": "овощи"}.get(kind, kind))
 	_card_food.text = "Племя не знает, что можно есть" if names.is_empty() else "Племя знает еду: " + ", ".join(names)
 	_card_family.text = _family_text(h, world)
 

@@ -23,6 +23,7 @@ func _init() -> void:
 		"fruit": Models.mesh("food/apple", 2.6),
 		"fish": Models.mesh("food/fish", 1.5),
 		"egg": Models.mesh("food/egg", 6.0),
+		"vegetable": Models.mesh("food/pumpkin-basic", 2.5),
 	}
 
 

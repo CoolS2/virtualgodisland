@@ -4,7 +4,7 @@ extends RefCounted
 ## скатилось — в мире.
 
 ## Вокруг построек (лагерь, дом…) не рисуем траву и кусты — места видно (деревья там тоже прячем).
-const STRUCTURE_CLEARANCE := {"fire": 2.5, "camp": 5.0, "shrine": 3.5, "house": 5.0, "cave": 3.0, "raft": 3.0}
+const STRUCTURE_CLEARANCE := {"fire": 2.5, "camp": 5.0, "garden": 4.0, "shrine": 3.5, "house": 5.0, "cave": 3.0, "raft": 3.0}
 
 
 ## Растительность из map.flora. world (может быть пустым — фон меню): вырванные деревья, скатившиеся валуны,

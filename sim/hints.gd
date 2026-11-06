@@ -11,7 +11,7 @@ const ATTEMPTS := 3000
 ## След -> тайна, к которой он относится.
 const FOR_MYSTERY := {
 	"fruit_core": "food", "old_hearth": "camp", "burnt_tree": "camp", "fish_bones": "fisherman",
-	"stone_circle": "shrine", "ruins": "house", "torch_stub": "cave", "raft_wreck": "raft",
+	"stone_circle": "shrine", "ruins": "house", "torch_stub": "cave", "raft_wreck": "raft", "wild_vegetables": "garden",
 }
 ## Следы, которые человек «находит», подойдя ближе DISCOVER_RADIUS (запись в журнал, счётчик находок).
 ## Текст — что нашёл (винительный падеж).
@@ -23,6 +23,7 @@ const DISCOVERABLE := {
 	"torch_stub": "заброшенную шахту",
 	"raft_wreck": "обломки корабля",
 	"burnt_tree": "обгоревшее дерево",
+	"wild_vegetables": "заросли диких овощей",
 	"geyser": "гейзер — горячая вода бьёт из земли",
 	"berry_grove": "ягодную поляну",
 	"glow_mushrooms": "поляну светящихся грибов",
@@ -53,13 +54,15 @@ static func place(map: IslandMap) -> Dictionary:
 		"fish_bones": [IslandMap.Biome.BEACH],
 		"torch_stub": [IslandMap.Biome.MOUNTAIN],
 		"raft_wreck": [IslandMap.Biome.BEACH],
+		"wild_vegetables": [IslandMap.Biome.FIELD],
 		"geyser": [IslandMap.Biome.FIELD],
 		"berry_grove": [IslandMap.Biome.FIELD],
 		"glow_mushrooms": [IslandMap.Biome.FOREST],
 		"giant_nest": [IslandMap.Biome.MOUNTAIN],
 		"rock_arch": [IslandMap.Biome.BEACH],
 	}
-	var keys: Array[String] = ["ruins", "stone_circle", "fruit_core", "burnt_tree", "fish_bones", "torch_stub", "raft_wreck"]
+	var keys: Array[String] = ["ruins", "stone_circle", "fruit_core", "burnt_tree", "fish_bones", "torch_stub", "raft_wreck",
+		"wild_vegetables"]
 	# Особые места: на каждом острове — PLACES_PER_ISLAND из набора (какие — по seed).
 	var places: Array[String] = PLACES.duplicate()
 	for i in places.size() - PLACES_PER_ISLAND:

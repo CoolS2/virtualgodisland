@@ -36,7 +36,7 @@ buttonLong_brown, buttonLong_brown_pressed, buttonLong_grey, panelInset_beige (R
 | Survival Kit 2.0 | `assets/models/survival` | тайник (chest), ели (tree, tree-tall), камни (rock-a/b/c, rock-flat-grass), трава, костёр (campfire-pit), палатка (tent), предметы: камень (resource-stone), бревно (tree-log-small); следы прошлого: кирка, лопата (tool-pickaxe, tool-shovel), бочка, ящик, ведро (barrel, box-open, bucket) |
 | Pirate Kit | `assets/models/pirate` | скалы для арки (rocks-sand-b), пальмы (palm-bend/straight), кусты и трава (grass-plant, grass), плот (boat-row-small), обломки корабля (ship-wreck) с сундуком, ящиком и бочкой (chest, crate, barrel) |
 | Fantasy Town Kit 2.0 | `assets/models/town` | лиственные деревья (tree, tree-high-round), дом из стен (wall-wood, -door, -window-shutters) и крыши (roof-gable); развалины и святилище: каменные стены (wall-broken, wall-half), колонны (pillar-stone), валуны (rock-large), телега, колесо, сломанный забор (cart, wheel, fence-broken) |
-| Food Kit | `assets/models/food` | яблоко (фрукт), рыба, подсказки: половинка яблока, рыбьи кости; яйцо огромной птицы (egg), светящиеся грибы (mushroom) |
+| Food Kit | `assets/models/food` | яблоко (фрукт), рыба, подсказки: половинка яблока, рыбьи кости; яйцо огромной птицы (egg), светящиеся грибы (mushroom); огород и дикие овощи (pumpkin-basic, carrot, cabbage) |
 
 Палитры (`Textures/colormap.png`) **перекрашены** под природную гамму (мятные зелёные → оливковые):
 `tools/ui_art/recolor_kenney.py` берёт оригиналы из архивов и пишет копии — перезапуск восстанавливает результат.
