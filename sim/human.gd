@@ -693,9 +693,9 @@ static func _move(h: Dictionary, map: IslandMap) -> bool:
 				continue
 		var step: float = minf(minf(STEP, budget), pos.distance_to(goal))
 		var next := pos + (goal - pos).normalized() * step
-		if not _walkable(map, next):
-			if not route.is_empty():
-				break # маршрут задел море — не должно быть; дальше — как застрял
+		# По проложенному маршруту идёт, не перепроверяя каждый шаг (маршрут уже проверен по клеткам суши;
+		# шаги не совпадают с точками проверки и у узкого моста или берега могли бы задеть воду).
+		if route.is_empty() and not _walkable(map, next):
 			route.assign(find_route(map, pos, target))
 			if route.is_empty():
 				break # по суше не дойти
