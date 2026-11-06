@@ -612,7 +612,10 @@ static func _decide(w: Dictionary, map: IslandMap, h: Dictionary) -> void:
 		return # уже идёт (кто идёт за другим — каждый тик сверяется с ним)
 	match best:
 		"drink":
-			var water := Places.water_near(map, position_of(h), _nearest_river_point(h, map))
+			var river := _nearest_river_point(h, map)
+			var water := Places.water_near(map, position_of(h), river)
+			if water != river and not _path_clear(map, position_of(h), water):
+				water = river # к гейзеру не пройти — к реке
 			_set_action(h, "drink", water.x, water.y)
 		"eat":
 			var id := _nearest_food(w, map, h)
@@ -785,16 +788,22 @@ static func _nearest_food(w: Dictionary, map: IslandMap, h: Dictionary) -> int:
 
 
 ## Ближайшая к человечку клетка реки (кроме устья в море), в мировых координатах.
+## Ближайшая клетка реки, до которой можно дойти по прямой (не через море); нет такой — просто ближайшая
+## (иначе человек раз за разом шёл бы к воде за бухтой и умирал от жажды).
 static func _nearest_river_point(h: Dictionary, map: IslandMap) -> Vector2:
 	var pos := position_of(h)
 	var half := map.half_extent()
-	var best := pos
-	var best_dist := INF
+	var points: Array[Vector2] = []
 	for k in map.river.size() - 1:
 		var i: int = map.river[k]
-		var p := Vector2(i % map.size - half, floori(float(i) / map.size) - half)
-		var d := pos.distance_squared_to(p)
-		if d < best_dist:
-			best_dist = d
-			best = p
-	return best
+		points.append(Vector2(i % map.size - half, floori(float(i) / map.size) - half))
+	if points.is_empty():
+		return pos
+	points.sort_custom(func(a: Vector2, b: Vector2) -> bool:
+		var da := a.distance_squared_to(pos)
+		var db := b.distance_squared_to(pos)
+		return da < db or (da == db and (a.x < b.x or (a.x == b.x and a.y < b.y))))
+	for p in points:
+		if _path_clear(map, pos, p):
+			return p
+	return points[0]
