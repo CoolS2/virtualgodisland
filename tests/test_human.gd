@@ -170,3 +170,45 @@ func test_v2_human_migrates() -> void:
 	assert_false(w["people"][0]["spawned"])
 	WorldEngine.step(w, _map)
 	assert_true(w["people"][0]["spawned"])
+
+
+## Прямая перекрыта морем (бухта) — маршрут по суше: все отрезки без моря, конец — в цели.
+func test_route_goes_around_a_bay() -> void:
+	var half := _map.half_extent()
+	var beach: Array[Vector2] = []
+	for i in range(0, _map.biomes.size(), 7):
+		if _map.biomes[i] == IslandMap.Biome.BEACH:
+			beach.append(Vector2(i % _map.size - half, floori(float(i) / _map.size) - half))
+	var a := Vector2.INF
+	var b := Vector2.INF
+	for i in beach.size():
+		for j in range(i + 1, beach.size()):
+			if beach[i].distance_to(beach[j]) < 60.0 and not Human._path_clear(_map, beach[i], beach[j]):
+				a = beach[i]
+				b = beach[j]
+				break
+		if a != Vector2.INF:
+			break
+	assert_ne(a, Vector2.INF, "нашлись две точки берега через бухту")
+	var route := Human.find_route(_map, a, b)
+	assert_false(route.is_empty(), "маршрут есть")
+	var from := a
+	for point: Array in route:
+		var p := Vector2(point[0], point[1])
+		assert_true(Human._path_clear(_map, from, p), "отрезок маршрута по суше")
+		from = p
+	assert_lt(from.distance_to(b), 0.01, "маршрут ведёт к цели")
+	# И человек действительно доходит.
+	var w := _world()
+	var h: Dictionary = w["people"][0]
+	h["x"] = a.x
+	h["z"] = a.y
+	h["action"] = "build"
+	h["tx"] = b.x
+	h["tz"] = b.y
+	h["build_kind"] = "camp"
+	for _i in 10:
+		if Human.position_of(h).distance_to(b) <= Human.REACH:
+			break
+		Human._move(h, _map)
+	assert_lte(Human.position_of(h).distance_to(b), Human.REACH, "дошёл в обход")

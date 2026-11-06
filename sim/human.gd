@@ -11,6 +11,7 @@ extends RefCounted
 ##   touch_tick: int — тик последнего «погладить/шлёпнуть» (не чаще раза в тик)
 ##   build_kind: String, work: int — что строит (тайны) и сколько тиков уже работает
 ##   study: String — какой след изучает (sim/studies.gd), "" — ничего
+##   route: Array — точки [x, z] маршрута в обход моря к (tx, tz) (find_route), [] — идёт по прямой
 ##   wish: String — чего хочет ("" | ключ WISHES), wish_until: int — до какого тика; next_wish: int — когда захочет
 ##   name: String; sex: "m" | "f"; born_tick: int; start_age: float (лет при born_tick); lifespan: float (лет);
 ##   skills: {"forage", "build", "fish", "heal"} — множители 0.7..1.3 (кто-то лучше добывает еду, кто-то строит…)
@@ -110,6 +111,10 @@ const SPAWN_ATTEMPTS := 200
 const SPAWN_MAX_HEIGHT := 6.0
 ## Первый человек очнулся в стольких единицах от обломков своего корабля.
 const SHIPWRECK_MIN := 4.0
+## Поиск маршрута в обход моря: шаги по сетке и предел просмотренных клеток.
+const ROUTE_STEPS: Array[Vector2i] = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1),
+	Vector2i(1, 1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(-1, -1)]
+const ROUTE_MAX_CELLS := 12000
 const SHIPWRECK_MAX := 9.0
 
 
@@ -119,7 +124,7 @@ static func default_state() -> Dictionary:
 		"spawned": false, "x": 0.0, "z": 0.0,
 		"action": "idle", "tx": 0.0, "tz": 0.0, "target_item": -1, "stuck": 0,
 		"faith": 0.0, "love": 0.0, "fear": 0.0, "held": false, "touch_tick": -1,
-		"build_kind": "", "work": 0, "study": "", "wish": "", "wish_until": -1, "next_wish": -1,
+		"build_kind": "", "work": 0, "study": "", "route": [], "wish": "", "wish_until": -1, "next_wish": -1,
 		"id": 1, "mother_id": -1, "father_id": -1, "partner_id": -1, "pregnant_until": -1,
 		"name": "", "sex": "m", "born_tick": 0, "start_age": START_AGE, "lifespan": LIFESPAN_MAX,
 		"skills": {"forage": 1.0, "build": 1.0, "fish": 1.0, "heal": 1.0}, "cause": "",
@@ -661,16 +666,29 @@ static func _wander(w: Dictionary, map: IslandMap, h: Dictionary) -> void:
 
 
 ## Идёт к (tx, tz) не дальше WALK_PER_TICK, не заходя в море. true — пришёл.
+## Прямой путь перекрыт морем (бухта) — строит маршрут по суше (find_route) и идёт по точкам h["route"].
 static func _move(h: Dictionary, map: IslandMap) -> bool:
 	var pos := position_of(h)
 	var target := Vector2(h["tx"], h["tz"])
 	var budget := WALK_PER_TICK
 	var progressed := false
+	var route: Array = h["route"]
 	while budget > 0.0 and pos.distance_to(target) > REACH:
-		var step: float = minf(minf(STEP, budget), pos.distance_to(target))
-		var next := pos + (target - pos).normalized() * step
+		var goal := target
+		if not route.is_empty():
+			goal = Vector2(route[0][0], route[0][1])
+			if pos.distance_to(goal) <= REACH:
+				route.pop_front()
+				continue
+		var step: float = minf(minf(STEP, budget), pos.distance_to(goal))
+		var next := pos + (goal - pos).normalized() * step
 		if not _walkable(map, next):
-			break
+			if not route.is_empty():
+				break # маршрут задел море — не должно быть; дальше — как застрял
+			route.assign(find_route(map, pos, target))
+			if route.is_empty():
+				break # по суше не дойти
+			continue
 		pos = next
 		budget -= step
 		progressed = true
@@ -686,6 +704,77 @@ static func _move(h: Dictionary, map: IslandMap) -> bool:
 	return false
 
 
+## Маршрут по суше от a до b (A* по клеткам карты, без срезания углов у моря): точки [x, z] после
+## «натягивания нити» (лишние повороты убраны). [] — не дойти (или до цели и так прямая).
+static func find_route(map: IslandMap, a: Vector2, b: Vector2) -> Array:
+	var half := map.half_extent()
+	var start := _cell(map, a)
+	var goal := _cell(map, b)
+	if start < 0 or goal < 0 or map.biomes[goal] == IslandMap.Biome.SEA:
+		return []
+	var came := {start: -1}
+	var cost := {start: 0.0}
+	var open := MinHeap.new()
+	open.push(0.0, start)
+	var expanded := 0
+	var found := false
+	while not open.is_empty() and expanded < ROUTE_MAX_CELLS:
+		var current := open.pop()
+		expanded += 1
+		if current == goal:
+			found = true
+			break
+		var cx := current % map.size
+		var cy := floori(float(current) / map.size)
+		for d: Vector2i in ROUTE_STEPS:
+			var nx := cx + d.x
+			var ny := cy + d.y
+			if nx < 0 or ny < 0 or nx >= map.size or ny >= map.size:
+				continue
+			var next := ny * map.size + nx
+			if map.biomes[next] == IslandMap.Biome.SEA:
+				continue
+			# По диагонали — только если обе соседние клетки суша (не срезать угол бухты).
+			if d.x != 0 and d.y != 0 and (map.biomes[cy * map.size + nx] == IslandMap.Biome.SEA
+					or map.biomes[ny * map.size + cx] == IslandMap.Biome.SEA):
+				continue
+			var new_cost: float = cost[current] + (IslandGenerator.DIAGONAL if d.x != 0 and d.y != 0 else 1.0)
+			if not cost.has(next) or new_cost < float(cost[next]):
+				cost[next] = new_cost
+				came[next] = current
+				open.push(new_cost + Vector2(nx, ny).distance_to(Vector2(goal % map.size, floori(float(goal) / map.size))), next)
+	if not found:
+		return []
+	var cells: Array[Vector2] = []
+	var c: int = goal
+	while c != -1:
+		cells.push_front(Vector2(c % map.size - half, floori(float(c) / map.size) - half))
+		c = came[c]
+	cells[cells.size() - 1] = b
+	# Натянуть нить: из каждой точки — сразу в самую дальнюю, видимую по прямой.
+	var route: Array = []
+	var from := a
+	var i := 0
+	while i < cells.size():
+		var far := i
+		for j in range(cells.size() - 1, i - 1, -1):
+			if _path_clear(map, from, cells[j]):
+				far = j
+				break
+		from = cells[far]
+		route.append([from.x, from.y])
+		i = far + 1
+	return route
+
+
+static func _cell(map: IslandMap, p: Vector2) -> int:
+	var x := roundi(p.x + map.half_extent())
+	var y := roundi(p.y + map.half_extent())
+	if x < 0 or y < 0 or x >= map.size or y >= map.size:
+		return -1
+	return y * map.size + x
+
+
 static func _walkable(map: IslandMap, p: Vector2) -> bool:
 	return map.biome_at_world(p.x, p.y) != IslandMap.Biome.SEA
 
@@ -699,6 +788,7 @@ static func _set_action(h: Dictionary, action: String, tx: float = NAN, tz: floa
 	h["build_kind"] = ""
 	h["work"] = 0
 	h["study"] = ""
+	h["route"] = []
 
 
 static func _spawn(w: Dictionary, map: IslandMap, h: Dictionary) -> void:
@@ -772,24 +862,29 @@ static func roll_traits(w: Dictionary, h: Dictionary) -> void:
 	h["skills"] = skills
 
 
-## Ближайшая известная еда, до которой можно дойти по прямой (не через море); -1 — нет.
+## Ближайшая известная еда: сначала та, до которой можно дойти по прямой; нет такой — любая ближайшая
+## (дойдёт в обход по суше, find_route); -1 — еды нет.
 static func _nearest_food(w: Dictionary, map: IslandMap, h: Dictionary) -> int:
 	var pos := position_of(h)
 	var best := -1
 	var best_dist := INF
+	var any := -1
+	var any_dist := INF
 	for item: Dictionary in w["items"]:
 		if not Items.FOOD.has(item["kind"]) or item["held"] or not knows(w, item["kind"]):
 			continue
 		var d := pos.distance_squared_to(Vector2(item["x"], item["z"]))
+		if d < any_dist and map.biome_at_world(item["x"], item["z"]) != IslandMap.Biome.SEA:
+			any_dist = d
+			any = item["id"]
 		if d < best_dist and _path_clear(map, pos, Vector2(item["x"], item["z"])):
 			best_dist = d
 			best = item["id"]
-	return best
+	return best if best >= 0 else any
 
 
-## Ближайшая к человечку клетка реки (кроме устья в море), в мировых координатах.
-## Ближайшая клетка реки, до которой можно дойти по прямой (не через море); нет такой — просто ближайшая
-## (иначе человек раз за разом шёл бы к воде за бухтой и умирал от жажды).
+## Ближайшая клетка реки (кроме устья в море): сначала та, до которой можно дойти по прямой; нет такой —
+## просто ближайшая (дойдёт в обход по суше, find_route).
 static func _nearest_river_point(h: Dictionary, map: IslandMap) -> Vector2:
 	var pos := position_of(h)
 	var half := map.half_extent()
