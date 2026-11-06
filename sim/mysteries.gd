@@ -1,19 +1,34 @@
 class_name Mysteries
 extends RefCounted
 ## Скрытые задания (как в Virtual Villagers): игрок видит только «Тайны: N/M», условия не показываются.
-## Мир: mysteries — раскрытые id; fire, camp, shrine, cave, raft — {} или {"x", "z"}; fish_eaten — счётчик.
+## Мир: mysteries — раскрытые id; постройки (STRUCTURES) — {} или {"x", "z"}; fish_eaten — счётчик;
+## chapter — сколько частей острова открыто (sim/regions.gd): тайны-ключи «Мост», «Факел», «Перевал».
+## Тайны разбиты по главам (chapter — в какой части острова её раскрывают).
 
 const LIST := [
-	{"id": "food", "name": "Еда"},
-	{"id": "camp", "name": "Лагерь у огня"},
-	{"id": "garden", "name": "Огород"},
-	{"id": "fisherman", "name": "Рыбак"},
-	{"id": "shrine", "name": "Алтарь"},
-	{"id": "house", "name": "Дом"},
-	{"id": "cave", "name": "Пещера в горе"},
-	{"id": "raft", "name": "Плот"},
+	{"id": "food", "name": "Еда", "chapter": 0},
+	{"id": "camp", "name": "Лагерь у огня", "chapter": 0},
+	{"id": "garden", "name": "Огород", "chapter": 0},
+	{"id": "fisherman", "name": "Рыбак", "chapter": 0},
+	{"id": "bridge", "name": "Мост", "chapter": 0},
+	{"id": "house", "name": "Дом", "chapter": 1},
+	{"id": "shrine", "name": "Алтарь", "chapter": 1},
+	{"id": "raft", "name": "Плот", "chapter": 1},
+	{"id": "torch", "name": "Факел", "chapter": 1},
+	{"id": "pass", "name": "Перевал", "chapter": 2},
+	{"id": "signal", "name": "Сигнальный костёр", "chapter": 3},
 ]
-const STRUCTURES: Array[String] = ["fire", "camp", "garden", "shrine", "house", "cave", "raft"]
+## Тайна-ключ → какую часть острова открывает.
+const UNLOCKS := {"bridge": 1, "torch": 2, "pass": 3}
+const STRUCTURES: Array[String] = ["fire", "camp", "garden", "bridge", "shrine", "house", "raft", "pass", "signal"]
+## Мост: у опор старого моста собрать столько веток-брёвен (их приносит бог; дерево можно вырвать рукой).
+const BRIDGE_LOGS := 6
+## Перевал: у старой шахты камни и палки — люди расчищают завал, открывается путь на вершину.
+const PASS_STONES := 3
+const PASS_BRANCHES := 2
+## Сигнальный костёр на вершине: столько веток у вершины.
+const SIGNAL_BRANCHES := 8
+const SIGNAL_RADIUS := 8.0
 ## Огород: найти дикие овощи → у лагеря палка и камень — человек делает лопату (world["bonuses"] has "shovel") →
 ## вскапывает огород у лагеря; огород раз в GARDEN_TICKS выращивает овощ (не больше GARDEN_MAX рядом).
 const GARDEN_TICKS := 40
@@ -33,10 +48,12 @@ const RAFT_GATHER_RADIUS := 8.0
 ## Дом отстраивают на развалинах старого дома: там собраны ветки и камни (их приносит бог).
 const HOUSE_BRANCHES := 8
 const HOUSE_STONES := 6
-## Ветка, упавшая так близко к огню ночью, становится факелом.
+## Ветка, упавшая так близко к огню ночью, становится факелом (тайна «Факел»: тёмный лес не страшен).
 const TORCH_RADIUS := 2.0
 ## Молния так близко к потухшему кострищу снова разжигает его (огонь — на месте кострища).
 const RELIGHT_RADIUS := 4.0
+## Молния так близко к дереву поджигает его (огонь можно получить и там, где нет леса).
+const LIGHTNING_TREE_RADIUS := 2.5
 
 
 static func is_solved(w: Dictionary, id: String) -> bool:
@@ -88,10 +105,21 @@ static func update(w: Dictionary, map: IslandMap) -> void:
 	var camp := _pos(w["camp"])
 	var house_spot := house_site(w, map)
 	var garden := garden_step(w)
+	var piers: Vector2 = map.relics.get("old_bridge", Vector2.INF)
+	var mine: Vector2 = map.relics.get("torch_stub", Vector2.INF)
+	var summit := summit_site(map)
 	if garden == "shovel":
 		Human.start_build(builder, "shovel", camp)
 	elif garden == "garden":
 		Human.start_build(builder, "garden", garden_site(w, map))
+	elif not is_solved(w, "bridge") and (w["found"] as Array).has("old_bridge") \
+			and _near(w, piers, "branch").size() >= BRIDGE_LOGS:
+		Human.start_build(builder, "bridge", piers)
+	elif is_solved(w, "torch") and not is_solved(w, "pass") and (w["found"] as Array).has("torch_stub") \
+			and _near(w, mine, "stone").size() >= PASS_STONES and _near(w, mine, "branch").size() >= PASS_BRANCHES:
+		Human.start_build(builder, "pass", mine)
+	elif is_solved(w, "pass") and not is_solved(w, "signal") and _near(w, summit, "branch").size() >= SIGNAL_BRANCHES:
+		Human.start_build(builder, "signal", summit)
 	elif not is_solved(w, "shrine") and _max(people, "faith") >= SHRINE_FAITH:
 		Human.start_build(builder, "shrine", shrine_site(w, map))
 	elif not is_solved(w, "house") and _near(w, house_spot, "branch").size() >= HOUSE_BRANCHES \
@@ -139,6 +167,19 @@ static func _grow_garden(w: Dictionary, map: IslandMap, tick: int) -> void:
 		return
 	var p := at + Vector2.from_angle(TAU * count / GARDEN_MAX) * 1.2
 	Items.add(w, "vegetable", Vector3(p.x, map.height_at_world(p.x, p.y), p.y))
+
+
+## Вершина в мировых координатах (там зажигают сигнальный костёр).
+static func summit_site(map: IslandMap) -> Vector2:
+	return Vector2(map.peak.x - map.half_extent(), map.peak.y - map.half_extent())
+
+
+## Открыть часть острова (тайна-ключ). Части открываются по порядку.
+static func unlock(w: Dictionary, chapter: int) -> void:
+	if chapter <= int(w["chapter"]):
+		return
+	w["chapter"] = chapter
+	WorldEngine.add_log(w, "открыта новая земля — «%s»" % Regions.name_of(chapter))
 
 
 ## Где отстраивают дом: на развалинах (нет развалин — у лагеря).
@@ -195,6 +236,31 @@ static func complete_build(w: Dictionary, kind: String, at: Vector2) -> void:
 			(w["bonuses"] as Array).append("shovel")
 			WorldEngine.add_log(w, "у лагеря сделали лопату — из палки и камня")
 			return # лопата — шаг к огороду, не тайна
+		"bridge":
+			var logs := _near(w, at, "branch")
+			if logs.size() < BRIDGE_LOGS:
+				return # брёвна успели разбросать
+			for i in BRIDGE_LOGS:
+				(w["items"] as Array).erase(logs[i])
+			w["bridge"] = _dict(at)
+		"pass":
+			var stones := _near(w, at, "stone")
+			var sticks := _near(w, at, "branch")
+			if stones.size() < PASS_STONES or sticks.size() < PASS_BRANCHES:
+				return
+			for i in PASS_STONES:
+				(w["items"] as Array).erase(stones[i])
+			for i in PASS_BRANCHES:
+				(w["items"] as Array).erase(sticks[i])
+			w["pass"] = _dict(at)
+		"signal":
+			var wood := _near(w, at, "branch")
+			if wood.size() < SIGNAL_BRANCHES:
+				return
+			for i in SIGNAL_BRANCHES:
+				(w["items"] as Array).erase(wood[i])
+			w["signal"] = _dict(at)
+			WorldEngine.add_log(w, "на вершине пылает сигнальный костёр — на горизонте показался корабль!")
 		"garden":
 			if not (w["bonuses"] as Array).has("shovel"):
 				return
@@ -222,23 +288,28 @@ static func complete_build(w: Dictionary, kind: String, at: Vector2) -> void:
 				(w["items"] as Array).erase(branches[i])
 			w["raft"] = _dict(at)
 	solve(w, kind)
+	if UNLOCKS.has(kind):
+		unlock(w, UNLOCKS[kind])
 
 
-## Молния в лес — огонь; молния в потухшее кострище — оно снова горит (огонь один на мир).
+## Молния в лес или в дерево — огонь; молния в потухшее кострище — оно снова горит (огонь один на мир).
 static func on_lightning(w: Dictionary, map: IslandMap, point: Vector2) -> void:
 	if not (w["fire"] as Dictionary).is_empty():
 		return
 	if map.relics.has("old_hearth") and point.distance_to(map.relics["old_hearth"]) <= RELIGHT_RADIUS:
 		w["fire"] = _dict(map.relics["old_hearth"])
 		WorldEngine.add_log(w, "молния ударила в старое кострище — оно снова горит")
-	elif map.biome_at_world(point.x, point.y) == IslandMap.Biome.FOREST:
+	elif map.biome_at_world(point.x, point.y) == IslandMap.Biome.FOREST \
+			or Flora.nearest(w, map, point, LIGHTNING_TREE_RADIUS, Flora.TREES) >= 0:
 		w["fire"] = _dict(point)
-		WorldEngine.add_log(w, "молния подожгла лес — горит огонь")
+		WorldEngine.add_log(w, "молния подожгла дерево — горит огонь")
 
 
-## Предмет упал на землю. Ветка в огонь ночью — факел: открывается пещера в горе. true — предмет израсходован.
-static func on_item_landed(w: Dictionary, map: IslandMap, item: Dictionary) -> bool:
-	if item["kind"] != "branch" or (w["fire"] as Dictionary).is_empty() or is_solved(w, "cave"):
+## Предмет упал на землю. Ветка в огонь ночью — факел (тайна «Факел»): люди больше не боятся тёмного леса.
+## Только когда мост уже построен (лес — за рекой). true — предмет израсходован.
+static func on_item_landed(w: Dictionary, _map: IslandMap, item: Dictionary) -> bool:
+	if item["kind"] != "branch" or (w["fire"] as Dictionary).is_empty() or is_solved(w, "torch") \
+			or not is_solved(w, "bridge"):
 		return false
 	if not WorldClock.is_night(int(w["tick"])):
 		return false
@@ -246,28 +317,9 @@ static func on_item_landed(w: Dictionary, map: IslandMap, item: Dictionary) -> b
 	if fire.distance_to(Vector2(item["x"], item["z"])) > TORCH_RADIUS:
 		return false
 	(w["items"] as Array).erase(item)
-	# Пещера открывается у старой шахты (нет шахты — ближе к огню).
-	var mine: Vector2 = map.relics.get("torch_stub", fire)
-	w["cave"] = _dict(_cave_spot(map, mine))
-	solve(w, "cave")
+	solve(w, "torch")
+	unlock(w, UNLOCKS["torch"])
 	return true
-
-
-## Вход в пещеру: склон горы чуть выше границы скал, ближайший к огню.
-static func _cave_spot(map: IslandMap, near: Vector2) -> Vector2:
-	var half := map.half_extent()
-	var best := near
-	var best_dist := INF
-	for i in map.biomes.size():
-		var h := map.heights[i]
-		if map.biomes[i] != IslandMap.Biome.MOUNTAIN or h < IslandGenerator.ROCK_LINE or h > IslandGenerator.ROCK_LINE + 4.0:
-			continue
-		var p := Vector2(i % map.size - half, floori(float(i) / map.size) - half)
-		var d := p.distance_squared_to(near)
-		if d < best_dist:
-			best_dist = d
-			best = p
-	return best
 
 
 ## Сколько еды (фрукты, рыба) лежит у лагеря; -1 — лагеря нет.

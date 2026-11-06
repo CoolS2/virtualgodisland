@@ -83,8 +83,29 @@ static func model_for(mystery: String) -> Node3D:
 			return _low_poly(LowPoly.altar())
 		"house":
 			return StructuresView.house_model()
-		"cave":
-			return _low_poly(LowPoly.cave_entrance())
+		"bridge":
+			return Models.instance("nature/bridge_wood")
+		"torch":
+			var torch := Node3D.new()
+			var stick := Models.instance("survival/tree-log-small", 2.0)
+			stick.rotation.x = PI / 2.0
+			torch.add_child(stick)
+			var flame := MeshInstance3D.new()
+			var sphere := SphereMesh.new()
+			sphere.radius = 0.18
+			sphere.height = 0.5
+			var hot := StandardMaterial3D.new()
+			hot.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			hot.albedo_color = Color("#ffb21e")
+			sphere.material = hot
+			flame.mesh = sphere
+			flame.position.y = 0.72
+			torch.add_child(flame)
+			return torch
+		"pass":
+			return Models.instance("nature/cliff_cave_rock")
+		"signal":
+			return Models.instance("nature/log_stack")
 		"raft":
 			return Models.instance("pirate/boat-row-small")
 	return Node3D.new()

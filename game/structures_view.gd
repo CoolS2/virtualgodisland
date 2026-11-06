@@ -14,10 +14,13 @@ var _time := 0.0
 var _shovel: MeshInstance3D
 
 const HOUSE_SCALE := 2.6
+## Мост: длина настила поперёк реки.
+const BRIDGE_LENGTH := 7.0
 ## Пятно на земле под постройкой: радиус и цвет.
 const PATCHES := {
 	"fire": [2.2, Color("#4f4740")], "camp": [4.5, Color("#9c8463")], "garden": [3.6, Color("#6b5332")], "shrine": [3.2, Color("#c4bba8")],
-	"house": [4.8, Color("#9c8463")], "cave": [3.0, Color("#857d72")], "raft": [3.0, Color("#a8916a")],
+	"house": [4.8, Color("#9c8463")], "raft": [3.0, Color("#a8916a")], "bridge": [2.2, Color("#9c8463")],
+	"pass": [3.4, Color("#857d72")], "signal": [4.0, Color("#4f4740")],
 }
 
 
@@ -39,9 +42,12 @@ func sync(world: Dictionary) -> void:
 		var node := _build(key)
 		var p := Vector2(data["x"], data["z"])
 		node.position = Vector3(p.x, map.height_at_world(p.x, p.y), p.y)
-		if key == "cave":
-			# Входом к центру острова.
-			node.rotation.y = atan2(p.x, p.y)
+		if key == "pass":
+			# Вход в гору — к вершине.
+			var peak := Mysteries.summit_site(map)
+			node.rotation.y = atan2(p.x - peak.x, p.y - peak.y)
+		if key == "bridge":
+			_place_bridge(node, p)
 		var place := Node3D.new()
 		place.add_child(GroundPatch.build(map, p, PATCHES[key][0], PATCHES[key][1], key.length()))
 		place.add_child(node)
@@ -110,8 +116,30 @@ func _build(key: String) -> Node3D:
 			root.add_child(house_model())
 		"garden":
 			root.add_child(garden_model())
-		"cave":
-			_mesh(root, LowPoly.cave_entrance(), mat)
+		"bridge":
+			var deck := Models.instance("nature/bridge_wood", 1.0)
+			deck.scale = Vector3(2.0, 1.6, BRIDGE_LENGTH)
+			root.add_child(deck)
+		"pass":
+			var cave := Models.instance("nature/cliff_cave_rock", 4.0)
+			cave.position.z = -2.0
+			root.add_child(cave)
+			for side in [-1.0, 1.0]:
+				var stone := Models.instance("nature/stone_tallA", 2.2)
+				stone.position = Vector3(2.4 * side, 0, 0.4)
+				stone.rotation.y = side
+				root.add_child(stone)
+		"signal":
+			root.add_child(Models.instance("nature/log_stack", 5.0))
+			var fire := Models.instance("nature/campfire_logs", 12.0)
+			fire.position = Vector3(0, 0, 2.5)
+			root.add_child(fire)
+			var light := OmniLight3D.new()
+			light.light_color = Color("#ffa040")
+			light.omni_range = 30.0
+			light.light_energy = 4.0
+			light.position = Vector3(0, 3, 2.5)
+			root.add_child(light)
 		"raft":
 			root.add_child(Models.instance("pirate/boat-row-small", 1.0))
 	return root
@@ -155,6 +183,16 @@ static func house_model() -> Node3D:
 	roof.position.y = 1.0
 	house.add_child(roof)
 	return house
+
+
+## Мост: середина — на русле у опор (Regions.bridge_center), настил — поперёк реки (от опор через русло).
+func _place_bridge(node: Node3D, piers: Vector2) -> void:
+	var center := Regions.bridge_center(map)
+	if center == Vector2.INF:
+		return
+	var across := (center - piers).normalized()
+	node.position = Vector3(center.x, maxf(map.height_at_world(piers.x, piers.y), 0.0) + 0.1, center.y)
+	node.rotation.y = atan2(across.x, across.y)
 
 
 func _mesh(parent: Node3D, mesh: Mesh, mat: Material) -> MeshInstance3D:

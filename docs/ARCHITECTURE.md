@@ -24,6 +24,7 @@ sim/            # детерминированная логика мира (то
   mysteries.gd        class_name Mysteries       — тайны: условия, стройки, постройки (огонь, лагерь, алтарь, дом, пещера, плот)
   flora.gd            class_name Flora           — растительность и валуны по seed (map.flora); вырвать/потрясти дерево,
                                                    столкнуть валун (путь вниз по склону), отрастание
+  regions.gd          class_name Regions         — части острова (главы): разметка, проходимость, мост
   exploration.gd      class_name Exploration     — туман на карте (сетка 32×32), отметки обрывков карт
   caches.gd           class_name Caches          — тайники (map.caches по seed, сундуки шторма) и их находки
   places.gd           class_name Places          — особые места: гейзер, ягоды, грибы, гнездо, арка
@@ -120,7 +121,8 @@ var ticks := WorldEngine.catch_up(world, map, now_ms)
   `newcomer_due/arrived`; из v≤7 `human` → `people[0]`, ADR-0007); 9 — находки (`found`); 10 — изученные следы (`studied`, `human.study`), деревья и валуны
 (`felled`, `shaken`, `rolled`); 11 — туман и отметки (`explored`, `marked`), тайники (`dug`, `chests`, `bonuses`),
 события (`next_storm`, `storm_until`, `next_star`, `starstones`), желания (`human.wish/wish_until/next_wish`);
-12 — огород (`garden`; лопата — `"shovel"` в `bonuses`). Загрузка старых версий: `WorldEngine.from_data` заполняет
+12 — огород (`garden`; лопата — `"shovel"` в `bonuses`); 13 — части острова (`chapter`, постройки `bridge`, `pass`,
+`signal`; `cave` убрана). **С v13 старые сейвы не загружаются** (остров другой) — `SaveStore.SUPPORTED_VERSIONS`. Загрузка старых версий: `WorldEngine.from_data` заполняет
   недостающие поля, предметы и человечек появляются на ближайшем тике.
 - Удержание предмета рукой в сейв не попадает: после загрузки рука пуста.
 - Несовместимое изменение формы мира → миграция `vN → vN+1` с тестом (предпочтительно)

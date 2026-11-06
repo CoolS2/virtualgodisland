@@ -16,7 +16,8 @@ extends RefCounted
 ##   items_spawned: bool — стартовые предметы уже разложены (Items.spawn_initial)
 ##   mana: float          — мана бога (sim/miracles.gd)
 ##   craters: Array       — кратеры (sim/craters.gd)
-##   mysteries, fire, camp, garden, shrine, cave, raft, fish_eaten — тайны (sim/mysteries.gd)
+##   mysteries, fish_eaten, постройки (Mysteries.STRUCTURES) — тайны (sim/mysteries.gd)
+##   chapter: int — открытые части острова 0..chapter (sim/regions.gd)
 ##   found: Array[String] — найденные людьми следы прошлого (ключи Hints.DISCOVERABLE)
 ##   studied: Array[String] — изученные следы (sim/studies.gd)
 ##   felled, shaken, rolled — что рука сделала с деревьями и валунами (sim/flora.gd)
@@ -70,7 +71,8 @@ static func create_world(world_seed: int, now_ms: int, options: Dictionary = {})
 		"mana": Miracles.MANA_START,
 		"craters": [],
 		"mysteries": [],
-		"fire": {}, "camp": {}, "garden": {}, "shrine": {}, "house": {}, "cave": {}, "raft": {},
+		"fire": {}, "camp": {}, "garden": {}, "bridge": {}, "shrine": {}, "house": {}, "raft": {}, "pass": {}, "signal": {},
+		"chapter": 0,
 		"fish_eaten": 0,
 		"found": [],
 		"studied": [],
@@ -91,6 +93,7 @@ static func create_world(world_seed: int, now_ms: int, options: Dictionary = {})
 
 ## Один тик симуляции. Детерминирован: зависит только от мира и карты (карта — из seed).
 static func step(w: Dictionary, map: IslandMap) -> void:
+	map.open_chapter = int(w["chapter"]) # куда людям можно ходить (Regions.walkable)
 	Items.spawn_initial(w, map)
 	if is_game_over(w):
 		return
@@ -219,7 +222,10 @@ static func from_data(data: Variant) -> Dictionary:
 		"camp": Mysteries.structure_from_data(d.get("camp")),
 		"shrine": Mysteries.structure_from_data(d.get("shrine")),
 		"house": Mysteries.structure_from_data(d.get("house")),
-		"cave": Mysteries.structure_from_data(d.get("cave")),
+		"bridge": Mysteries.structure_from_data(d.get("bridge")),
+		"pass": Mysteries.structure_from_data(d.get("pass")),
+		"signal": Mysteries.structure_from_data(d.get("signal")),
+		"chapter": clampi(int(d.get("chapter", 0)), 0, Regions.LAST),
 		"raft": Mysteries.structure_from_data(d.get("raft")),
 		"garden": Mysteries.structure_from_data(d.get("garden")),
 		"fish_eaten": int(d.get("fish_eaten", 0)),

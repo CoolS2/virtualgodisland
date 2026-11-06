@@ -174,6 +174,7 @@ func test_v2_human_migrates() -> void:
 
 ## Прямая перекрыта морем (бухта) — маршрут по суше: все отрезки без моря, конец — в цели.
 func test_route_goes_around_a_bay() -> void:
+	_map.open_chapter = Regions.LAST # все части острова открыты — проверяем только обход моря
 	var half := _map.half_extent()
 	var beach: Array[Vector2] = []
 	for i in range(0, _map.biomes.size(), 7):
@@ -200,6 +201,7 @@ func test_route_goes_around_a_bay() -> void:
 	assert_lt(from.distance_to(b), 0.01, "маршрут ведёт к цели")
 	# И человек действительно доходит.
 	var w := _world()
+	_map.open_chapter = Regions.LAST
 	var h: Dictionary = w["people"][0]
 	h["x"] = a.x
 	h["z"] = a.y

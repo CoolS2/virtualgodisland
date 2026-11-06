@@ -11,6 +11,24 @@ func _fresh() -> Array:
 	return [w, map]
 
 
+## Ближайшая к точке клетка суши данной части острова.
+func _nearest_in_region(map: IslandMap, from: Vector2, region: int) -> Vector2:
+	var half := map.half_extent()
+	var best := Vector2.INF
+	for i in map.regions.size():
+		if map.regions[i] == region:
+			var p := Vector2(i % map.size - half, floori(float(i) / map.size) - half)
+			if p.distance_to(from) < best.distance_to(from):
+				best = p
+	return best
+
+
+## Все части острова открыты (тайны глав 2–4 проверяются без прохождения ключей).
+func _open_all(pair: Array) -> void:
+	pair[0]["chapter"] = Regions.LAST
+	(pair[1] as IslandMap).open_chapter = Regions.LAST
+
+
 func _run(pair: Array, ticks: int) -> void:
 	for _i in ticks:
 		WorldEngine.step(pair[0], pair[1])
@@ -62,6 +80,7 @@ func test_human_sleeps_at_night_until_morning() -> void:
 
 func test_lightning_in_forest_leads_to_camp() -> void:
 	var pair := _fresh()
+	_open_all(pair) # ближайший лес может быть за рекой
 	var w: Dictionary = pair[0]
 	var p := _forest_near(pair)
 	assert_ne(p, Vector2.INF)
@@ -96,6 +115,7 @@ func test_three_fish_make_a_fisherman() -> void:
 func test_faith_builds_shrine_which_speeds_mana() -> void:
 	var pair := _fresh()
 	var w: Dictionary = pair[0]
+	_open_all(pair)
 	_make_camp(pair)
 	w["people"][0]["faith"] = 90.0
 	_run(pair, 8)
@@ -107,11 +127,13 @@ func test_faith_builds_shrine_which_speeds_mana() -> void:
 	assert_gt(a, 0.0)
 
 
-func test_branch_into_fire_at_night_opens_cave() -> void:
+func test_branch_into_fire_at_night_makes_torch_and_opens_dark_forest() -> void:
 	var pair := _fresh()
 	var w: Dictionary = pair[0]
 	var map: IslandMap = pair[1]
 	var fire := _make_camp(pair)
+	(w["mysteries"] as Array).append("bridge")
+	w["chapter"] = 1
 	var branch := {}
 	for item: Dictionary in w["items"]:
 		if item["kind"] == "branch":
@@ -120,20 +142,85 @@ func test_branch_into_fire_at_night_opens_cave() -> void:
 	w["tick"] = NIGHT_TICK
 	Items.pick_up(w, branch["id"])
 	Items.throw_item(w, map, branch["id"], Vector3(fire.x, map.height_at_world(fire.x, fire.y) + 2.0, fire.y), Vector3.ZERO)
-	assert_true(Mysteries.is_solved(w, "cave"))
+	assert_true(Mysteries.is_solved(w, "torch"))
 	assert_true(Items.find(w, branch["id"]).is_empty(), "ветка стала факелом")
-	var cave: Dictionary = w["cave"]
-	assert_eq(map.biome_at_world(cave["x"], cave["z"]), IslandMap.Biome.MOUNTAIN)
+	assert_eq(int(w["chapter"]), 2, "открыт тёмный лес")
 
 
-func test_branch_into_fire_by_day_does_nothing() -> void:
+func test_no_torch_before_bridge_or_by_day() -> void:
 	var pair := _fresh()
 	var w: Dictionary = pair[0]
 	var map: IslandMap = pair[1]
 	var fire := _make_camp(pair)
+	w["tick"] = NIGHT_TICK
 	Items.pick_up(w, w["items"][0]["id"])
 	Items.throw_item(w, map, w["items"][0]["id"], Vector3(fire.x, map.height_at_world(fire.x, fire.y) + 2.0, fire.y), Vector3.ZERO)
-	assert_false(Mysteries.is_solved(w, "cave"))
+	assert_false(Mysteries.is_solved(w, "torch"), "без моста — нет")
+	(w["mysteries"] as Array).append("bridge")
+	w["chapter"] = 1
+	w["tick"] = 10
+	Items.add(w, "branch", Vector3(fire.x + 30, 0, fire.y))
+	var id: int = int(w["next_item_id"]) - 1
+	Items.pick_up(w, id)
+	Items.throw_item(w, map, id, Vector3(fire.x, map.height_at_world(fire.x, fire.y) + 2.0, fire.y), Vector3.ZERO)
+	assert_false(Mysteries.is_solved(w, "torch"), "днём — нет")
+
+
+## Мост: опоры найдены, у них 6 веток — люди строят мост; открыта «Земля предков», через реку есть путь.
+func test_bridge_opens_the_land_beyond_the_river() -> void:
+	var pair := _fresh()
+	var w: Dictionary = pair[0]
+	var map: IslandMap = pair[1]
+	assert_true(map.relics.has("old_bridge"), "на берегу опоры старого моста")
+	var piers: Vector2 = map.relics["old_bridge"]
+	assert_eq(Regions.region_at(map, piers), 0, "опоры — на берегу надежды")
+	var beyond := _nearest_in_region(map, Regions.bridge_center(map), 1)
+	map.open_chapter = 0
+	assert_true(Human.find_route(map, piers, beyond).is_empty(), "до моста реку не перейти")
+	_make_camp(pair)
+	(w["found"] as Array).append("old_bridge")
+	for i in Mysteries.BRIDGE_LOGS:
+		Items.add(w, "branch", Vector3(piers.x + 0.5 + i * 0.2, 0, piers.y))
+	_run(pair, 20)
+	assert_true(Mysteries.is_solved(w, "bridge"), "мост построен")
+	assert_eq(int(w["chapter"]), 1)
+	assert_false(Human.find_route(map, piers, beyond).is_empty(), "по мосту — за реку")
+
+
+## Перевал: факел есть, шахта найдена, у неё 3 камня и 2 палки — завал разобран, открыта вершина.
+func test_pass_opens_the_summit() -> void:
+	var pair := _fresh()
+	var w: Dictionary = pair[0]
+	var map: IslandMap = pair[1]
+	_make_camp(pair)
+	(w["mysteries"] as Array).append_array(["bridge", "torch"])
+	w["chapter"] = 2
+	var mine: Vector2 = map.relics["torch_stub"]
+	assert_eq(Regions.region_at(map, mine), 2, "шахта — в тёмном лесу")
+	(w["found"] as Array).append("torch_stub")
+	for i in Mysteries.PASS_STONES:
+		Items.add(w, "stone", Vector3(mine.x + 0.5 + i * 0.3, 0, mine.y))
+	for i in Mysteries.PASS_BRANCHES:
+		Items.add(w, "branch", Vector3(mine.x, 0, mine.y + 0.5 + i * 0.3))
+	_run(pair, 30)
+	assert_true(Mysteries.is_solved(w, "pass"), "завал разобран")
+	assert_eq(int(w["chapter"]), Regions.LAST, "открыта вершина")
+
+
+## Финал: на вершине 8 веток — сигнальный костёр.
+func test_signal_fire_on_the_summit() -> void:
+	var pair := _fresh()
+	var w: Dictionary = pair[0]
+	var map: IslandMap = pair[1]
+	_make_camp(pair)
+	(w["mysteries"] as Array).append_array(["bridge", "torch", "pass"])
+	_open_all(pair)
+	var summit := Mysteries.summit_site(map)
+	for i in Mysteries.SIGNAL_BRANCHES:
+		Items.add(w, "branch", Vector3(summit.x + 0.5 + i * 0.3, 0, summit.y))
+	_run(pair, 30)
+	assert_true(Mysteries.is_solved(w, "signal"))
+	assert_string_contains(str(w["log"]), "корабль")
 
 
 func test_raft_from_branches_and_love() -> void:
@@ -151,6 +238,7 @@ func test_raft_from_branches_and_love() -> void:
 
 func test_house_rebuilt_on_ruins_from_branches_and_stones() -> void:
 	var pair := _fresh()
+	_open_all(pair)
 	var w: Dictionary = pair[0]
 	var map: IslandMap = pair[1]
 	_make_camp(pair)
@@ -170,6 +258,7 @@ func test_house_rebuilt_on_ruins_from_branches_and_stones() -> void:
 
 func test_materials_at_camp_do_not_build_house_away_from_ruins() -> void:
 	var pair := _fresh()
+	_open_all(pair)
 	var w: Dictionary = pair[0]
 	var map: IslandMap = pair[1]
 	var camp := _make_camp(pair)
@@ -199,6 +288,7 @@ func test_shrine_is_built_in_old_sanctuary() -> void:
 	var pair := _fresh()
 	var w: Dictionary = pair[0]
 	var map: IslandMap = pair[1]
+	_open_all(pair)
 	_make_camp(pair)
 	w["people"][0]["faith"] = 90.0
 	_run(pair, 8)

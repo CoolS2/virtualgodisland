@@ -32,6 +32,10 @@ const RIVER_UPHILL_COST := 40.0
 const RIVER_MEANDER := 5.0
 ## Устье — клетка моря не дальше этого радиуса от выбранной точки дальнего берега.
 const RIVER_MOUTH_RADIUS := 6
+## Отрог: под таким углом от направления на устье реки (по часовой), полуширина и высота над ROCK_LINE.
+const SPUR_ANGLE := TAU / 3.0
+const SPUR_WIDTH := 2.6
+const SPUR_HEIGHT := 3.0
 ## Длина диагонального шага (√2).
 const DIAGONAL := 1.4142135623730951
 const NEIGHBORS_8: Array[Vector2i] = [
@@ -105,6 +109,8 @@ static func generate(map_seed: int, size: int = DEFAULT_SIZE) -> IslandMap:
 			map.heights[i] = h
 
 	_carve_river(map, rng)
+	_raise_spur(map)
+	Regions.assign(map)
 	map.relics = Hints.place(map)
 	map.caches = Caches.place(map)
 	map.flora = Flora.place(map)
@@ -121,6 +127,7 @@ static func _carve_river(map: IslandMap, rng: VgiRng) -> void:
 	var py: int = floori(float(peak) / size)
 	var c: float = (size - 1) / 2.0
 	var to_center: float = atan2(c - py, c - px)
+	map.river_mouth_angle = to_center # если реки не будет — отрог всё равно встанет
 	var meander := ValueNoise.new(rng, size, _cell(size, 12))
 
 	var source := _ray_until(map, px, py, to_center + (rng.next() - 0.5) * 1.2, 1,
@@ -196,8 +203,45 @@ static func _carve_river(map: IslandMap, rng: VgiRng) -> void:
 		if map.biomes[i] != IslandMap.Biome.SEA:
 			map.heights[i] = minf(map.heights[i], beds[k])
 			map.biomes[i] = IslandMap.Biome.RIVER
+			# Диагональный шаг русла — ещё и соседняя клетка: река сплошная, между клетками не проскользнуть.
+			if k > 0:
+				var a := Vector2i(path[k - 1] % size, floori(float(path[k - 1]) / size))
+				var b := Vector2i(i % size, floori(float(i) / size))
+				if a.x != b.x and a.y != b.y:
+					var j: int = a.y * size + b.x
+					if map.biomes[j] != IslandMap.Biome.SEA:
+						map.heights[j] = minf(map.heights[j], beds[k])
+						map.biomes[j] = IslandMap.Biome.RIVER
 		map.river.append(i)
 		map.river_levels.append(beds[k] + RIVER_WATER_DEPTH)
+	map.river_mouth_angle = atan2(floori(float(goal) / size) - py, goal % size - px)
+
+
+## Горный отрог: скальная гряда от вершины до моря под углом SPUR_ANGLE от устья реки. Вместе с рекой
+## режет низины вокруг горы на части острова (Regions). Ширина — не меньше 3 клеток, высота — выше ROCK_LINE.
+static func _raise_spur(map: IslandMap) -> void:
+	var size := map.size
+	var peak := _argmax(map.heights)
+	var px: int = peak % size
+	var py: int = floori(float(peak) / size)
+	map.peak = Vector2i(px, py)
+	var angle: float = map.river_mouth_angle - SPUR_ANGLE
+	var dir := Vector2(cos(angle), sin(angle))
+	for y in size:
+		for x in size:
+			var rel := Vector2(x - px, y - py)
+			var along := rel.dot(dir)
+			if along < 0.0:
+				continue
+			var across := absf(rel.dot(Vector2(-dir.y, dir.x)))
+			if across > SPUR_WIDTH:
+				continue
+			var i: int = y * size + x
+			if map.biomes[i] == IslandMap.Biome.SEA or map.biomes[i] == IslandMap.Biome.RIVER:
+				continue
+			var crest: float = ROCK_LINE + SPUR_HEIGHT * (1.0 - across / SPUR_WIDTH * 0.5)
+			map.heights[i] = maxf(map.heights[i], crest)
+			map.biomes[i] = IslandMap.Biome.MOUNTAIN
 
 
 ## Водопад: в первой точке русла не выше WATERFALL_TOP дно ниже по течению обрывается на WATERFALL_DROP,

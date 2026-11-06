@@ -60,6 +60,7 @@ var _people_seen := 0
 var _since_update := 0.0
 var _mysteries_seen := 0
 var _found_seen := 0
+var _chapter_seen := 0
 var _craters_seen := 0
 var _stars_seen := 0
 var _storm_seen := false
@@ -94,6 +95,8 @@ func _ready() -> void:
 	_mysteries_seen = (_world["mysteries"] as Array).size()
 	_people_seen = (_world["people"] as Array).size()
 	_found_seen = (_world["found"] as Array).size()
+	_chapter_seen = int(_world["chapter"])
+	map.open_chapter = _chapter_seen
 
 	daylight = Daylight.new()
 	add_child(daylight)
@@ -227,6 +230,9 @@ func refresh_world_view() -> void:
 	if found.size() > _found_seen:
 		_show_message("Находка: %s" % Hints.discovery_text(found.back()))
 		_found_seen = found.size()
+	if int(_world["chapter"]) > _chapter_seen:
+		_chapter_seen = int(_world["chapter"])
+		_show_message("Открыта новая земля: «%s»" % Regions.name_of(_chapter_seen))
 	var solved: Array = _world["mysteries"]
 	if solved.size() > _mysteries_seen:
 		for i in range(_mysteries_seen, solved.size()):
@@ -554,6 +560,10 @@ func _on_grab_released(origin: Vector3, velocity: Vector3) -> void:
 		view_of(held).held_by = null
 		var path := Human.throw(_world, island_map, held, origin + Vector3.DOWN * 1.2, throw_velocity)
 		view_of(held).fly(path)
+		if int(held.get("blocked_tick", -1)) == int(_world["tick"]):
+			# Неоткрытая часть острова: человек вырвался из руки и упал назад.
+			view_of(held).popup("Нет! Туда нельзя!", Color("#ff9a7a"))
+			_show_message("Люди боятся неведомых земель — сначала нужно открыть туда путь")
 		var study := Studies.on_dropped(_world, island_map, held)
 		if STUDY_POPUPS.has(study):
 			# Реакция — когда долетел.

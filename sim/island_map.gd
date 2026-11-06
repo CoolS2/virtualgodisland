@@ -17,6 +17,16 @@ var river := PackedInt32Array()
 var river_levels := PackedFloat64Array()
 ## Водопад: индекс в river верхней точки уступа (вода падает к river[waterfall + 1]); -1 — нет.
 var waterfall := -1
+## Направление от вершины на устье реки (радианы) и вершина — для отрога и частей острова (Regions).
+var river_mouth_angle := 0.0
+var peak := Vector2i.ZERO
+## Часть острова (глава) на клетку: 0 берег, 1 земля предков, 2 тёмный лес, 3 вершина; Regions.BARRIER —
+## море и река (переход — только по мосту). Заполняет Regions.assign.
+var regions := PackedByteArray()
+## Сколько частей открыто (0..3) — копия world["chapter"], её выставляет WorldEngine.step перед ходом людей.
+var open_chapter := 3
+## Мост через реку (точка на русле): после его постройки реку можно перейти здесь.
+var bridge := Vector2.INF
 ## Следы прошлого и обелиск: {"ключ": Vector2 в мировых координатах} (Hints.place, заполняет генератор).
 var relics := {}
 ## Растительность и валуны: {клетка: [вид, x, z, поворот, размер, высота]} (Flora.place, заполняет генератор).

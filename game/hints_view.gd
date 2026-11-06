@@ -97,6 +97,11 @@ const LAYOUTS := {
 		["pirate/grass-plant", 1.2, Vector2(1.8, -0.6), 0.0, 0.0, 0.0],
 		["pirate/grass-plant", 1.1, Vector2(-1.9, -0.2), 1.0, 0.0, 0.0],
 	],
+	"old_bridge": [
+		["nature/statue_columnDamaged", 4.0, Vector2(-0.9, 0.0), 0.0, 0.0, 0.1],
+		["nature/statue_column", 3.2, Vector2(0.9, 0.0), 0.4, 0.0, 0.1],
+		["survival/tree-log-small", 4.0, Vector2(0.0, -1.4), 1.3, 0.0, 0.05],
+	],
 	"fruit_core": [["food/apple-half", 2.4, Vector2(0, 0), 0.0, 0.0, 0.02]],
 	"fish_bones": [["food/fish-bones", 1.4, Vector2(0, 0), 0.0, 0.0, 0.02]],
 }
@@ -107,6 +112,7 @@ const PATCHES := {
 	"burnt_tree": [2.4, Color("#3f3833")], "fruit_core": [1.0, Color("#8c7a52")], "fish_bones": [1.0, Color("#b59f72")],
 	"geyser": [3.0, Color("#9fb1a8")], "berry_grove": [3.8, Color("#6f7d45")], "glow_mushrooms": [2.6, Color("#4f4560")],
 	"giant_nest": [2.8, Color("#8a7a5a")], "rock_arch": [4.5, Color("#b59f72")], "wild_vegetables": [3.0, Color("#7d6a45")],
+	"old_bridge": [2.4, Color("#9c8463")],
 }
 ## Камень Kenney (стены, колонны, валуны) — синеватый; на острове старый камень тёплый, выветренный.
 const STONE_PARTS: Array[String] = ["town/wall-broken", "town/wall-half", "town/pillar-stone", "town/rock-large"]

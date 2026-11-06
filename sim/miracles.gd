@@ -79,8 +79,8 @@ static func nearest_beach(map: IslandMap, point: Vector2) -> Vector2:
 	var best := point
 	var best_dist := INF
 	for i in map.biomes.size():
-		if map.biomes[i] != IslandMap.Biome.BEACH:
-			continue
+		if map.biomes[i] != IslandMap.Biome.BEACH or not Regions.cell_walkable(map, i):
+			continue # только пляж открытых частей острова — куда люди могут дойти
 		var p := Vector2(i % map.size - half, floori(float(i) / map.size) - half)
 		var d := p.distance_squared_to(point)
 		if d < best_dist:

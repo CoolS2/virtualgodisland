@@ -37,6 +37,8 @@ const GRAB_FEAR := 15.0
 const THROW_FEAR_PER_SPEED := 1.0
 const THROW_FEAR_MAX := 30.0
 const SEA_FEAR := 20.0
+## Бог пытался опустить человека в неоткрытую часть острова — тот вырвался в страхе.
+const LOCKED_FEAR := 15.0
 const PET_LOVE := 8.0
 const PET_CALM := 5.0
 const SLAP_FEAR := 15.0
@@ -124,7 +126,7 @@ static func default_state() -> Dictionary:
 		"spawned": false, "x": 0.0, "z": 0.0,
 		"action": "idle", "tx": 0.0, "tz": 0.0, "target_item": -1, "stuck": 0,
 		"faith": 0.0, "love": 0.0, "fear": 0.0, "held": false, "touch_tick": -1,
-		"build_kind": "", "work": 0, "study": "", "route": [], "wish": "", "wish_until": -1, "next_wish": -1,
+		"build_kind": "", "work": 0, "study": "", "route": [], "blocked_tick": -1, "wish": "", "wish_until": -1, "next_wish": -1,
 		"id": 1, "mother_id": -1, "father_id": -1, "partner_id": -1, "pregnant_until": -1,
 		"name": "", "sex": "m", "born_tick": 0, "start_age": START_AGE, "lifespan": LIFESPAN_MAX,
 		"skills": {"forage": 1.0, "build": 1.0, "fish": 1.0, "heal": 1.0}, "cause": "",
@@ -278,7 +280,7 @@ static func _explore_target(w: Dictionary, map: IslandMap, h: Dictionary) -> Vec
 ## за ведущим или если отнесёт бог): так его легко найти глазами.
 static func _open_ground(map: IslandMap, p: Vector2) -> bool:
 	var biome := map.biome_at_world(p.x, p.y)
-	return biome == IslandMap.Biome.FIELD or biome == IslandMap.Biome.BEACH
+	return (biome == IslandMap.Biome.FIELD or biome == IslandMap.Biome.BEACH) and _walkable(map, p)
 
 
 ## Настроение для лица: "dead" | "sleep" | "scared" | "happy" | "ok" | "sad".
@@ -548,6 +550,13 @@ static func throw(w: Dictionary, map: IslandMap, h: Dictionary, origin: Vector3,
 		spot = _nearest_land(map, spot)
 		scare(h, SEA_FEAR)
 		path.append(Vector3(spot.x, map.height_at_world(spot.x, spot.y), spot.y))
+	# В неоткрытую часть острова рука человека не опустит: у границы он вырывается в страхе и падает назад.
+	map.open_chapter = int(w["chapter"])
+	if not _walkable(map, spot):
+		spot = Regions.nearest_walkable(map, spot)
+		scare(h, LOCKED_FEAR)
+		h["blocked_tick"] = int(w["tick"])
+		path.append(Vector3(spot.x, map.height_at_world(spot.x, spot.y), spot.y))
 	h["x"] = spot.x
 	h["z"] = spot.y
 	_set_action(h, "idle")
@@ -619,8 +628,11 @@ static func _decide(w: Dictionary, map: IslandMap, h: Dictionary) -> void:
 		"drink":
 			var river := _nearest_river_point(h, map)
 			var water := Places.water_near(map, position_of(h), river)
-			if water != river and not _path_clear(map, position_of(h), water):
+			if water != river and not (_walkable(map, water) and _path_clear(map, position_of(h), water)):
 				water = river # к гейзеру не пройти — к реке
+			if water == Vector2.INF:
+				_wander(w, map, h) # воды не достать
+				return
 			_set_action(h, "drink", water.x, water.y)
 		"eat":
 			var id := _nearest_food(w, map, h)
@@ -659,8 +671,7 @@ static func _wander(w: Dictionary, map: IslandMap, h: Dictionary) -> void:
 		var radius: float = VgiRng.next_float(w) * reach
 		var p := center + Vector2(cos(angle), sin(angle)) * radius
 		# За ведущим — куда угодно на суше; сам — только по открытым местам.
-		if (_open_ground(map, p) or (not leader.is_empty() and _walkable(map, p)
-				and map.biome_at_world(p.x, p.y) != IslandMap.Biome.RIVER)):
+		if _open_ground(map, p) or (not leader.is_empty() and _walkable(map, p)):
 			_set_action(h, "wander", p.x, p.y)
 			return
 
@@ -710,7 +721,7 @@ static func find_route(map: IslandMap, a: Vector2, b: Vector2) -> Array:
 	var half := map.half_extent()
 	var start := _cell(map, a)
 	var goal := _cell(map, b)
-	if start < 0 or goal < 0 or map.biomes[goal] == IslandMap.Biome.SEA:
+	if start < 0 or goal < 0 or not Regions.cell_walkable(map, goal):
 		return []
 	var came := {start: -1}
 	var cost := {start: 0.0}
@@ -732,11 +743,11 @@ static func find_route(map: IslandMap, a: Vector2, b: Vector2) -> Array:
 			if nx < 0 or ny < 0 or nx >= map.size or ny >= map.size:
 				continue
 			var next := ny * map.size + nx
-			if map.biomes[next] == IslandMap.Biome.SEA:
+			if not Regions.cell_walkable(map, next):
 				continue
-			# По диагонали — только если обе соседние клетки суша (не срезать угол бухты).
-			if d.x != 0 and d.y != 0 and (map.biomes[cy * map.size + nx] == IslandMap.Biome.SEA
-					or map.biomes[ny * map.size + cx] == IslandMap.Biome.SEA):
+			# По диагонали — только если обе соседние клетки проходимы (не срезать угол бухты или реки).
+			if d.x != 0 and d.y != 0 and (not Regions.cell_walkable(map, cy * map.size + nx)
+					or not Regions.cell_walkable(map, ny * map.size + cx)):
 				continue
 			var new_cost: float = cost[current] + (IslandGenerator.DIAGONAL if d.x != 0 and d.y != 0 else 1.0)
 			if not cost.has(next) or new_cost < float(cost[next]):
@@ -775,8 +786,9 @@ static func _cell(map: IslandMap, p: Vector2) -> int:
 	return y * map.size + x
 
 
+## Можно ли ступить: открытая часть острова, через реку — по мосту (Regions).
 static func _walkable(map: IslandMap, p: Vector2) -> bool:
-	return map.biome_at_world(p.x, p.y) != IslandMap.Biome.SEA
+	return Regions.walkable(map, p)
 
 
 static func _set_action(h: Dictionary, action: String, tx: float = NAN, tz: float = NAN) -> void:
@@ -809,14 +821,14 @@ static func _spawn(w: Dictionary, map: IslandMap, h: Dictionary) -> void:
 	for _i in SPAWN_ATTEMPTS:
 		var p := Vector2(VgiRng.next_float(w) - 0.5, VgiRng.next_float(w) - 0.5) * map.size * 0.4
 		var biome := map.biome_at_world(p.x, p.y)
-		if biome == IslandMap.Biome.FIELD and map.height_at_world(p.x, p.y) < SPAWN_MAX_HEIGHT:
+		if biome == IslandMap.Biome.FIELD and map.height_at_world(p.x, p.y) < SPAWN_MAX_HEIGHT and _walkable(map, p):
 			h["x"] = p.x
 			h["z"] = p.y
 			_set_action(h, "idle")
 			return
 	# Запасной вариант: первая подходящая клетка суши по порядку.
 	for i in map.biomes.size():
-		if map.biomes[i] == IslandMap.Biome.FIELD or map.biomes[i] == IslandMap.Biome.FOREST:
+		if (map.biomes[i] == IslandMap.Biome.FIELD or map.biomes[i] == IslandMap.Biome.FOREST) and Regions.cell_walkable(map, i):
 			h["x"] = i % map.size - half
 			h["z"] = floori(float(i) / map.size) - half
 			break
@@ -835,7 +847,8 @@ static func _shipwreck_shore(map: IslandMap) -> Vector2:
 		for step in 32:
 			var p := wreck + Vector2.from_angle(TAU * step / 32.0) * ring
 			var biome := map.biome_at_world(p.x, p.y)
-			if (biome != IslandMap.Biome.BEACH and biome != IslandMap.Biome.FIELD) or map.height_at_world(p.x, p.y) < 0.15:
+			if (biome != IslandMap.Biome.BEACH and biome != IslandMap.Biome.FIELD) or map.height_at_world(p.x, p.y) < 0.15 \
+					or Regions.region_at(map, p) != 0:
 				continue
 			if p.distance_to(inland) < best.distance_to(inland):
 				best = p
@@ -874,26 +887,39 @@ static func _nearest_food(w: Dictionary, map: IslandMap, h: Dictionary) -> int:
 		if not Items.FOOD.has(item["kind"]) or item["held"] or not knows(w, item["kind"]):
 			continue
 		var d := pos.distance_squared_to(Vector2(item["x"], item["z"]))
-		if d < any_dist and map.biome_at_world(item["x"], item["z"]) != IslandMap.Biome.SEA:
+		if d < any_dist and _walkable(map, Vector2(item["x"], item["z"])):
 			any_dist = d
 			any = item["id"]
-		if d < best_dist and _path_clear(map, pos, Vector2(item["x"], item["z"])):
+		if d < best_dist and _walkable(map, Vector2(item["x"], item["z"])) and _path_clear(map, pos, Vector2(item["x"], item["z"])):
 			best_dist = d
 			best = item["id"]
 	return best if best >= 0 else any
 
 
-## Ближайшая клетка реки (кроме устья в море): сначала та, до которой можно дойти по прямой; нет такой —
-## просто ближайшая (дойдёт в обход по суше, find_route).
+## Где пить: ближайший берег реки (проходимая клетка рядом с руслом) — сначала тот, до которого можно дойти
+## по прямой, иначе любой (дойдёт по маршруту, find_route). Vector2.INF — к реке не подойти (вся в закрытых частях).
 static func _nearest_river_point(h: Dictionary, map: IslandMap) -> Vector2:
 	var pos := position_of(h)
 	var half := map.half_extent()
+	var seen := {}
 	var points: Array[Vector2] = []
 	for k in map.river.size() - 1:
 		var i: int = map.river[k]
-		points.append(Vector2(i % map.size - half, floori(float(i) / map.size) - half))
+		var x := i % map.size
+		var y := floori(float(i) / map.size)
+		for dy in range(-1, 2):
+			for dx in range(-1, 2):
+				var nx := x + dx
+				var ny := y + dy
+				if nx < 0 or ny < 0 or nx >= map.size or ny >= map.size:
+					continue
+				var j := ny * map.size + nx
+				if seen.has(j) or not Regions.cell_walkable(map, j):
+					continue
+				seen[j] = true
+				points.append(Vector2(nx - half, ny - half))
 	if points.is_empty():
-		return pos
+		return Vector2.INF
 	points.sort_custom(func(a: Vector2, b: Vector2) -> bool:
 		var da := a.distance_squared_to(pos)
 		var db := b.distance_squared_to(pos)

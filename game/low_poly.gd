@@ -134,15 +134,6 @@ static func altar() -> ArrayMesh:
 	return st.commit()
 
 
-static func cave_entrance() -> ArrayMesh:
-	var st := _begin()
-	_add(st, _sphere(1.6, 10, 5), _at(Vector3(0, 0.2, 0), Vector3(1.0, 1.0, 0.45)), Color("#1a1612"))
-	for i in 6:
-		var a := PI * (0.1 + 0.8 * i / 5.0)
-		_add(st, _sphere(0.5, 5, 3), _at(Vector3(cos(a) * 1.7, sin(a) * 1.7, -0.25), Vector3(1, 1, 0.8)), ROCK)
-	return st.commit()
-
-
 static func raft() -> ArrayMesh:
 	var st := _begin()
 	for i in 6:
