@@ -26,6 +26,7 @@ func _nearest_in_region(map: IslandMap, from: Vector2, region: int) -> Vector2:
 ## Все части острова открыты (тайны глав 2–4 проверяются без прохождения ключей).
 func _open_all(pair: Array) -> void:
 	pair[0]["chapter"] = Regions.LAST
+	(pair[0]["mysteries"] as Array).append("garden") # иначе люди сначала займутся лопатой и огородом
 	(pair[1] as IslandMap).open_chapter = Regions.LAST
 
 

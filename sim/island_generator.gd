@@ -30,6 +30,9 @@ const RIVER_BANK := 0.15
 const RIVER_UPHILL_COST := 40.0
 ## Сила петляния русла.
 const RIVER_MEANDER := 5.0
+## Если исток или устье не нашлись по выбранному направлению — столько попыток с поворотом на шаг.
+const RIVER_ANGLE_TRIES := 12
+const RIVER_ANGLE_STEP := 0.3
 ## Устье — клетка моря не дальше этого радиуса от выбранной точки дальнего берега.
 const RIVER_MOUTH_RADIUS := 6
 ## Отрог: под таким углом от направления на устье реки (по часовой), полуширина и высота над ROCK_LINE.
@@ -130,10 +133,22 @@ static func _carve_river(map: IslandMap, rng: VgiRng) -> void:
 	map.river_mouth_angle = to_center # если реки не будет — отрог всё равно встанет
 	var meander := ValueNoise.new(rng, size, _cell(size, 12))
 
-	var source := _ray_until(map, px, py, to_center + (rng.next() - 0.5) * 1.2, 1,
-		func(i: int) -> bool: return map.heights[i] <= RIVER_SOURCE_HEIGHT)
-	var mouth := _ray_until(map, px, py, to_center + (rng.next() - 0.5) * 0.8, int(size * 0.3),
-		func(i: int) -> bool: return map.biomes[i] == IslandMap.Biome.SEA)
+	var source_angle: float = to_center + (rng.next() - 0.5) * 1.2
+	var mouth_angle: float = to_center + (rng.next() - 0.5) * 0.8
+	# Река нужна всегда (она — граница частей острова): не нашлось по выбранному направлению — ищем рядом.
+	var source := -1
+	var mouth := -1
+	for k in RIVER_ANGLE_TRIES:
+		var turn: float = floori((k + 1) / 2.0) * RIVER_ANGLE_STEP * (1.0 if k % 2 == 0 else -1.0)
+		if source < 0:
+			source = _ray_until(map, px, py, source_angle + turn, 1,
+				func(i: int) -> bool: return map.heights[i] <= RIVER_SOURCE_HEIGHT)
+		if mouth < 0:
+			for min_step: int in [int(size * 0.3), int(size * 0.1)]:
+				mouth = _ray_until(map, px, py, mouth_angle + turn, min_step,
+					func(i: int) -> bool: return map.biomes[i] == IslandMap.Biome.SEA)
+				if mouth >= 0:
+					break
 	if source < 0 or mouth < 0:
 		return
 	var mouth_pos := Vector2i(mouth % size, floori(float(mouth) / size))

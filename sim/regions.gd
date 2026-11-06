@@ -51,9 +51,8 @@ static func assign(map: IslandMap) -> void:
 		if map.regions[i] != BARRIER or not _lowland(map, i):
 			continue
 		var rel := _angle_from_river(map, i % map.size, floori(float(i) / map.size))
-		if rel > arc:
-			map.regions[i] = 0 # карман по ту сторону отрога, отрезанный от берега, — тоже берег
-		elif rel < arc * ANCESTORS_SHARE:
+		# Не соединены с берегом — значит, за рекой или за отрогом (в т.ч. карманы со стороны берега по углу).
+		if rel < arc * ANCESTORS_SHARE:
 			map.regions[i] = 1
 		else:
 			map.regions[i] = 2
