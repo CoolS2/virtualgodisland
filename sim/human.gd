@@ -246,13 +246,15 @@ static func _leader(w: Dictionary, h: Dictionary) -> Dictionary:
 	return {}
 
 
-## Прямой путь от a до b не проходит через море (люди ходят по прямой).
+## Прямой путь от a до b проходим. Проверяются ровно те точки, куда встанет идущий человек (_move):
+## от a шагами по STEP и сам конец b — поэтому проложенный маршрут всегда проходим шаг за шагом.
 static func _path_clear(map: IslandMap, a: Vector2, b: Vector2) -> bool:
-	var steps := ceili(a.distance_to(b) / STEP)
-	for i in steps + 1:
-		if not _walkable(map, a.lerp(b, float(i) / maxf(1.0, steps))):
+	var length := a.distance_to(b)
+	var dir := (b - a) / maxf(length, 0.000001)
+	for k in floori(length / STEP) + 1:
+		if not _walkable(map, a + dir * (k * STEP)):
 			return false
-	return true
+	return _walkable(map, b)
 
 
 ## Куда идти исследовать: ближайший ненайденный след прошлого, иначе — случайное дальнее место.
@@ -684,18 +686,21 @@ static func _move(h: Dictionary, map: IslandMap) -> bool:
 	var budget := WALK_PER_TICK
 	var progressed := false
 	var route: Array = h["route"]
-	while budget > 0.0 and pos.distance_to(target) > REACH:
+	while pos.distance_to(target) > REACH:
 		var goal := target
 		if not route.is_empty():
 			goal = Vector2(route[0][0], route[0][1])
-			if pos.distance_to(goal) <= REACH:
+			if pos.distance_to(goal) < 0.001:
 				route.pop_front()
 				continue
-		var step: float = minf(minf(STEP, budget), pos.distance_to(goal))
+		# Шаги по STEP, последний — точно в точку маршрута: ровно те точки, что проверил _path_clear.
+		var step: float = minf(STEP, pos.distance_to(goal))
+		if step > budget:
+			break # остаток пути — в следующий тик
 		var next := pos + (goal - pos).normalized() * step
-		# По проложенному маршруту идёт, не перепроверяя каждый шаг (маршрут уже проверен по клеткам суши;
-		# шаги не совпадают с точками проверки и у узкого моста или берега могли бы задеть воду).
-		if route.is_empty() and not _walkable(map, next):
+		if not _walkable(map, next):
+			if not route.is_empty():
+				route.clear() # мир изменился — проложить заново
 			route.assign(find_route(map, pos, target))
 			if route.is_empty():
 				break # по суше не дойти
