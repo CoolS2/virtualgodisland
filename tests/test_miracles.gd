@@ -16,6 +16,18 @@ func _fresh() -> Array:
 	return [w, map]
 
 
+## Ближайшая к точке клетка поля (там есть куда бить молнией — не море).
+func _field_near(map: IslandMap, from: Vector2) -> Vector2:
+	var half := map.half_extent()
+	var best := Vector2.INF
+	for i in map.biomes.size():
+		if map.biomes[i] == IslandMap.Biome.FIELD:
+			var p := Vector2(i % map.size - half, floori(float(i) / map.size) - half)
+			if p.distance_to(from) < best.distance_to(from):
+				best = p
+	return best
+
+
 func _human_point(w: Dictionary, offset: Vector2 = Vector2.ZERO) -> Vector2:
 	return Human.position_of(w["people"][0]) + offset
 
@@ -81,7 +93,7 @@ func test_lightning_makes_crater_that_survives_reload() -> void:
 	var pair := _fresh()
 	var w: Dictionary = pair[0]
 	var map: IslandMap = pair[1]
-	var p := _human_point(w, Vector2(10, 0))
+	var p := _field_near(map, _human_point(w))
 	var before := map.height_at_world(p.x, p.y)
 	Miracles.cast(w, map, "lightning", p)
 	assert_lt(map.height_at_world(p.x, p.y), before - 1.0, "кратер")

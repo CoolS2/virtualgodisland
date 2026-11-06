@@ -67,9 +67,15 @@ func test_lightning_in_forest_leads_to_camp() -> void:
 	assert_ne(p, Vector2.INF)
 	Miracles.cast(w, pair[1], "lightning", p)
 	assert_false((w["fire"] as Dictionary).is_empty(), "огонь")
-	w["people"][0]["fear"] = 0.0
-	w["people"][0]["action"] = "idle"
-	_run(pair, 8)
+	# Человек рядом с огнём и свободен — видит огонь и начинает строить лагерь (сам он мог уйти исследовать).
+	var h: Dictionary = w["people"][0]
+	h["fear"] = 0.0
+	h["x"] = w["fire"]["x"] + 2.0
+	h["z"] = w["fire"]["z"]
+	h["action"] = "idle"
+	Mysteries.update(w, pair[1])
+	assert_eq(h["action"], "build", "увидел огонь — строит")
+	_run(pair, Mysteries.BUILD_TICKS + 3)
 	assert_true(Mysteries.is_solved(w, "camp"), "лагерь построен")
 	assert_false((w["camp"] as Dictionary).is_empty())
 

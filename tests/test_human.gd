@@ -112,6 +112,7 @@ func test_does_not_eat_unknown_food() -> void:
 ## Бог подкинул фрукт к ногам — человечек понял, что это еда (тайна «Еда»).
 func test_god_teaches_food_by_dropping_it_nearby() -> void:
 	var w := _world()
+	WorldEngine.step(w, _map) # очнулся после кораблекрушения (спящий не замечает упавшее)
 	var fruit := {}
 	for item: Dictionary in w["items"]:
 		if item["kind"] == "fruit":
