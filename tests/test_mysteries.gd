@@ -252,7 +252,11 @@ func test_house_rebuilt_on_ruins_from_branches_and_stones() -> void:
 		Items.add(w, "stone", Vector3(site.x, 0, site.y + 1 + i * 0.3))
 	var stones := Items.count_kind(w, "stone")
 	_run(pair, 12)
-	assert_true(Mysteries.is_solved(w, "house"))
+	var h: Dictionary = w["people"][0]
+	assert_true(Mysteries.is_solved(w, "house"), "человек: %s at(%.0f,%.0f)->(%.0f,%.0f) маршрут %d, руины %s; лог: %s" % [
+		h["action"], h["x"], h["z"], h["tx"], h["tz"], (h["route"] as Array).size(), site, (w["log"] as Array).slice(-6)])
+	if not Mysteries.is_solved(w, "house"):
+		return
 	assert_almost_eq(Vector2(w["house"]["x"], w["house"]["z"]).distance_to(site), 0.0, 0.01, "дом — на месте развалин")
 	assert_lte(Items.count_kind(w, "stone"), stones - Mysteries.HOUSE_STONES, "камни ушли на дом")
 
@@ -293,7 +297,11 @@ func test_shrine_is_built_in_old_sanctuary() -> void:
 	_make_camp(pair)
 	w["people"][0]["faith"] = 90.0
 	_run(pair, 8)
-	assert_true(Mysteries.is_solved(w, "shrine"))
+	var h: Dictionary = w["people"][0]
+	assert_true(Mysteries.is_solved(w, "shrine"), "человек: %s at(%.0f,%.0f)->(%.0f,%.0f) маршрут %d; лог: %s" % [
+		h["action"], h["x"], h["z"], h["tx"], h["tz"], (h["route"] as Array).size(), (w["log"] as Array).slice(-6)])
+	if not Mysteries.is_solved(w, "shrine"):
+		return
 	assert_almost_eq(Vector2(w["shrine"]["x"], w["shrine"]["z"]).distance_to(map.relics["stone_circle"]), 0.0, 0.01)
 
 

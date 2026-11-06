@@ -218,15 +218,15 @@ static func _carve_river(map: IslandMap, rng: VgiRng) -> void:
 		if map.biomes[i] != IslandMap.Biome.SEA:
 			map.heights[i] = minf(map.heights[i], beds[k])
 			map.biomes[i] = IslandMap.Biome.RIVER
-			# Диагональный шаг русла — ещё и соседняя клетка: река сплошная, между клетками не проскользнуть.
-			if k > 0:
-				var a := Vector2i(path[k - 1] % size, floori(float(path[k - 1]) / size))
-				var b := Vector2i(i % size, floori(float(i) / size))
-				if a.x != b.x and a.y != b.y:
-					var j: int = a.y * size + b.x
-					if map.biomes[j] != IslandMap.Biome.SEA:
-						map.heights[j] = minf(map.heights[j], beds[k])
-						map.biomes[j] = IslandMap.Biome.RIVER
+		# Диагональный шаг русла (и в море у устья) — ещё и соседняя клетка: река сплошная, не проскользнуть.
+		if k > 0:
+			var a := Vector2i(path[k - 1] % size, floori(float(path[k - 1]) / size))
+			var b := Vector2i(i % size, floori(float(i) / size))
+			if a.x != b.x and a.y != b.y:
+				var j: int = a.y * size + b.x
+				if map.biomes[j] != IslandMap.Biome.SEA:
+					map.heights[j] = minf(map.heights[j], beds[k])
+					map.biomes[j] = IslandMap.Biome.RIVER
 		map.river.append(i)
 		map.river_levels.append(beds[k] + RIVER_WATER_DEPTH)
 	map.river_mouth_angle = atan2(floori(float(goal) / size) - py, goal % size - px)
