@@ -216,6 +216,7 @@ func _intro_view(main: Node) -> Array:
 	h["tz"] = shore.y
 	h["action"] = "sleep"
 	(main.call("view_of", h) as HumanView).snap()
+	(main.get("hud") as Hud).close_overlays()
 	var view: Array = main.call("start_intro")
 	return ["intro"] + view if not view.is_empty() else []
 

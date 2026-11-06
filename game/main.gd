@@ -609,7 +609,6 @@ func start_intro() -> Array:
 	var target := Vector3(pos.x, island_map.height_at_world(pos.x, pos.y) + 1.0, pos.y)
 	var view := [atan2(away.x, away.y), 0.32, 12.0, target]
 	camera_rig.set_view(view[0], view[1], view[2], view[3])
-	select_person(h["id"])
 	_intro_camera = true
 	_thoughts["intro"] = Time.get_ticks_msec() / 1000.0
 	return view
@@ -620,9 +619,9 @@ func _on_dialogue_finished() -> void:
 		return
 	_intro_camera = false
 	# После пролога — шире, чтобы видеть окрестности.
-	var h := Human.find_person(_world, selected_id)
-	if not h.is_empty():
-		camera_rig.focus(view_of(h).global_position + Vector3.UP, FOCUS_DISTANCE * 1.4)
+	var people := Human.living(_world)
+	if not people.is_empty():
+		camera_rig.focus(view_of(people[0]).global_position + Vector3.UP, FOCUS_DISTANCE * 1.4)
 
 
 ## Мысли вслух по ходу игры (один раз за сессию): голод без знания еды; первая еда.
