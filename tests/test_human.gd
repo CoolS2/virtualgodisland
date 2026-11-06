@@ -83,8 +83,15 @@ func test_human_never_walks_into_sea() -> void:
 func test_survives_three_days_when_knows_food() -> void:
 	var w := _world()
 	w["knowledge"] = ["fruit"]
-	_run(w, 3 * 24 * 60)
-	assert_true(w["people"][0]["alive"], "жив через 3 суток; лог: %s" % [w["log"]])
+	# Раз в игровой день — что делает (для разбора, если умрёт).
+	var trace := PackedStringArray()
+	for i in 3 * 24 * 60:
+		WorldEngine.step(w, _map)
+		var h: Dictionary = w["people"][0]
+		if i % WorldClock.DAY_TICKS == 60 and h["alive"]:
+			trace.append("t%d %s at(%.0f,%.0f)->(%.0f,%.0f) st%d th%.0f hu%.0f" % [w["tick"], h["action"], h["x"], h["z"],
+				h["tx"], h["tz"], h["stuck"], h["thirst"], h["hunger"]])
+	assert_true(w["people"][0]["alive"], "жив через 3 суток; путь: %s" % [" | ".join(trace)])
 
 
 ## Не узнал, как добыть еду (и подсказать некому) — умирает от голода за ~33 ч.
