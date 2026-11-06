@@ -8,8 +8,10 @@ func before_all() -> void:
 	_map = IslandGenerator.generate(42)
 
 
+## Мир после появления человека и его пробуждения (первый тик он без сознания).
 func _world() -> Dictionary:
 	var w := WorldEngine.create_world(42, 0)
+	WorldEngine.step(w, _map)
 	WorldEngine.step(w, _map)
 	return w
 

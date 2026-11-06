@@ -25,7 +25,21 @@ func test_spawns_on_land_deterministically() -> void:
 	var h: Dictionary = a["people"][0]
 	assert_true(h["spawned"])
 	var biome := _map.biome_at_world(h["x"], h["z"])
-	assert_true(biome == IslandMap.Biome.FIELD or biome == IslandMap.Biome.FOREST, "появился в поле или лесу")
+	assert_true(biome == IslandMap.Biome.BEACH or biome == IslandMap.Biome.FIELD, "на суше у берега")
+
+
+## Сюжет: первый человек очнулся у обломков своего корабля — лежит, на следующем тике встаёт.
+func test_first_human_wakes_up_by_the_shipwreck() -> void:
+	var w := _world()
+	var h: Dictionary = w["people"][0]
+	var wreck: Vector2 = _map.relics["raft_wreck"]
+	assert_between(Human.position_of(h).distance_to(wreck), Human.SHIPWRECK_MIN - 0.5, Human.SHIPWRECK_MAX + 0.5,
+		"рядом с обломками")
+	assert_eq(h["action"], "sleep", "ещё без сознания")
+	assert_true((w["found"] as Array).has("raft_wreck"), "свой корабль — уже известен")
+	assert_string_contains(str(w["log"]), "обломков своего корабля")
+	WorldEngine.step(w, _map)
+	assert_ne(h["action"], "sleep", "очнулся")
 
 
 func test_thirsty_human_goes_to_river_and_drinks() -> void:

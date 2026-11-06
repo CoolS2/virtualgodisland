@@ -21,6 +21,9 @@ const FOLLOW_VIEW := [0.45, 25.0] # pitch, distance
 const FELL_HOLD := 0.4
 const FIRST_MYSTERY_HINT_SECONDS := 60.0
 const FOCUS_DISTANCE := 28.0
+## С этого голода человек думает вслух о еде (если ещё не знает, что можно есть).
+const HUNGER_THOUGHT := 25.0
+const HUNGER_THOUGHT_SECONDS := 150.0
 const TREE_RADIUS := 1.8
 ## Рука у валуна — столкнуть (катится вниз по склону, раскалывается на камни).
 const ROCK_RADIUS := 1.6
@@ -30,6 +33,8 @@ const STUDY_POPUPS := {
 }
 const ISLAND_VIEW := [0.6, 150.0]
 
+## Новая игра: показать пролог (кораблекрушение, монолог).
+var intro_pending := false
 ## Только для tools/screenshot: показать остров с этим seed без чтения и записи сейва.
 var preview_seed := -1
 var camera_rig: CameraRig
@@ -63,6 +68,9 @@ var _storm_seen := false
 var _pending_tree := -1
 ## Когда (сек. с запуска) впервые увидели раскрытую первую тайну; -1 — ещё нет.
 var _first_mystery_time := -1.0
+## Мысли человека уже показаны в этой сессии (голод, первая еда) — чтобы не повторялись.
+var _thoughts := {}
+var _intro_camera := false
 var _press_time := 0.0
 ## Что сейчас нарисовано из растительности (вырванные, скатившиеся, постройки) — пересобрать при изменении.
 var _flora_state := ""
@@ -76,6 +84,7 @@ func _ready() -> void:
 	elif not GameStart.new_game.is_empty():
 		_world = WorldEngine.create_world(randi() & 0x7FFFFFFF, now, GameStart.new_game)
 		GameStart.new_game = {}
+		intro_pending = true
 	else:
 		_world = SaveStore.load_world(now)
 	var map := IslandGenerator.generate(_world["seed"])
@@ -150,8 +159,11 @@ func _ready() -> void:
 	ui = GameUi.new()
 	add_child(ui)
 	ui.new_game_requested.connect(_new_game)
+	ui.dialogue_finished.connect(_on_dialogue_finished)
 	if not _is_preview() and _offline_ticks >= WELCOME_MIN_TICKS:
 		ui.show_welcome(_welcome_text(before))
+	if intro_pending:
+		start_intro()
 
 	_save()
 	_render_hud()
@@ -574,6 +586,69 @@ func _on_grab_released(origin: Vector3, velocity: Vector3) -> void:
 	_save()
 
 
+## Пролог: человек очнулся на берегу у обломков корабля — камера рядом, монолог. Возвращает ракурс камеры
+## [yaw, pitch, distance, target] (для утилиты скриншотов).
+func start_intro() -> Array:
+	var people := Human.living(_world)
+	if people.is_empty():
+		return []
+	var h: Dictionary = people[0]
+	var f: bool = h["sex"] == "f"
+	var lines := PackedStringArray([
+		"…Кх-кх… Вода… песок… Я жив%s?" % ("а" if f else ""),
+		"Корабль! Шторм разбил его о скалы… Похоже, из всей команды %s только я." % ("спаслась" if f else "спасся"),
+		"Это остров. Ни огней, ни дыма — кажется, здесь никого нет.",
+		"Живот сводит от голода. Нужно пройтись по острову и найти, что здесь можно есть.",
+		"И ещё… странное чувство. Будто кто-то смотрит на меня сверху.",
+	])
+	ui.show_dialogue(h["name"], lines)
+	var pos := Human.position_of(h)
+	var wreck: Vector2 = island_map.relics.get("raft_wreck", pos + Vector2(0, -5))
+	# Камера — со стороны суши, за человеком: в кадре он и обломки корабля.
+	var away := (pos - wreck).normalized()
+	var target := Vector3(pos.x, island_map.height_at_world(pos.x, pos.y) + 1.0, pos.y)
+	var view := [atan2(away.x, away.y), 0.32, 12.0, target]
+	camera_rig.set_view(view[0], view[1], view[2], view[3])
+	select_person(h["id"])
+	_intro_camera = true
+	_thoughts["intro"] = Time.get_ticks_msec() / 1000.0
+	return view
+
+
+func _on_dialogue_finished() -> void:
+	if not _intro_camera:
+		return
+	_intro_camera = false
+	# После пролога — шире, чтобы видеть окрестности.
+	var h := Human.find_person(_world, selected_id)
+	if not h.is_empty():
+		camera_rig.focus(view_of(h).global_position + Vector3.UP, FOCUS_DISTANCE * 1.4)
+
+
+## Мысли вслух по ходу игры (один раз за сессию): голод без знания еды; первая еда.
+func _maybe_think() -> void:
+	var people := Human.living(_world)
+	if people.is_empty() or ui.dialogue_active():
+		return
+	var h: Dictionary = people[0]
+	# О голоде — когда он заметен или через пару минут после пролога, если еду так и не нашли.
+	var since_intro: float = Time.get_ticks_msec() / 1000.0 - float(_thoughts.get("intro", INF))
+	var hungry: bool = float(h["hunger"]) >= HUNGER_THOUGHT or since_intro >= HUNGER_THOUGHT_SECONDS
+	if not Mysteries.is_solved(_world, "food") and hungry and not _thoughts.has("hunger"):
+		_thoughts["hunger"] = true
+		ui.show_dialogue(h["name"], PackedStringArray([
+			"Живот урчит всё громче… Что здесь вообще можно есть?",
+			"Может, те красные плоды? Страшно пробовать незнакомое…",
+		]))
+	elif Mysteries.is_solved(_world, "food") and (_thoughts.has("hunger") or _thoughts.has("intro")) \
+			and not _thoughts.has("food"):
+		_thoughts["food"] = true
+		ui.show_dialogue(h["name"], PackedStringArray([
+			"Это можно есть! Теперь я не пропаду.",
+			"И всё же… кто-то будто подсказал мне. Кто-то присматривает за этим островом.",
+		]))
+
+
 ## Обучение: первая тайна («Еда») должна раскрыться быстро — пока её нет, внизу подсказка, над ближайшим
 ## к человеку фруктом — искры. Раскрыта — на минуту подсказка про ману и чудеса.
 func _tutorial_hint() -> String:
@@ -619,7 +694,8 @@ func _save() -> void:
 
 func _render_hud() -> void:
 	hud.update_world(_world, WorldClock.hour(int(_world["tick"])))
-	hud.set_hint(_tutorial_hint())
+	hud.set_hint("" if ui.dialogue_active() else _tutorial_hint())
+	_maybe_think()
 	items_view.highlight(_tutorial_fruit())
 	hud.update_people(_world, selected_id)
 	_update_card()

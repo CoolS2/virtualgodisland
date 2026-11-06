@@ -43,6 +43,10 @@ var held_by: Hand
 var _model: Node3D
 var _player: AnimationPlayer
 var _current := ""
+## Проснулся — сначала встаёт (StandUp), потом идёт.
+var _prev_action := ""
+var _standing := 0.0
+const STAND_UP_SECONDS := 1.6
 var _person_id := -1
 var _label := Label3D.new()
 var _ring := MeshInstance3D.new()
@@ -152,6 +156,14 @@ func show_state(h: Dictionary, delta: float, age: float = Human.START_AGE) -> vo
 			_model.rotation.x = 0.0
 			_placed = false
 		return
+	if _prev_action == "sleep" and h["action"] != "sleep" and h["alive"]:
+		_standing = STAND_UP_SECONDS
+		_play("StandUp", true)
+	_prev_action = h["action"]
+	if _standing > 0.0:
+		_standing -= delta
+		_label.text = ""
+		return
 	var target := Vector3(h["x"], 0.0, h["z"])
 	var flat := Vector3(position.x, 0.0, position.z)
 	var walking := false
@@ -194,7 +206,7 @@ func _build_model(h: Dictionary) -> void:
 		for anim_name: StringName in _player.get_animation_list():
 			var anim := _player.get_animation(anim_name)
 			var base := str(anim_name).get_slice("/", str(anim_name).get_slice_count("/") - 1)
-			anim.loop_mode = Animation.LOOP_NONE if HOLD_LAST_FRAME.has(base) or base == "RecieveHit" else Animation.LOOP_LINEAR
+			anim.loop_mode = Animation.LOOP_NONE if HOLD_LAST_FRAME.has(base) or base == "RecieveHit" or base == "StandUp" else Animation.LOOP_LINEAR
 	_hair_color = HAIR_COLORS[(_person_id * 3) % HAIR_COLORS.size()]
 	# У Quaternius «Skin» — голова, руки, ноги (в паке почти чёрная), «Face» — глаза: их не трогаем.
 	_recolor(_model, {

@@ -4,6 +4,11 @@ extends CanvasLayer
 
 ## Нажата «Новый остров» на экране конца игры.
 signal new_game_requested
+## Монолог (сюжет) показан до конца.
+signal dialogue_finished
+
+## Реплика монолога держится столько секунд, если не нажать «Дальше».
+const LINE_SECONDS := 6.5
 
 var _welcome := PanelContainer.new()
 var _welcome_text := Label.new()
@@ -17,6 +22,13 @@ var _game_over_text := Label.new()
 
 
 var _root := UiStyle.root()
+## Монолог человека внизу экрана: имя, реплика, «Дальше».
+var _dialogue := PanelContainer.new()
+var _dialogue_name := UiStyle.title("", 22)
+var _dialogue_text := UiStyle.label("", 17)
+var _dialogue_lines := PackedStringArray()
+var _dialogue_index := 0
+var _dialogue_time := 0.0
 
 
 func _init() -> void:
@@ -25,6 +37,7 @@ func _init() -> void:
 	add_child(_root)
 	_setup_panel(_welcome, _welcome_text, "Продолжить")
 	_build_mysteries_panel()
+	_build_dialogue()
 	_setup_panel(_game_over, _game_over_text, "Новый остров")
 	(_game_over.get_child(0).get_child(2) as Button).pressed.connect(func() -> void: new_game_requested.emit())
 
@@ -39,6 +52,70 @@ func show_game_over(text: String) -> void:
 	_mysteries.visible = false
 	_game_over_text.text = text
 	_game_over.visible = true
+
+
+## Монолог: реплики по очереди (сами через LINE_SECONDS или по «Дальше» / пробелу).
+func show_dialogue(speaker: String, lines: PackedStringArray) -> void:
+	_dialogue_name.text = speaker
+	_dialogue_lines = lines
+	_dialogue_index = 0
+	_dialogue_time = 0.0
+	_dialogue_text.text = lines[0]
+	_dialogue.visible = true
+
+
+func dialogue_active() -> bool:
+	return _dialogue.visible
+
+
+func next_line() -> void:
+	_dialogue_index += 1
+	_dialogue_time = 0.0
+	if _dialogue_index >= _dialogue_lines.size():
+		_dialogue.visible = false
+		dialogue_finished.emit()
+	else:
+		_dialogue_text.text = _dialogue_lines[_dialogue_index]
+
+
+func _process(delta: float) -> void:
+	if _dialogue.visible:
+		_dialogue_time += delta
+		if _dialogue_time >= LINE_SECONDS:
+			next_line()
+
+
+func _unhandled_key_input(event: InputEvent) -> void:
+	var key := event as InputEventKey
+	if _dialogue.visible and key and key.pressed and not key.echo \
+			and (key.physical_keycode == KEY_SPACE or key.physical_keycode == KEY_ENTER):
+		next_line()
+		get_viewport().set_input_as_handled()
+
+
+func _build_dialogue() -> void:
+	_dialogue.theme_type_variation = "Card"
+	_dialogue.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_dialogue.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_dialogue.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_dialogue.position.y = -16
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 6)
+	_dialogue_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	box.add_child(_dialogue_name)
+	_dialogue_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_dialogue_text.custom_minimum_size = Vector2(600, 48)
+	box.add_child(_dialogue_text)
+	var button := Button.new()
+	button.text = "Дальше"
+	button.focus_mode = Control.FOCUS_NONE
+	button.size_flags_horizontal = Control.SIZE_SHRINK_END
+	button.custom_minimum_size = Vector2(120, 36)
+	button.pressed.connect(next_line)
+	box.add_child(button)
+	_dialogue.add_child(box)
+	_dialogue.visible = false
+	_root.add_child(_dialogue)
 
 
 func close_mysteries() -> void:

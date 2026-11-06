@@ -104,6 +104,9 @@ const WANDER_ATTEMPTS := 10
 const STUCK_LIMIT := 2
 const SPAWN_ATTEMPTS := 200
 const SPAWN_MAX_HEIGHT := 6.0
+## Первый человек очнулся в стольких единицах от обломков своего корабля.
+const SHIPWRECK_MIN := 4.0
+const SHIPWRECK_MAX := 9.0
 
 
 static func default_state() -> Dictionary:
@@ -124,6 +127,8 @@ static func update(w: Dictionary, map: IslandMap) -> void:
 	for h: Dictionary in (w["people"] as Array).duplicate():
 		if not h["spawned"]:
 			_spawn(w, map, h)
+			Exploration.reveal(w, map, position_of(h))
+			continue # в тик появления ничего не делает (первый человек ещё без сознания)
 		if h["alive"]:
 			_update_one(w, map, h)
 
@@ -653,6 +658,17 @@ static func _spawn(w: Dictionary, map: IslandMap, h: Dictionary) -> void:
 	h["spawned"] = true
 	roll_traits(w, h)
 	var half := map.half_extent()
+	# Сюжет: первый человек — выживший после кораблекрушения. Лежит без сознания на берегу у обломков
+	# своего корабля и приходит в себя на следующем тике (днём, выспавшись, просыпается сам).
+	var shore := _shipwreck_shore(map)
+	if int(h["id"]) == 1 and shore != Vector2.INF:
+		h["x"] = shore.x
+		h["z"] = shore.y
+		_set_action(h, "sleep")
+		if not (w["found"] as Array).has("raft_wreck"):
+			(w["found"] as Array).append("raft_wreck") # свой корабль — не находка
+		WorldEngine.add_log(w, "%s %s на берегу у обломков своего корабля" % [h["name"], _verb(h, "очнулся")])
+		return
 	for _i in SPAWN_ATTEMPTS:
 		var p := Vector2(VgiRng.next_float(w) - 0.5, VgiRng.next_float(w) - 0.5) * map.size * 0.4
 		var biome := map.biome_at_world(p.x, p.y)
@@ -668,6 +684,25 @@ static func _spawn(w: Dictionary, map: IslandMap, h: Dictionary) -> void:
 			h["z"] = floori(float(i) / map.size) - half
 			break
 	_set_action(h, "idle")
+
+
+## Где очнулся после кораблекрушения: суша (пляж или поле) в SHIPWRECK_MIN..MAX от обломков, ближе всего
+## к точке на пути от обломков к центру острова. Vector2.INF — обломков нет.
+static func _shipwreck_shore(map: IslandMap) -> Vector2:
+	if not map.relics.has("raft_wreck"):
+		return Vector2.INF
+	var wreck: Vector2 = map.relics["raft_wreck"]
+	var inland := wreck + (-wreck).normalized() * SHIPWRECK_MAX
+	var best := Vector2.INF
+	for ring in range(int(SHIPWRECK_MIN), int(SHIPWRECK_MAX) + 1):
+		for step in 32:
+			var p := wreck + Vector2.from_angle(TAU * step / 32.0) * ring
+			var biome := map.biome_at_world(p.x, p.y)
+			if (biome != IslandMap.Biome.BEACH and biome != IslandMap.Biome.FIELD) or map.height_at_world(p.x, p.y) < 0.15:
+				continue
+			if p.distance_to(inland) < best.distance_to(inland):
+				best = p
+	return best
 
 
 ## Пол, имя, срок жизни, навыки — случайно, но детерминированно (RNG мира).

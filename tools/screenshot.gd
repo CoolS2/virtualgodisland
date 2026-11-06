@@ -39,6 +39,7 @@ func _ready() -> void:
 	views.append(_night_camp_view.bind(main))
 	views.append(_obelisk_view.bind(main))
 	views.append(_hand_view.bind(main))
+	views.append(_intro_view.bind(main))
 	views.append(_menu_view.bind(main))
 	for make_view in views:
 		var view: Array = make_view.call()
@@ -201,6 +202,24 @@ func _obelisk_view(main: Node) -> Array:
 
 
 ## Рука держит ветку недалеко от центра острова.
+## Пролог новой игры: человек у обломков корабля, монолог (в превью человек уже мог уйти — ставим обратно).
+func _intro_view(main: Node) -> Array:
+	var world: Dictionary = main.get("_world")
+	var map := main.get("island_map") as IslandMap
+	var h: Dictionary = world["people"][0]
+	var shore := Human._shipwreck_shore(map)
+	if shore == Vector2.INF:
+		return []
+	h["x"] = shore.x
+	h["z"] = shore.y
+	h["tx"] = shore.x
+	h["tz"] = shore.y
+	h["action"] = "sleep"
+	(main.call("view_of", h) as HumanView).snap()
+	var view: Array = main.call("start_intro")
+	return ["intro"] + view if not view.is_empty() else []
+
+
 func _hand_view(main: Node) -> Array:
 	var map := main.get("island_map") as IslandMap
 	var spot := _open_field(map)
