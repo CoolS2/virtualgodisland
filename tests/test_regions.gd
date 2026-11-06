@@ -15,8 +15,13 @@ func _count(map: IslandMap, region: int) -> int:
 func test_every_island_has_four_parts() -> void:
 	for s: int in SEEDS:
 		var map := IslandGenerator.generate(s)
+		var counts := []
 		for region in Regions.LAST + 1:
-			assert_gt(_count(map, region), 150, "seed %d: часть %d не пустая" % [s, region])
+			counts.append(_count(map, region))
+		var info := "река %d клеток, вершина %s, устье %.2f рад, части %s" % [map.river.size(), map.peak,
+			map.river_mouth_angle, counts]
+		for region in Regions.LAST + 1:
+			assert_gt(_count(map, region), 150, "seed %d: часть %d не пустая (%s)" % [s, region, info])
 		assert_eq(Regions.region_at(map, map.relics["raft_wreck"]), 0, "seed %d: корабль — на берегу надежды" % s)
 		assert_true(map.relics.has("old_bridge"), "seed %d: есть опоры моста" % s)
 

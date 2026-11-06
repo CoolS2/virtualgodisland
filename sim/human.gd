@@ -116,7 +116,7 @@ const SHIPWRECK_MIN := 4.0
 ## Поиск маршрута в обход моря: шаги по сетке и предел просмотренных клеток.
 const ROUTE_STEPS: Array[Vector2i] = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1),
 	Vector2i(1, 1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(-1, -1)]
-const ROUTE_MAX_CELLS := 12000
+const ROUTE_MAX_CELLS := 160 * 160
 const SHIPWRECK_MAX := 9.0
 
 
