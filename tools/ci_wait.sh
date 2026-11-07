@@ -26,7 +26,7 @@ import json, sys
 print([j['id'] for j in json.load(sys.stdin)['jobs'] if j['name'] == 'godot'][0])")
 curl -sSL -o "$OUT/job.log" "$API/actions/jobs/$job_id/logs"
 grep -E "Passing Tests|Failing Tests|\[Failed\]|SCRIPT ERROR|SHADER ERROR|Parse Error|at: test_|##\[error\]" "$OUT/job.log" \
-  | sed -E 's/^[0-9TZ:.-]+ //' | cut -c1-400 | sort -u | head -40
+  | grep -v '! grep' | sed -E 's/^[0-9TZ:.-]+ //' | cut -c1-400 | sort -u | head -40
 grep -oE 'PREVIEW_JPEG_BASE64\[[a-z_]+\]:.*' "$OUT/job.log" | while IFS= read -r line; do
   name=$(echo "$line" | sed -E 's/PREVIEW_JPEG_BASE64\[([a-z_]+)\].*/\1/')
   echo "$line" | cut -d: -f2 | tr -d '\r\n ' | base64 -d > "$OUT/$name.jpg" && echo "превью: $OUT/$name.jpg"
