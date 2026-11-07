@@ -69,6 +69,18 @@ func test_generation_snapshot() -> void:
 
 
 ## Река есть, течёт непрерывно от склона горы до моря на дальнем берегу, уровень воды не растёт.
+## Всё море связано с открытым морем (по 4 соседям): нет луж, в которых могла бы кончиться река.
+func test_no_inland_sea() -> void:
+	for s: int in [0, 7, 42, 128, 153, 159]:
+		var map := IslandGenerator.generate(s)
+		var ocean := IslandGenerator.open_sea(map)
+		var lagoons := 0
+		for i in map.biomes.size():
+			if map.biomes[i] == IslandMap.Biome.SEA and not ocean[i]:
+				lagoons += 1
+		assert_eq(lagoons, 0, "seed %d: клеток моря вне открытого моря" % s)
+
+
 func test_river_flows_to_sea() -> void:
 	for s in 10:
 		var map := IslandGenerator.generate(s)

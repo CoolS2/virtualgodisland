@@ -14,6 +14,43 @@ const HILL_HEIGHT := 4.0
 const ROCK_LINE := 9.0
 ## Выше этой высоты — снег (используется визуалом).
 const SNOW_LINE := 17.0
+## Пятна моря, не связанные с открытым морем (по 4 соседям от края карты), — пляж: иначе река может кончиться
+## в такой луже и не отрезать один берег от другого.
+static func _fill_lagoons(map: IslandMap) -> void:
+	var ocean := open_sea(map)
+	for i in map.biomes.size():
+		if map.biomes[i] == IslandMap.Biome.SEA and not ocean[i]:
+			map.biomes[i] = IslandMap.Biome.BEACH
+			map.heights[i] = LAGOON_HEIGHT
+
+
+## Клетки открытого моря: море, связанное по 4 соседям с краем карты.
+static func open_sea(map: IslandMap) -> PackedByteArray:
+	var size := map.size
+	var ocean := PackedByteArray()
+	ocean.resize(size * size)
+	var stack: Array[int] = []
+	for k in size:
+		for i: int in [k, (size - 1) * size + k, k * size, k * size + size - 1]:
+			if map.biomes[i] == IslandMap.Biome.SEA and not ocean[i]:
+				ocean[i] = 1
+				stack.append(i)
+	while not stack.is_empty():
+		var i: int = stack.pop_back()
+		var x := i % size
+		var y := floori(float(i) / size)
+		for offset: Vector2i in NEIGHBORS_8.slice(0, 4):
+			var nx := x + offset.x
+			var ny := y + offset.y
+			if nx < 0 or ny < 0 or nx >= size or ny >= size:
+				continue
+			var j := ny * size + nx
+			if map.biomes[j] == IslandMap.Biome.SEA and not ocean[j]:
+				ocean[j] = 1
+				stack.append(j)
+	return ocean
+
+
 ## Река: исток на склоне горы на этой высоте.
 const RIVER_SOURCE_HEIGHT := 15.0
 ## Водопад: уступ там, где русло на склоне горы опускается до этой высоты.
@@ -44,6 +81,8 @@ const SPUR_TRIES: Array[float] = [TAU - SPUR_ANGLE, TAU - SPUR_ANGLE - 0.35, TAU
 	TAU - SPUR_ANGLE - 1.4, TAU - SPUR_ANGLE + 1.4, TAU - SPUR_ANGLE - 0.175, TAU - SPUR_ANGLE + 0.175,
 	TAU - SPUR_ANGLE - 0.525, TAU - SPUR_ANGLE + 0.525]
 const SPUR_WIDTH := 2.6
+## Высота засыпанной лужи моря (_fill_lagoons) — чуть выше воды.
+const LAGOON_HEIGHT := 0.05
 const SPUR_HEIGHT := 3.0
 ## Длина диагонального шага (√2).
 const DIAGONAL := 1.4142135623730951
@@ -117,6 +156,7 @@ static func generate(map_seed: int, size: int = DEFAULT_SIZE) -> IslandMap:
 			map.biomes[i] = IslandMap.Biome.MOUNTAIN if h > ROCK_LINE else LAND_BIOMES[best]
 			map.heights[i] = h
 
+	_fill_lagoons(map)
 	_carve_river(map, rng)
 	# Отрог под углом, при котором остров делится на 4 части как надо (Regions.valid); если русло реки
 	# мешает — пробуем другие углы (рельеф и биомы перед каждой попыткой — исходные).

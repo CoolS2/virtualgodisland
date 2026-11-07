@@ -91,6 +91,30 @@ func test_start_is_on_the_shore_for_many_seeds() -> void:
 		for r in Regions.LAST + 1:
 			counts.append(_count(map, r))
 		if region != 0 or not map.relics.has("old_bridge") or counts.min() < 150:
-			bad.append("seed %d: человек в части %d, части %s, мост %s, река %d" % [s, region, counts,
-				map.relics.has("old_bridge"), map.river.size()])
+			bad.append("seed %d: человек в части %d, части %s, мост %s, река %d; %s" % [s, region, counts,
+				map.relics.has("old_bridge"), map.river.size(), _river_report(map)])
 	assert_eq(bad.size(), 0, "\n".join(bad))
+
+
+## Для разбора сбоя: что у истока и устья реки и какие части касаются её берегов.
+func _river_report(map: IslandMap) -> String:
+	var touching := {}
+	for i in map.river:
+		var x := i % map.size
+		var y := floori(float(i) / map.size)
+		for dy in range(-1, 2):
+			for dx in range(-1, 2):
+				var j := clampi(y + dy, 0, map.size - 1) * map.size + clampi(x + dx, 0, map.size - 1)
+				var key := "%d/%d" % [map.regions[j], map.biomes[j]]
+				touching[key] = int(touching.get(key, 0)) + 1
+	var ends := []
+	for i: int in [map.river[0], map.river[map.river.size() - 1]]:
+		var around := []
+		for dy in range(-1, 2):
+			for dx in range(-1, 2):
+				var j := clampi(floori(float(i) / map.size) + dy, 0, map.size - 1) * map.size \
+					+ clampi(i % map.size + dx, 0, map.size - 1)
+				around.append("%d/%d/%.1f" % [map.regions[j], map.biomes[j], map.heights[j]])
+		ends.append(" ".join(around))
+	return "у реки (часть/биом: клеток) %s; исток [%s]; устье [%s]; вершина %s, отрог %.2f" % [touching, ends[0],
+		ends[1], map.peak, map.spur_rel]
