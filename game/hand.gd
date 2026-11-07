@@ -247,7 +247,7 @@ func _physics_process(delta: float) -> void:
 	var to := from + camera.project_ray_normal(_pointer) * RAY_LENGTH
 	var hit := get_world_3d().direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(from, to))
 	if not hit.is_empty():
-		_ground = hit["position"]
+		_ground = _limit(hit["position"])
 		_has_ground = true
 	if not _has_ground:
 		return
@@ -268,7 +268,11 @@ func _limit(hit: Vector3) -> Vector3:
 		_has_allowed = true
 		return hit
 	if not _has_allowed or _forbidden(_allowed):
-		return hit if not _has_allowed else _allowed
+		# Точки «до упора» ещё нет или она оказалась за облаками (загрузка, смена главы) — ближайшая открытая земля.
+		var open := Regions.nearest_walkable(map, Vector2(hit.x, hit.z))
+		_allowed = Vector3(open.x, map.height_at_world(open.x, open.y), open.y)
+		_has_allowed = true
+		return _allowed
 	var low := 0.0
 	var high := 1.0
 	for _i in 8:
