@@ -16,6 +16,9 @@ const LAST := 3
 const BRIDGE_RADIUS := 2.4
 ## Доля дуги вокруг горы (от реки до отрога), отданная «Земле предков»; остальное — «Тёмный лес».
 const ANCESTORS_SHARE := 0.5
+## Проверка разметки (valid): не меньше стольких клеток в каждой низинной части, «Берег» — не больше доли низин.
+const MIN_PART := 400
+const MAX_SHORE_SHARE := 0.6
 
 
 ## Разметить карту по частям (после реки и отрога). Сухопутные клетки «Тёмного леса» становятся лесом.
@@ -46,7 +49,7 @@ static func assign(map: IslandMap) -> void:
 						map.regions[j] = 0
 						stack.append(j)
 	# Остальная суша — по углу вокруг вершины: от реки — «Земля предков», дальше — «Тёмный лес».
-	var arc := TAU - IslandGenerator.SPUR_ANGLE
+	var arc := map.spur_rel # от реки до отрога; дальше по кругу, до реки, — «Берег»
 	for i in n:
 		if map.regions[i] != BARRIER or not _lowland(map, i):
 			continue
@@ -104,6 +107,33 @@ static func bridge_center(map: IslandMap) -> Vector2:
 	return best
 
 
+## Остров разделён как надо: в каждой части достаточно земли, «Берег» не занимает почти всё, и у реки есть
+## место для моста — клетка русла с «Берегом» и «Землёй предков» по обе стороны.
+static func valid(map: IslandMap) -> bool:
+	var counts := [0, 0, 0, 0]
+	for r in map.regions:
+		if r != BARRIER:
+			counts[r] += 1
+	var lowland: int = counts[0] + counts[1] + counts[2]
+	if counts[0] < MIN_PART or counts[1] < MIN_PART or counts[2] < MIN_PART or counts[3] < MIN_PART * 0.5:
+		return false
+	if counts[0] > lowland * MAX_SHORE_SHARE:
+		return false
+	for i in map.river:
+		var x := i % map.size
+		var y := floori(float(i) / map.size)
+		var shore := false
+		var beyond := false
+		for dy in range(-2, 3):
+			for dx in range(-2, 3):
+				var r := map.regions[clampi(y + dy, 0, map.size - 1) * map.size + clampi(x + dx, 0, map.size - 1)]
+				shore = shore or r == 0
+				beyond = beyond or r == 1
+		if shore and beyond:
+			return true
+	return false
+
+
 ## Ближайшая к точке проходимая точка суши (сюда вернётся человек, которого не пускает граница).
 static func nearest_walkable(map: IslandMap, from: Vector2) -> Vector2:
 	if walkable(map, from):
@@ -145,7 +175,7 @@ static func _angle_from_river(map: IslandMap, x: int, y: int) -> float:
 
 ## Клетка суши посередине дуги «Берега» (между отрогом и рекой) — откуда заливать.
 static func _shore_seed(map: IslandMap) -> int:
-	var angle := map.river_mouth_angle - IslandGenerator.SPUR_ANGLE / 2.0
+	var angle := map.river_mouth_angle + (map.spur_rel + TAU) / 2.0
 	for step in range(1, map.size):
 		var x := roundi(map.peak.x + cos(angle) * step)
 		var y := roundi(map.peak.y + sin(angle) * step)

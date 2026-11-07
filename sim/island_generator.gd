@@ -37,6 +37,10 @@ const RIVER_ANGLE_STEP := 0.3
 const RIVER_MOUTH_RADIUS := 6
 ## Отрог: под таким углом от направления на устье реки (по часовой), полуширина и высота над ROCK_LINE.
 const SPUR_ANGLE := TAU / 3.0
+## Углы отрога от направления на устье (против часовой): основной (-120°) и запасные, если с ним остров
+## не делится на части (русло петляет навстречу отрогу).
+const SPUR_TRIES: Array[float] = [TAU - SPUR_ANGLE, TAU - SPUR_ANGLE - 0.35, TAU - SPUR_ANGLE + 0.35,
+	TAU - SPUR_ANGLE - 0.7, TAU - SPUR_ANGLE + 0.7, PI, TAU - SPUR_ANGLE / 2.0]
 const SPUR_WIDTH := 2.6
 const SPUR_HEIGHT := 3.0
 ## Длина диагонального шага (√2).
@@ -112,8 +116,18 @@ static func generate(map_seed: int, size: int = DEFAULT_SIZE) -> IslandMap:
 			map.heights[i] = h
 
 	_carve_river(map, rng)
-	_raise_spur(map)
-	Regions.assign(map)
+	# Отрог под углом, при котором остров делится на 4 части как надо (Regions.valid); если русло реки
+	# мешает — пробуем другие углы (рельеф и биомы перед каждой попыткой — исходные).
+	var heights_before := map.heights.duplicate()
+	var biomes_before := map.biomes.duplicate()
+	for rel: float in SPUR_TRIES:
+		map.heights = heights_before.duplicate()
+		map.biomes = biomes_before.duplicate()
+		map.spur_rel = rel
+		_raise_spur(map)
+		Regions.assign(map)
+		if Regions.valid(map):
+			break
 	map.relics = Hints.place(map)
 	map.caches = Caches.place(map)
 	map.flora = Flora.place(map)
@@ -232,7 +246,7 @@ static func _carve_river(map: IslandMap, rng: VgiRng) -> void:
 	map.river_mouth_angle = atan2(floori(float(goal) / size) - py, goal % size - px)
 
 
-## Горный отрог: скальная гряда от вершины до моря под углом SPUR_ANGLE от устья реки. Вместе с рекой
+## Горный отрог: скальная гряда от вершины до моря под углом map.spur_rel от направления на устье реки. Вместе с рекой
 ## режет низины вокруг горы на части острова (Regions). Ширина — не меньше 3 клеток, высота — выше ROCK_LINE.
 static func _raise_spur(map: IslandMap) -> void:
 	var size := map.size
@@ -240,7 +254,7 @@ static func _raise_spur(map: IslandMap) -> void:
 	var px: int = peak % size
 	var py: int = floori(float(peak) / size)
 	map.peak = Vector2i(px, py)
-	var angle: float = map.river_mouth_angle - SPUR_ANGLE
+	var angle: float = map.river_mouth_angle + map.spur_rel
 	var dir := Vector2(cos(angle), sin(angle))
 	for y in size:
 		for x in size:

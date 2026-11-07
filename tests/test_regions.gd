@@ -77,11 +77,11 @@ func test_hand_cannot_carry_a_person_into_a_locked_part() -> void:
 	assert_gt(float(h["fear"]), fear, "испугался")
 
 
-## На любом острове (много seed) первый человек очнулся на «Береге надежды», берег не касается других частей,
+## На любом острове (60 seed) первый человек очнулся на «Береге надежды», берег не касается других частей,
 ## опоры моста есть. Новая игра берёт случайный seed — тут ловим острова, где разметка ломается.
 func test_start_is_on_the_shore_for_many_seeds() -> void:
 	var bad := PackedStringArray()
-	for s in range(100, 140):
+	for s in range(100, 160):
 		var map := IslandGenerator.generate(s)
 		var w := WorldEngine.create_world(s, 0)
 		WorldEngine.step(w, map)
