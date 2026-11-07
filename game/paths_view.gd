@@ -8,11 +8,11 @@ extends Node3D
 enum Style { DIRT, STONE, FOREST, MOUNTAIN }
 
 ## Полуширина полосы по стилю, цвет полосы (палитра природная, см. ART_DIRECTION).
-const HALF_WIDTH := [1.1, 1.3, 1.0, 1.0]
-const COLORS := [Color("#a8916a"), Color("#857d72"), Color("#5a4630"), Color("#7a746a")]
+const HALF_WIDTH := [1.6, 1.8, 1.5, 1.5]
+const COLORS := [Color("#c4ad7e"), Color("#a39a8c"), Color("#80664a"), Color("#9a9388")]
 ## Поперёк полосы: смещение (доля полуширины) и непрозрачность — к краю тропа растворяется.
 const ACROSS := [-1.0, -0.6, 0.0, 0.6, 1.0]
-const ALPHAS := [0.0, 0.85, 0.95, 0.85, 0.0]
+const ALPHAS := [0.0, 0.9, 1.0, 0.9, 0.0]
 ## Над рельефом — чтобы не мерцало с землёй.
 const LIFT := 0.1
 ## Шаг выборки точек вдоль тропы.
@@ -20,6 +20,8 @@ const STEP := 1.0
 ## Радиус вокруг развалин и святилища, где дорожка мощёная.
 const PAVED_RADIUS := 16.0
 const WOOD_PERIOD := 6.0
+## Радиус вокруг оси тропы, где деревья и мелкие детали не ставятся (см. on_trail).
+const CLEAR_RADIUS := 2
 
 const ROUTES_PART0 := ["fruit_core", "fish_bones", "wild_vegetables", "burnt_tree", "berry_grove", "rock_arch"]
 const NEAR_PLACES := 3
@@ -34,6 +36,8 @@ var _mesh_st := SurfaceTool.new()
 var _bands := 0
 ## Маршруты, у начала которых ставится указатель.
 var _signs: Array = []
+## Клетки (шаг 1 ед.) в CLEAR_RADIUS от оси тропы.
+var _trail := {}
 
 
 func _init() -> void:
@@ -112,6 +116,11 @@ func _routes() -> Array:
 			_add_route(result, rel["ruins"], rel["torch_stub"], true)
 			_add_route(result, rel["torch_stub"], Regions.nearest_walkable(_map, Mysteries.summit_site(_map)))
 	return result
+
+
+## Лежит ли точка на тропе или рядом с ней — там деревья и детали не растут.
+func on_trail(p: Vector2) -> bool:
+	return _trail.has(Vector2i(roundi(p.x), roundi(p.y)))
 
 
 func _add_route(into: Array, a: Vector2, b: Vector2, signed: bool = false) -> void:
@@ -204,6 +213,7 @@ func _lay_run(run: Array[Vector2], start_length: float) -> float:
 	var length := start_length
 	for i in run.size():
 		var p := run[i]
+		_mark_trail(p)
 		var dir := (run[mini(i + 1, run.size() - 1)] - run[maxi(i - 1, 0)]).normalized()
 		var perp := Vector2(-dir.y, dir.x)
 		var style := _style_at(p)
@@ -227,30 +237,38 @@ func _lay_run(run: Array[Vector2], start_length: float) -> float:
 	return length
 
 
+func _mark_trail(p: Vector2) -> void:
+	var centre := Vector2i(roundi(p.x), roundi(p.y))
+	for dy in range(-CLEAR_RADIUS, CLEAR_RADIUS + 1):
+		for dx in range(-CLEAR_RADIUS, CLEAR_RADIUS + 1):
+			if dx * dx + dy * dy <= CLEAR_RADIUS * CLEAR_RADIUS:
+				_trail[centre + Vector2i(dx, dy)] = true
+
+
 ## Плитки и предметы у точки тропы (length — путь от начала участка).
 func _decorate(p: Vector2, dir: Vector2, perp: Vector2, style: int, length: float) -> void:
 	match style:
 		Style.DIRT:
 			if fmod(length, 4.0) < STEP and _rng.randf() < 0.7:
-				_tile("path_stone", 1.1, p + perp * _rng.randf_range(-0.7, 0.7), perp, _rng.randf_range(-0.4, 0.4))
+				_tile("path_stone", 1.3, p + perp * _rng.randf_range(-0.7, 0.7), perp, _rng.randf_range(-0.4, 0.4))
 		Style.STONE:
 			for side in [-0.65, 0.65]:
-				_tile("path_stone", 1.3, p + perp * side + dir * _rng.randf_range(-0.15, 0.15), perp, _rng.randf_range(-0.12, 0.12))
+				_tile("path_stone", 1.6, p + perp * side + dir * _rng.randf_range(-0.15, 0.15), perp, _rng.randf_range(-0.12, 0.12))
 			if fmod(length, 5.0) < STEP:
-				_tile("path_stoneCircle", 1.4, p + perp * _rng.randf_range(-0.3, 0.3), perp, 0.0)
+				_tile("path_stoneCircle", 1.9, p + perp * _rng.randf_range(-0.3, 0.3), perp, 0.0)
 				_column(p, perp, length)
 		Style.FOREST:
 			if fmod(length, WOOD_PERIOD * 3.0) < WOOD_PERIOD * 2.0:
-				_tile("path_wood", 1.8, p, perp, _rng.randf_range(-0.1, 0.1))
+				_tile("path_wood", 2.2, p, perp, _rng.randf_range(-0.1, 0.1))
 			if fmod(length, WOOD_PERIOD) < STEP:
 				var side := 1.7 if _rng.randf() < 0.5 else -1.7
-				_tile("log", 3.0, p + perp * side, perp, _rng.randf_range(-0.3, 0.3))
+				_tile("log", 2.5, p + perp * side, perp, _rng.randf_range(-0.3, 0.3))
 			if fmod(length, WOOD_PERIOD * 2.0) < STEP:
-				_tile("stump_old", 3.0, p - perp * 1.9, perp, _rng.randf() * TAU)
+				_tile("stump_old", 2.5, p - perp * 1.9, perp, _rng.randf() * TAU)
 		Style.MOUNTAIN:
-			_tile("path_stone", 1.7, p + perp * _rng.randf_range(-0.3, 0.3), perp, _rng.randf_range(-0.15, 0.15))
+			_tile("path_stone", 2.2, p + perp * _rng.randf_range(-0.3, 0.3), perp, _rng.randf_range(-0.15, 0.15))
 			if fmod(length, 7.0) < STEP:
-				_tile("stone_largeA", 1.6, p + perp * (1.9 if _rng.randf() < 0.5 else -1.9), perp, _rng.randf() * TAU)
+				_tile("stone_largeA", 2.2, p + perp * (1.9 if _rng.randf() < 0.5 else -1.9), perp, _rng.randf() * TAU)
 
 
 ## Колонны парами по сторонам каменной дорожки (не у самих развалин); часть — обломанные.
@@ -262,7 +280,7 @@ func _column(p: Vector2, perp: Vector2, length: float) -> void:
 		return
 	for side in [-2.1, 2.1]:
 		var key := "statue_columnDamaged" if _rng.randf() < 0.4 else "statue_column"
-		_tile(key, 3.2, p + perp * side, perp, _rng.randf() * TAU, true)
+		_tile(key, 2.5, p + perp * side, perp, _rng.randf() * TAU, true)
 
 
 ## Поставить модель плиткой на землю: по склону; X модели — вдоль axis (поперёк тропы), yaw — добавка.
@@ -279,7 +297,7 @@ func _tile(model: String, model_scale: float, at: Vector2, axis: Vector2, yaw: f
 		up = Vector3(h - _map.height_at_world(at.x + 1.0, at.y), 1.0, h - _map.height_at_world(at.x, at.y + 1.0)).normalized()
 	var x := Vector3(axis.x, 0.0, axis.y)
 	x = (x - up * x.dot(up)).normalized()
-	var tile_basis := Basis(x, up, x.cross(up)).rotated(up, yaw) * Basis.from_scale(Vector3.ONE * model_scale)
+	var tile_basis := Basis(x, up, x.cross(up)).rotated(up, yaw)
 	(_tiles[key] as Array).append(Transform3D(tile_basis, _ground(at, 0.03)))
 
 
@@ -291,15 +309,15 @@ func _landmarks(routes: Array) -> void:
 	# Старт: кострище в стороне от тропы, указатель к обелиску.
 	var dir := (first[mini(3, first.size() - 1)] - first[0]).normalized()
 	var perp := Vector2(-dir.y, dir.x)
-	_prop("campfire_stones", 4.0, first[0] + perp * 2.6, 0.0)
-	_prop("sign", 5.0, first[0] + dir * 2.0 - perp * 1.8, atan2(-dir.x, -dir.y))
+	_prop("campfire_stones", 3.0, first[0] + perp * 2.6, 0.0)
+	_prop("sign", 4.0, first[0] + dir * 2.0 - perp * 1.8, atan2(-dir.x, -dir.y))
 	# Развилки: у обелиска — к мосту, у опор моста — на тот берег, у руин — к лесу.
 	for route: Array[Vector2] in _signs:
 		if route.size() < 6:
 			continue
 		var d := (route[5] - route[0]).normalized()
 		var side := Vector2(-d.y, d.x)
-		_prop("sign", 5.0, route[0] + d * 3.0 + side * 2.0, atan2(-d.x, -d.y))
+		_prop("sign", 4.0, route[0] + d * 3.0 + side * 2.0, atan2(-d.x, -d.y))
 
 
 func _prop(model: String, model_scale: float, at: Vector2, yaw: float) -> void:
@@ -308,4 +326,4 @@ func _prop(model: String, model_scale: float, at: Vector2, yaw: float) -> void:
 	var key := "%s@%s" % [model, model_scale]
 	if not _tiles.has(key):
 		_tiles[key] = []
-	(_tiles[key] as Array).append(Transform3D(Basis(Vector3.UP, yaw) * Basis.from_scale(Vector3.ONE * model_scale), _ground(at)))
+	(_tiles[key] as Array).append(Transform3D(Basis(Vector3.UP, yaw), _ground(at)))

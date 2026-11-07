@@ -6,6 +6,8 @@ extends Node
 const WARMUP_FRAMES := 30
 const DEFAULT_OUT := "user://screenshots"
 const DEFAULT_SEED := 42
+## Радиус без деревьев вокруг точки обзора ракурса «details».
+const DETAILS_CLEAR := 9.0
 ## Имя, yaw, pitch, distance[, target[, кадров прогрева]].
 const VIEWS := [
 	["overview", PI / 4.0, 0.75, 150.0],
@@ -85,15 +87,30 @@ func _paths_view(map: IslandMap) -> Array:
 	return ["paths", atan2(mid.x, mid.y), 1.0, 90.0, Vector3(mid.x, map.height_at_world(mid.x, mid.y), mid.y)]
 
 
-## Крупно берег реки (детали мира: цветы, камни, кувшинки), камера смотрит вдоль течения.
+## Берег реки сверху-сбоку (детали мира: цветы, камни, кувшинки): точка берега без деревьев в радиусе
+## DETAILS_CLEAR, камера высоко над открытой землёй и смотрит вдоль течения.
 func _details_view(map: IslandMap) -> Array:
 	if map == null or map.river.size() < 12:
 		return []
 	var points := River.smoothed_points(map)
-	var k := floori(map.river.size() / 3.0)
-	var target := points[k] + Vector3(0.0, 0.5, 0.0)
-	var ahead := points[k + 4]
-	return ["details", atan2(target.x - ahead.x, target.z - ahead.z), 0.3, 14.0, target]
+	for k in range(floori(map.river.size() / 3.0), points.size() - 5):
+		if map.waterfall >= 0 and absi(k - map.waterfall) < 8:
+			continue
+		var target := points[k] + Vector3(0.0, 0.5, 0.0)
+		if not _open_ground(map, Vector2(target.x, target.z), DETAILS_CLEAR):
+			continue
+		var ahead := points[k + 4]
+		return ["details", atan2(target.x - ahead.x, target.z - ahead.z), 0.9, 10.0, target]
+	return []
+
+
+## Нет ли деревьев (map.flora) ближе radius к точке.
+func _open_ground(map: IslandMap, p: Vector2, radius: float) -> bool:
+	for cell: int in map.flora:
+		var e: Array = map.flora[cell]
+		if Flora.TREES.has(e[Flora.KIND]) and Vector2(e[Flora.X], e[Flora.Z]).distance_to(p) < radius:
+			return false
+	return true
 
 
 ## Ракурс на водопад снизу по течению: камера вращается вокруг середины падения.

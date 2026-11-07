@@ -28,6 +28,7 @@ const SHADOWS: Array[String] = ["stump_old", "stump_round", "stump_square", "log
 	"cliff_half_rock", "cliff_steps_rock", "cliff_large_rock", "cliff_corner_rock"]
 
 var _map: IslandMap
+var _paths: PathsView
 var _rng := RandomNumberGenerator.new()
 var _half := 0.0
 var _relics: Array[Vector2] = []
@@ -37,8 +38,10 @@ var _out := {}
 
 
 ## Все детали острова одним узлом (по MultiMeshInstance3D на модель).
-static func build(map: IslandMap) -> Node3D:
+## paths — тропы: на них и рядом с ними детали не ставятся.
+static func build(map: IslandMap, paths: PathsView = null) -> Node3D:
 	var details := Details.new()
+	details._paths = paths
 	return details._build(map)
 
 
@@ -301,6 +304,8 @@ func _ground(p: Vector2, min_river: int) -> int:
 	if biome == IslandMap.Biome.SEA or biome == IslandMap.Biome.RIVER or _map.heights[i] < 0.12:
 		return -1
 	if _river_dist[i] < min_river:
+		return -1
+	if _paths != null and _paths.on_trail(p):
 		return -1
 	for r in _relics:
 		if p.distance_to(r) < RELIC_CLEARANCE:

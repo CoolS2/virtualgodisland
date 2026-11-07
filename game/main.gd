@@ -117,7 +117,9 @@ func _ready() -> void:
 	var waterfall := Waterfall.build(map)
 	if waterfall:
 		add_child(waterfall)
-	_decorations = Decorations.build(map, _world)
+	paths_view = PathsView.new()
+	paths_view.build(map)
+	_decorations = Decorations.build(map, _world, paths_view)
 	add_child(_decorations)
 	_flora_state = _flora_signature()
 	add_child(Clouds.new(_world["seed"]))
@@ -143,10 +145,8 @@ func _ready() -> void:
 	hints_view.build(map)
 	add_child(hints_view)
 	hints_view.sync(_world)
-	paths_view = PathsView.new()
-	paths_view.build(map)
 	add_child(paths_view)
-	add_child(Details.build(map)) # мелкие детали мира: от мира не зависят, строятся один раз
+	add_child(Details.build(map, paths_view)) # мелкие детали мира: от мира не зависят, строятся один раз
 	veil = RegionVeil.new()
 	veil.build(map, int(_world["chapter"]))
 	add_child(veil)
@@ -461,7 +461,7 @@ func _rebuild_terrain() -> void:
 
 func _rebuild_decorations() -> void:
 	_decorations.queue_free()
-	_decorations = Decorations.build(island_map, _world)
+	_decorations = Decorations.build(island_map, _world, paths_view)
 	add_child(_decorations)
 	_flora_state = _flora_signature()
 

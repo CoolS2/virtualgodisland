@@ -8,11 +8,13 @@ const DARK_FOREST := {"pine": "deep_pine", "tree": "deep_tree", "tree_dark": "de
 ## Вокруг построек (лагерь, дом…) не рисуем траву и кусты — места видно (деревья там тоже прячем).
 const STRUCTURE_CLEARANCE := {"fire": 2.5, "camp": 5.0, "garden": 4.0, "shrine": 3.5, "house": 5.0, "raft": 3.0,
 	"bridge": 3.0, "pass": 4.0, "signal": 5.0}
+## Поляна вокруг обломков корабля у старта — чтобы корабль и кострище были видны.
+const WRECK_CLEARANCE := 7.0
 
 
 ## Растительность из map.flora. world (может быть пустым — фон меню): вырванные деревья, скатившиеся валуны,
-## кратеры и постройки — там ничего не рисуем.
-static func build(map: IslandMap, world: Dictionary = {}) -> Node3D:
+## кратеры и постройки — там ничего не рисуем; на тропе paths и вокруг обломков корабля — тоже.
+static func build(map: IslandMap, world: Dictionary = {}, paths: PathsView = null) -> Node3D:
 	# Модели Kenney (масштаб — под остров: дерево ~3, пальма ~4, камень ~0.6).
 	var meshes := {
 		"tree": Models.mesh("town/tree-high-round", 1.1),
@@ -30,13 +32,13 @@ static func build(map: IslandMap, world: Dictionary = {}) -> Node3D:
 	var placed := {}
 	for key: String in meshes:
 		placed[key] = []
-	var clear := _clearings(world)
+	var clear := _clearings(map, world)
 	for cell: int in map.flora:
 		var e: Array = map.flora[cell]
 		if not world.is_empty() and not Flora.present(world, map, cell):
 			continue
 		var p := Vector2(e[Flora.X], e[Flora.Z])
-		if _in_clearing(p, clear):
+		if _in_clearing(p, clear) or (paths != null and paths.on_trail(p)):
 			continue
 		var basis := Basis(Vector3.UP, e[Flora.YAW]).scaled(Vector3.ONE * float(e[Flora.SIZE]))
 		var kind: String = e[Flora.KIND]
@@ -66,8 +68,10 @@ static func build(map: IslandMap, world: Dictionary = {}) -> Node3D:
 
 
 ## Круги [центр, радиус] вокруг построек мира.
-static func _clearings(world: Dictionary) -> Array:
+static func _clearings(map: IslandMap, world: Dictionary) -> Array:
 	var result: Array = []
+	if map.relics.has("raft_wreck"):
+		result.append([map.relics["raft_wreck"], WRECK_CLEARANCE])
 	for key: String in STRUCTURE_CLEARANCE:
 		var data: Dictionary = world.get(key, {})
 		if not data.is_empty():
