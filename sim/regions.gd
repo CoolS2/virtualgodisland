@@ -27,7 +27,7 @@ static func assign(map: IslandMap) -> void:
 	map.regions.resize(n)
 	map.regions.fill(BARRIER)
 	for i in n:
-		if map.biomes[i] == IslandMap.Biome.MOUNTAIN:
+		if map.biomes[i] == IslandMap.Biome.MOUNTAIN and not _lowland(map, i):
 			map.regions[i] = LAST
 	# «Берег»: заливка суши (по 8 соседям) от середины дуги между отрогом и рекой.
 	var seed := _shore_seed(map)
@@ -186,8 +186,11 @@ static func name_of(chapter: int) -> String:
 	return NAMES[clampi(chapter, 0, LAST)]
 
 
+## Низина: пляж, поле, лес и каменистая земля у подножия (камень не выше ROCK_LINE — не скалы горы).
 static func _lowland(map: IslandMap, i: int) -> bool:
 	var b := map.biomes[i]
+	if b == IslandMap.Biome.MOUNTAIN:
+		return map.heights[i] <= IslandGenerator.ROCK_LINE
 	return b == IslandMap.Biome.BEACH or b == IslandMap.Biome.FIELD or b == IslandMap.Biome.FOREST
 
 
