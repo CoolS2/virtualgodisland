@@ -20,7 +20,9 @@ const FOCUS_DISTANCE := 28.0
 const CHAPTER_VIEW_DISTANCE := 95.0
 const CHAPTER_VIEW_SECONDS := 6.0
 ## Человек «под курсором», если до его фигуры на экране не больше стольких пикселей.
-const GRAB_PIXELS := 48.0
+const GRAB_PIXELS := 90.0
+## И по земле: человек ближе этого к точке под рукой (по его фигуре на экране) — тоже «под рукой».
+const GRAB_GROUND_RADIUS := 3.5
 ## С этого голода человек думает вслух о еде (если ещё не знает, что можно есть).
 const HUNGER_THOUGHT := 25.0
 const HUNGER_THOUGHT_SECONDS := 150.0
@@ -427,6 +429,18 @@ func _person_near_hand() -> Dictionary:
 			var d := camera.unproject_position(point).distance_to(mouse)
 			if d < best_dist:
 				best_dist = d
+				best = h
+	if best.is_empty() and hand.has_ground():
+		# Запасной путь: рядом с точкой земли под рукой (если фигура далеко от курсора из-за наклона камеры).
+		var ground := hand.ground_point()
+		var near := GRAB_GROUND_RADIUS
+		for h: Dictionary in Human.living(_world):
+			var view := view_of(h)
+			if view == null or not view.visible or h["held"]:
+				continue
+			var d := Vector2(view.global_position.x, view.global_position.z).distance_to(Vector2(ground.x, ground.z))
+			if d < near:
+				near = d
 				best = h
 	return best
 

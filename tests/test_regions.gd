@@ -75,3 +75,22 @@ func test_hand_cannot_carry_a_person_into_a_locked_part() -> void:
 	assert_eq(Regions.region_at(map, Human.position_of(h)), 0, "оказался на открытой земле")
 	assert_eq(int(h["blocked_tick"]), int(w["tick"]), "вырвался у границы")
 	assert_gt(float(h["fear"]), fear, "испугался")
+
+
+## На любом острове (много seed) первый человек очнулся на «Береге надежды», берег не касается других частей,
+## опоры моста есть. Новая игра берёт случайный seed — тут ловим острова, где разметка ломается.
+func test_start_is_on_the_shore_for_many_seeds() -> void:
+	var bad := PackedStringArray()
+	for s in range(100, 140):
+		var map := IslandGenerator.generate(s)
+		var w := WorldEngine.create_world(s, 0)
+		WorldEngine.step(w, map)
+		var h: Dictionary = w["people"][0]
+		var region := Regions.region_at(map, Human.position_of(h))
+		var counts := []
+		for r in Regions.LAST + 1:
+			counts.append(_count(map, r))
+		if region != 0 or not map.relics.has("old_bridge") or counts.min() < 150:
+			bad.append("seed %d: человек в части %d, части %s, мост %s, река %d" % [s, region, counts,
+				map.relics.has("old_bridge"), map.river.size()])
+	assert_eq(bad.size(), 0, "\n".join(bad))
