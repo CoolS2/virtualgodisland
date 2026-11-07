@@ -103,6 +103,7 @@ func _ready() -> void:
 	map.open_chapter = _chapter_seen
 
 	daylight = Daylight.new()
+	daylight.chapter = _chapter_seen
 	add_child(daylight)
 	_terrain = Terrain.build_terrain(map)
 	add_child(_terrain)
@@ -160,6 +161,7 @@ func _ready() -> void:
 	hud.card_closed.connect(func() -> void: select_person(-1))
 	hud.person_selected.connect(_on_person_chosen)
 	hud.minimap.build(map)
+	hud.set_chapter(_chapter_seen)
 	hud.minimap.clicked.connect(func(p: Vector2) -> void:
 		camera_rig.focus(Vector3(p.x, maxf(0.0, map.height_at_world(p.x, p.y)), p.y), FOCUS_DISTANCE * 1.5))
 	ui = GameUi.new()
@@ -636,6 +638,8 @@ func _on_dialogue_finished() -> void:
 ## потом камера возвращается к людям.
 func _open_chapter(chapter: int) -> void:
 	veil.sync(chapter)
+	daylight.chapter = chapter
+	hud.set_chapter(chapter)
 	ui.show_chapter(chapter)
 	var center := Regions.centroid(island_map, chapter)
 	camera_rig.focus(Vector3(center.x, maxf(0.0, island_map.height_at_world(center.x, center.y)), center.y), CHAPTER_VIEW_DISTANCE)

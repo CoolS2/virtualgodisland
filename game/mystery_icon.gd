@@ -80,7 +80,7 @@ static func model_for(mystery: String) -> Node3D:
 		"fisherman":
 			return Models.instance("food/fish")
 		"shrine":
-			return _low_poly(LowPoly.altar())
+			return Models.instance("nature/statue_block")
 		"house":
 			return StructuresView.house_model()
 		"bridge":
@@ -109,13 +109,6 @@ static func model_for(mystery: String) -> Node3D:
 		"raft":
 			return Models.instance("pirate/boat-row-small")
 	return Node3D.new()
-
-
-static func _low_poly(mesh: Mesh) -> MeshInstance3D:
-	var inst := MeshInstance3D.new()
-	inst.mesh = mesh
-	inst.material_override = LowPoly.material()
-	return inst
 
 
 static func _silhouette() -> StandardMaterial3D:

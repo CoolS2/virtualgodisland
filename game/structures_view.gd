@@ -82,7 +82,6 @@ func _process(delta: float) -> void:
 func _build(key: String) -> Node3D:
 	var root := Node3D.new()
 	root.name = key
-	var mat := LowPoly.material()
 	match key:
 		"fire":
 			root.add_child(Models.instance("survival/campfire-pit", 6.0))
@@ -111,7 +110,8 @@ func _build(key: String) -> Node3D:
 			tent.rotation.y = 0.6
 			root.add_child(tent)
 		"shrine":
-			_mesh(root, LowPoly.altar(), mat)
+			root.add_child(Models.instance("nature/statue_block", 4.0))
+			root.add_child(_crystal(Vector3(0, 2.0, 0)))
 		"house":
 			root.add_child(house_model())
 		"garden":
@@ -195,9 +195,20 @@ func _place_bridge(node: Node3D, piers: Vector2) -> void:
 	node.rotation.y = atan2(across.x, across.y)
 
 
-func _mesh(parent: Node3D, mesh: Mesh, mat: Material) -> MeshInstance3D:
-	var inst := MeshInstance3D.new()
-	inst.mesh = mesh
-	inst.material_override = mat
-	parent.add_child(inst)
-	return inst
+## Светящийся кристалл (алтарь): сила бога.
+static func _crystal(at: Vector3) -> MeshInstance3D:
+	var crystal := MeshInstance3D.new()
+	var mesh := SphereMesh.new()
+	mesh.radius = 0.32
+	mesh.height = 0.9
+	mesh.radial_segments = 6
+	mesh.rings = 2
+	var glow := StandardMaterial3D.new()
+	glow.albedo_color = Color("#ffe27a")
+	glow.emission_enabled = true
+	glow.emission = Color("#ffcf4a")
+	glow.emission_energy_multiplier = 1.4
+	mesh.material = glow
+	crystal.mesh = mesh
+	crystal.position = at
+	return crystal

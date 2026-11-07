@@ -18,6 +18,8 @@ E — погладить · Q — шлёпнуть (рука рядом с че�
 1 — дождь (20 маны) · 2 — рыба к берегу (25) · 3 — молния (30) — там, где рука
 «Люди» — все люди с портретами, щелчок — камера к человеку · Tab — к следующему · F — следить
 ЛКМ по обелиску или M — открытия · Esc — закрыть окна"""
+## Оттенок рамки верхней панели по главам (умножается на текстуру Kenney).
+const CHAPTER_FRAMES: Array[Color] = [Color.WHITE, Color(0.86, 0.86, 0.84), Color(1.05, 0.82, 0.55), Color(1.25, 1.1, 0.62)]
 ## Показатель на верхней панели появляется, когда раскрыта тайна: мана — первая тайна (сила бога пробуждается),
 ## еда в лагере — лагерь, люди — дом (после него приплывёт второй человек), вера — алтарь.
 const CHIP_UNLOCK := {"mana": "food", "food": "camp", "people": "house", "faith": "shrine"}
@@ -35,6 +37,7 @@ const SKILL_NAMES := {"forage": "Собиратель", "build": "Строите
 var _root := UiStyle.root()
 ## Квадратики показателей (кроме дня), которые открываются тайнами — CHIP_UNLOCK.
 var _chips := {}
+var _top_bar := PanelContainer.new()
 ## Карта острова с туманом (внизу справа); main строит её по карте и подписывается на щелчки.
 var minimap := Minimap.new()
 ## Подсказка внизу по центру (обучение: первая тайна).
@@ -120,6 +123,11 @@ func _process(delta: float) -> void:
 	_toast_time -= delta
 	if _toast_time <= 0.0 and _toast_panel.visible:
 		_toast_panel.visible = false
+
+
+## Рамка верхней панели по главе: дерево → камень → бронза → золото.
+func set_chapter(chapter: int) -> void:
+	_top_bar.self_modulate = CHAPTER_FRAMES[clampi(chapter, 0, CHAPTER_FRAMES.size() - 1)]
 
 
 ## Подсказка внизу экрана; "" — спрятать.
@@ -328,7 +336,7 @@ static func _grade(value: float) -> String:
 
 
 func _build_top_bar() -> void:
-	var bar := PanelContainer.new()
+	var bar := _top_bar
 	bar.theme_type_variation = "TopBar"
 	bar.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	var row := HBoxContainer.new()

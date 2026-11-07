@@ -104,6 +104,7 @@ const LAYOUTS := {
 		["pirate/grass-plant", 1.2, Vector2(1.8, -0.6), 0.0, 0.0, 0.0],
 		["pirate/grass-plant", 1.1, Vector2(-1.9, -0.2), 1.0, 0.0, 0.0],
 	],
+	"burnt_tree": [["nature/stump_oldTall", 5.0, Vector2(0, 0), 0.0, 0.0, 0.05]],
 	"old_bridge": [
 		["nature/statue_columnDamaged", 4.0, Vector2(-0.9, 0.0), 0.0, 0.0, 0.1],
 		["nature/statue_column", 3.2, Vector2(0.9, 0.0), 0.4, 0.0, 0.1],
@@ -128,14 +129,14 @@ const STONE := Color("#b3a68f")
 const PILLAR_GIRTH := 1.8
 ## Фонари тропы в тёмный лес — через столько единиц.
 const TORCH_PATH_STEP := 7.0
-## Без готовой модели — свои low-poly (LowPoly.hint), чуть крупнее.
-const LOW_POLY := {"burnt_tree": 1.5}
 
 var obelisk_position := Vector2.ZERO
 
 var map: IslandMap
 var _runes_material := StandardMaterial3D.new()
 var _stone := StandardMaterial3D.new()
+## Обгоревший пень — угольно-чёрный.
+var _charcoal := StandardMaterial3D.new()
 ## Светящиеся грибы: ночью ярче (выставляет main через night).
 var _glow := StandardMaterial3D.new()
 var _glow_light: OmniLight3D
@@ -153,6 +154,8 @@ var _sparkles := {}
 func build(island: IslandMap) -> void:
 	name = "Hints"
 	map = island
+	_charcoal.albedo_color = Color("#2b2522")
+	_charcoal.roughness = 1.0
 	_glow.albedo_color = Color("#bfe9f0")
 	_glow.emission_enabled = true
 	_glow.emission = Color("#5fd8ff")
@@ -185,15 +188,6 @@ func build(island: IslandMap) -> void:
 				_glow_light.omni_range = 7.0
 				_glow_light.position = _ground(p) + Vector3.UP * 1.0
 				add_child(_glow_light)
-		elif LOW_POLY.has(key):
-			var node := MeshInstance3D.new()
-			node.mesh = LowPoly.hint(key)
-			node.material_override = LowPoly.material()
-			node.scale = Vector3.ONE * float(LOW_POLY[key])
-			node.position = _ground(p) + Vector3.DOWN * 0.05
-			node.rotation.y = yaw
-			add_child(node)
-			(_parts[key] as Array).append(node)
 	_add_torch_path()
 	_set_visible("torch_path", false) # до «Факела» — темно
 
@@ -242,6 +236,8 @@ func _add_layout(key: String, parts: Array, center: Vector2, yaw: float) -> void
 			node.scale = Vector3(PILLAR_GIRTH, 1.0, PILLAR_GIRTH)
 		if key == "glow_mushrooms":
 			node.material_override = _glow
+		if key == "burnt_tree":
+			node.material_override = _charcoal
 		add_child(node)
 		(_parts[key] as Array).append(node)
 
@@ -301,13 +297,18 @@ func _add_geyser(p: Vector2) -> void:
 	add_child(_geyser)
 
 
+## Обелиск: каменная стела Nature Kit, над ней мерцает кристалл с рунами.
 func _add_obelisk(p: Vector2) -> void:
-	var node := MeshInstance3D.new()
-	node.mesh = LowPoly.obelisk()
-	node.material_override = LowPoly.material()
+	var node := Models.instance("nature/statue_obelisk", 5.0)
 	node.position = _ground(p)
 	var runes := MeshInstance3D.new()
-	runes.mesh = LowPoly.obelisk_runes()
+	var gem := SphereMesh.new()
+	gem.radius = 0.3
+	gem.height = 0.8
+	gem.radial_segments = 6
+	gem.rings = 2
+	runes.mesh = gem
+	runes.position.y = 5.0
 	_runes_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_runes_material.albedo_color = Color("#8ff3ff")
 	runes.material_override = _runes_material

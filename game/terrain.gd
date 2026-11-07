@@ -15,6 +15,15 @@ const FIELD_HIGH := Color("#ada66a") # поле светлеет к холмам
 const ROCK_HIGH := Color("#a49c91")
 const SNOW := Color("#efeee8")
 const DARK_FOREST := Color("#2f4a36")
+## Текстуры земли (ambientCG, CC0; docs/ASSETS.md) и их средний цвет (sRGB) — рисунок без сдвига оттенка.
+const GROUND_TEXTURES := {
+	"grass": ["res://assets/textures/ground/grass.jpg", Color("#999359")],
+	"forest": ["res://assets/textures/ground/forest.jpg", Color("#705c2c")],
+	"sand": ["res://assets/textures/ground/sand.jpg", Color("#b59e71")],
+	"rock": ["res://assets/textures/ground/rock.jpg", Color("#665c51")],
+}
+
+static var _material: ShaderMaterial
 ## Крутые склоны (перепад высоты к соседям, на клетку) окрашиваются камнем.
 const CLIFF_SLOPE := 1.1
 const CLIFF := Color("#776e63")
@@ -31,9 +40,11 @@ static func build_terrain(map: IslandMap, tile: float = 1.0) -> MeshInstance3D:
 	var vertices := PackedVector3Array()
 	var normals := PackedVector3Array()
 	var colors := PackedColorArray()
+	var weights := PackedVector2Array()
 	vertices.resize(count)
 	normals.resize(count)
 	colors.resize(count)
+	weights.resize(count)
 	for y in map.size:
 		for x in map.size:
 			var i := y * map.size + x
@@ -41,7 +52,15 @@ static func build_terrain(map: IslandMap, tile: float = 1.0) -> MeshInstance3D:
 			normals[i] = normal_at(map, x, y, tile)
 			# Цвета палитры заданы в sRGB, а цвет вершин шейдер берёт как линейный — переводим явно
 			# (флаг vertex_color_is_srgb в рендерере Compatibility на 4.7.2 видимого эффекта не дал).
-			colors[i] = _color_at(map, Vector2i(x, y)).srgb_to_linear()
+			# Альфа — вес лесной подстилки, UV2 — веса песка и камня (рисунок текстур в shaders/terrain.gdshader).
+			var biome := map.biome_at(x, y)
+			var rock := smoothstep(CLIFF_SLOPE * 0.7, CLIFF_SLOPE * 1.3, map.slope_at(x, y))
+			if biome == IslandMap.Biome.MOUNTAIN:
+				rock = 1.0
+			var sand := 1.0 if biome == IslandMap.Biome.BEACH or biome == IslandMap.Biome.SEA \
+				or biome == IslandMap.Biome.RIVER else 0.0
+			colors[i] = Color(_color_at(map, Vector2i(x, y)).srgb_to_linear(), 1.0 if biome == IslandMap.Biome.FOREST else 0.0)
+			weights[i] = Vector2(sand, rock)
 	var indices := PackedInt32Array()
 	indices.resize((map.size - 1) * (map.size - 1) * 6)
 	var k := 0
@@ -59,21 +78,28 @@ static func build_terrain(map: IslandMap, tile: float = 1.0) -> MeshInstance3D:
 	arrays[Mesh.ARRAY_VERTEX] = vertices
 	arrays[Mesh.ARRAY_NORMAL] = normals
 	arrays[Mesh.ARRAY_COLOR] = colors
+	arrays[Mesh.ARRAY_TEX_UV2] = weights
 	arrays[Mesh.ARRAY_INDEX] = indices
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 
-	var mat := StandardMaterial3D.new()
-	mat.vertex_color_use_as_albedo = true
-	mat.roughness = 1.0
-	# Рельеф виден только сверху; без отсечения граней не зависим от порядка обхода вершин.
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-
 	var mesh_instance := MeshInstance3D.new()
 	mesh_instance.mesh = mesh
-	mesh_instance.material_override = mat
+	mesh_instance.material_override = material()
 	mesh_instance.create_trimesh_collision()
 	return mesh_instance
+
+
+## Материал ландшафта: палитра из цвета вершин + рисунок текстур ambientCG (один на все пересборки).
+static func material() -> ShaderMaterial:
+	if _material:
+		return _material
+	_material = ShaderMaterial.new()
+	_material.shader = preload("res://game/shaders/terrain.gdshader")
+	for key: String in GROUND_TEXTURES:
+		_material.set_shader_parameter(key + "_tex", load(GROUND_TEXTURES[key][0]))
+		_material.set_shader_parameter(key + "_avg", GROUND_TEXTURES[key][1])
+	return _material
 
 
 ## Сглаженная нормаль в узле сетки (центральные разности высот).

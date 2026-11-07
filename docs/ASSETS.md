@@ -26,6 +26,20 @@ minimap_icon_jewel_white (Adventure);
 buttonLong_brown, buttonLong_brown_pressed, buttonLong_grey, panelInset_beige (RPG Expansion).
 Прежние самодельные текстуры и их генератор удалены.
 
+## Текстуры земли
+
+**ambientCG** (ambientcg.com), лицензия **CC0**. Архивы 1K-JPG загрузил владелец (2026-11-06); в проект взята только
+карта цвета, уменьшена до 512×512 (JPG, качество 85), `assets/textures/ground/`:
+
+| Файл | Исходник | Где |
+|---|---|---|
+| `grass.jpg` | Ground037 | поле |
+| `forest.jpg` | Ground068 | лес (подстилка, мох) |
+| `sand.jpg` | Ground080 | пляж, дно реки и моря |
+| `rock.jpg` | Ground110 | гора, обрывы |
+
+Rocks001 (каменная кладка) пока не используется — в репозиторий не добавлен. Шейдер — `game/shaders/terrain.gdshader`.
+
 ## 3D-модели
 
 Паки Kenney (www.kenney.nl), лицензия **CC0** (`assets/models/<пак>/License.txt`). Архивы загрузил владелец
