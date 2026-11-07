@@ -116,6 +116,18 @@ static func nearest_walkable(map: IslandMap, from: Vector2) -> Vector2:
 	return from
 
 
+## Середина части острова (среднее её клеток), мировые координаты.
+static func centroid(map: IslandMap, region: int) -> Vector2:
+	var half := map.half_extent()
+	var sum := Vector2.ZERO
+	var n := 0
+	for i in map.regions.size():
+		if map.regions[i] == region:
+			sum += Vector2(i % map.size - half, floori(float(i) / map.size) - half)
+			n += 1
+	return sum / maxf(1.0, n)
+
+
 static func name_of(chapter: int) -> String:
 	return NAMES[clampi(chapter, 0, LAST)]
 

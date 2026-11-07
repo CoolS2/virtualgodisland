@@ -14,6 +14,7 @@ const SEA_DEEP := Color("#4e7672")
 const FIELD_HIGH := Color("#ada66a") # поле светлеет к холмам
 const ROCK_HIGH := Color("#a49c91")
 const SNOW := Color("#efeee8")
+const DARK_FOREST := Color("#2f4a36")
 ## Крутые склоны (перепад высоты к соседям, на клетку) окрашиваются камнем.
 const CLIFF_SLOPE := 1.1
 const CLIFF := Color("#776e63")
@@ -93,6 +94,10 @@ static func _color_at(map: IslandMap, c: Vector2i) -> Color:
 			color = color.lerp(SEA_DEEP, clampf(-h / 3.0, 0.0, 1.0))
 		IslandMap.Biome.FIELD:
 			color = color.lerp(FIELD_HIGH, clampf((h - 1.0) / 4.0, 0.0, 1.0))
+		IslandMap.Biome.FOREST:
+			# «Тёмный лес» (часть 2) — темнее и холоднее, мшистая чаща.
+			if not map.regions.is_empty() and map.regions[c.y * map.size + c.x] == 2:
+				color = DARK_FOREST
 		IslandMap.Biome.MOUNTAIN:
 			if h > IslandGenerator.SNOW_LINE:
 				return SNOW

@@ -11,11 +11,18 @@ signal dialogue_finished
 const LINE_SECONDS := 6.5
 ## Окно «Тайна раскрыта!» держится столько секунд (или до щелчка).
 const REVEAL_SECONDS := 6.0
+## Заставка главы: появление, показ, исчезновение (секунды).
+const CHAPTER_IN := 0.8
+const CHAPTER_HOLD := 4.0
+const CHAPTER_OUT := 1.2
 
 var _mysteries := PanelContainer.new()
 var _mysteries_title := UiStyle.title("", 26)
 ## Ячейки тайн: миниатюра (силуэт / модель), название или «???», подсказка из изученных следов.
-var _mysteries_grid := GridContainer.new()
+var _mysteries_grid := VBoxContainer.new()
+var _mysteries_scroll := ScrollContainer.new()
+## Миниатюра тайны в списке — меньше, чем в окне раскрытия (11 тайн по главам должны поместиться).
+const LIST_ICON := Vector2(104, 78)
 var _mysteries_text := Label.new()
 var _game_over := PanelContainer.new()
 var _game_over_text := Label.new()
@@ -37,6 +44,10 @@ var _reveal_flash := ColorRect.new()
 var _reveal_sparks := CPUParticles2D.new()
 var _reveal_time := 0.0
 var _reveal_queue: Array[String] = []
+## Заставка главы вверху по центру: «Глава N» и название части острова.
+var _chapter := PanelContainer.new()
+var _chapter_number := UiStyle.bold("", 16, UiStyle.CREAM)
+var _chapter_title := UiStyle.title("", 40)
 
 
 func _init() -> void:
@@ -46,6 +57,7 @@ func _init() -> void:
 	_build_mysteries_panel()
 	_build_dialogue()
 	_build_reveal()
+	_build_chapter()
 	_setup_panel(_game_over, _game_over_text, "Новый остров")
 	(_game_over.get_child(0).get_child(2) as Button).pressed.connect(func() -> void: new_game_requested.emit())
 
@@ -149,6 +161,38 @@ func reveal_mystery(id: String) -> void:
 	create_tween().tween_property(_reveal, "scale", Vector2.ONE, 0.45).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 
+## Заставка главы: «Глава N», название части; плавно появляется и исчезает.
+func show_chapter(chapter: int) -> void:
+	_chapter_number.text = "Глава %d" % (chapter + 1)
+	_chapter_title.text = Regions.name_of(chapter)
+	_chapter.visible = true
+	_chapter.modulate.a = 0.0
+	var tween := create_tween()
+	tween.tween_property(_chapter, "modulate:a", 1.0, CHAPTER_IN)
+	tween.tween_interval(CHAPTER_HOLD)
+	tween.tween_property(_chapter, "modulate:a", 0.0, CHAPTER_OUT)
+	tween.tween_callback(func() -> void: _chapter.visible = false)
+
+
+func _build_chapter() -> void:
+	_chapter.theme_type_variation = "Banner"
+	_chapter.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_chapter.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_chapter.position.y = 90
+	_chapter.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var box := VBoxContainer.new()
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_chapter_number.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(_chapter_number)
+	_chapter_title.add_theme_color_override("font_color", UiStyle.CREAM)
+	_chapter_title.add_theme_color_override("font_shadow_color", Color(0.35, 0.08, 0.05, 0.8))
+	_chapter_title.add_theme_constant_override("shadow_offset_y", 2)
+	box.add_child(_chapter_title)
+	_chapter.add_child(box)
+	_chapter.visible = false
+	_root.add_child(_chapter)
+
+
 func _close_reveal() -> void:
 	_reveal.visible = false
 	_reveal_flash.visible = false
@@ -217,13 +261,30 @@ func show_mysteries(world: Dictionary) -> void:
 	_mysteries_title.text = "Открытия острова %d/%d" % [(world["mysteries"] as Array).size(), Mysteries.LIST.size()]
 	for child in _mysteries_grid.get_children():
 		child.queue_free()
+	var chapter_open: int = world["chapter"]
+	var rows := {}
+	for chapter in Regions.LAST + 1:
+		var header := UiStyle.bold("Глава %d · %s%s" % [chapter + 1, Regions.name_of(chapter),
+			"" if chapter <= chapter_open else " — земля ещё закрыта"], 15,
+			UiStyle.TITLE if chapter <= chapter_open else UiStyle.INK_SOFT)
+		_mysteries_grid.add_child(header)
+		var row := GridContainer.new()
+		row.columns = 6
+		row.add_theme_constant_override("h_separation", 6)
+		row.add_theme_constant_override("v_separation", 6)
+		_mysteries_grid.add_child(row)
+		rows[chapter] = row
 	for m: Dictionary in Mysteries.LIST:
 		var solved := Mysteries.is_solved(world, m["id"])
 		var cell := PanelContainer.new()
 		cell.theme_type_variation = "Card"
+		if int(m["chapter"]) > chapter_open:
+			cell.modulate = Color(1, 1, 1, 0.55) # глава ещё закрыта
 		var box := VBoxContainer.new()
 		box.add_theme_constant_override("separation", 4)
-		box.add_child(MysteryIcon.new(m["id"], solved))
+		var icon := MysteryIcon.new(m["id"], solved)
+		icon.custom_minimum_size = LIST_ICON
+		box.add_child(icon)
 		var label := UiStyle.bold(m["name"] if solved else "???", 15, UiStyle.INK if solved else UiStyle.INK_SOFT)
 		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		box.add_child(label)
@@ -231,10 +292,10 @@ func show_mysteries(world: Dictionary) -> void:
 		if not hint.is_empty():
 			var note := UiStyle.label(hint, 12, UiStyle.INK_SOFT)
 			note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			note.custom_minimum_size = Vector2(MysteryIcon.SIZE.x, 0)
+			note.custom_minimum_size = Vector2(LIST_ICON.x, 0)
 			box.add_child(note)
 		cell.add_child(box)
-		_mysteries_grid.add_child(cell)
+		(rows[int(m["chapter"])] as GridContainer).add_child(cell)
 	_mysteries_text.text = "Условия скрыты. Ищите следы прошлого и опускайте рядом с ними людей — они поймут больше."
 
 
@@ -246,10 +307,12 @@ func _build_mysteries_panel() -> void:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 10)
 	box.add_child(_mysteries_title)
-	_mysteries_grid.columns = 4
-	_mysteries_grid.add_theme_constant_override("h_separation", 8)
-	_mysteries_grid.add_theme_constant_override("v_separation", 8)
-	box.add_child(_mysteries_grid)
+	_mysteries_grid.add_theme_constant_override("separation", 6)
+	_mysteries_scroll.custom_minimum_size = Vector2(720, 470)
+	_mysteries_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_mysteries_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_mysteries_scroll.add_child(_mysteries_grid)
+	box.add_child(_mysteries_scroll)
 	_mysteries_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_mysteries_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_mysteries_text.custom_minimum_size = Vector2(560, 0)

@@ -16,6 +16,9 @@ const FOLLOW_VIEW := [0.45, 25.0] # pitch, distance
 const FELL_HOLD := 0.4
 const FIRST_MYSTERY_HINT_SECONDS := 60.0
 const FOCUS_DISTANCE := 28.0
+## Облёт новой части острова при открытии главы.
+const CHAPTER_VIEW_DISTANCE := 95.0
+const CHAPTER_VIEW_SECONDS := 6.0
 ## Человек «под курсором», если до его фигуры на экране не больше стольких пикселей.
 const GRAB_PIXELS := 48.0
 ## С этого голода человек думает вслух о еде (если ещё не знает, что можно есть).
@@ -47,6 +50,7 @@ var selected_id := -1
 var structures_view: StructuresView
 var hints_view: HintsView
 var caches_view: CachesView
+var veil: RegionVeil
 var weather: Weather
 var fauna: Fauna
 var daylight: Daylight
@@ -134,6 +138,9 @@ func _ready() -> void:
 	hints_view.build(map)
 	add_child(hints_view)
 	hints_view.sync(_world)
+	veil = RegionVeil.new()
+	veil.build(map, int(_world["chapter"]))
+	add_child(veil)
 	caches_view = CachesView.new()
 	caches_view.map = map
 	add_child(caches_view)
@@ -232,7 +239,7 @@ func refresh_world_view() -> void:
 		_found_seen = found.size()
 	if int(_world["chapter"]) > _chapter_seen:
 		_chapter_seen = int(_world["chapter"])
-		_show_message("Открыта новая земля: «%s»" % Regions.name_of(_chapter_seen))
+		_open_chapter(_chapter_seen)
 	var solved: Array = _world["mysteries"]
 	if solved.size() > _mysteries_seen:
 		for i in range(_mysteries_seen, solved.size()):
@@ -618,10 +625,24 @@ func _on_dialogue_finished() -> void:
 	if not _intro_camera:
 		return
 	_intro_camera = false
-	# После пролога — шире, чтобы видеть окрестности.
+	# После пролога — шире, чтобы видеть окрестности, и заставка первой главы.
 	var people := Human.living(_world)
 	if not people.is_empty():
 		camera_rig.focus(view_of(people[0]).global_position + Vector3.UP, FOCUS_DISTANCE * 1.4)
+	ui.show_chapter(0)
+
+
+## Открылась новая часть острова: туман над ней рассеивается, камера облетает её, заставка главы;
+## потом камера возвращается к людям.
+func _open_chapter(chapter: int) -> void:
+	veil.sync(chapter)
+	ui.show_chapter(chapter)
+	var center := Regions.centroid(island_map, chapter)
+	camera_rig.focus(Vector3(center.x, maxf(0.0, island_map.height_at_world(center.x, center.y)), center.y), CHAPTER_VIEW_DISTANCE)
+	get_tree().create_timer(CHAPTER_VIEW_SECONDS).timeout.connect(func() -> void:
+		var people := Human.living(_world)
+		if not people.is_empty():
+			camera_rig.focus(view_of(people[0]).global_position + Vector3.UP, FOCUS_DISTANCE * 1.4))
 
 
 ## Мысли вслух по ходу игры (один раз за сессию): голод без знания еды; первая еда.

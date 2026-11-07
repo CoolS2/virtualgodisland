@@ -3,6 +3,8 @@ extends RefCounted
 ## Растительность и валуны на экране (MultiMesh). Где что растёт — sim/flora.gd (по seed), что вырвано или
 ## скатилось — в мире.
 
+## Деревья «Тёмного леса» (часть 2) — тёмные варианты.
+const DARK_FOREST := {"pine": "deep_pine", "tree": "deep_tree", "tree_dark": "deep_oak", "palm": "deep_tree"}
 ## Вокруг построек (лагерь, дом…) не рисуем траву и кусты — места видно (деревья там тоже прячем).
 const STRUCTURE_CLEARANCE := {"fire": 2.5, "camp": 5.0, "garden": 4.0, "shrine": 3.5, "house": 5.0, "raft": 3.0,
 	"bridge": 3.0, "pass": 4.0, "signal": 5.0}
@@ -20,6 +22,10 @@ static func build(map: IslandMap, world: Dictionary = {}) -> Node3D:
 		"rock": Models.mesh("survival/rock-b", 1.4),
 		"bush": Models.mesh("pirate/grass-plant", 1.0),
 		"grass": Models.mesh("pirate/grass", 1.3),
+		# «Тёмный лес» (часть 2): тёмные деревья Nature Kit, выше обычных.
+		"deep_pine": Models.mesh("nature/tree_pineTallA_detailed", 3.0),
+		"deep_tree": Models.mesh("nature/tree_default_dark", 2.5),
+		"deep_oak": Models.mesh("nature/tree_oak_dark", 3.0),
 	}
 	var placed := {}
 	for key: String in meshes:
@@ -33,7 +39,10 @@ static func build(map: IslandMap, world: Dictionary = {}) -> Node3D:
 		if _in_clearing(p, clear):
 			continue
 		var basis := Basis(Vector3.UP, e[Flora.YAW]).scaled(Vector3.ONE * float(e[Flora.SIZE]))
-		(placed[e[Flora.KIND]] as Array).append(Transform3D(basis, Vector3(p.x, float(e[Flora.HEIGHT]) - 0.05, p.y)))
+		var kind: String = e[Flora.KIND]
+		if DARK_FOREST.has(kind) and not map.regions.is_empty() and map.regions[cell] == 2:
+			kind = DARK_FOREST[kind]
+		(placed[kind] as Array).append(Transform3D(basis, Vector3(p.x, float(e[Flora.HEIGHT]) - 0.05, p.y)))
 
 	var root := Node3D.new()
 	root.name = "Decorations"

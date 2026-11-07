@@ -47,6 +47,13 @@ const LAYOUTS := {
 		["survival/tool-shovel", 5.0, Vector2(-0.6, 1.6), 1.9, 1.5, 0.0],
 		["survival/box-open", 4.0, Vector2(0.9, 1.9), 0.4, 0.0, 0.05],
 	],
+	# Завал перед старой шахтой — путь на вершину закрыт, пока не раскрыт «Перевал».
+	"rockfall": [
+		["nature/stone_tallA", 2.6, Vector2(0.0, -2.6), 0.3, 0.0, 0.2],
+		["nature/stone_tallB", 2.4, Vector2(-1.6, -2.2), 1.2, 0.0, 0.2],
+		["nature/stone_tallA", 2.0, Vector2(1.7, -2.4), 2.1, 0.2, 0.2],
+		["town/rock-large", 1.4, Vector2(0.6, -3.6), 0.7, 0.0, 0.3],
+	],
 	"raft_wreck": [
 		["pirate/ship-wreck", 0.55, Vector2(0, 0), 0.0, 0.0, 0.9],
 		["pirate/chest", 1.0, Vector2(3.6, 2.4), 0.6, 0.15, 0.25],
@@ -119,6 +126,8 @@ const STONE_PARTS: Array[String] = ["town/wall-broken", "town/wall-half", "town/
 const STONE := Color("#b3a68f")
 ## Колонны толще, чем в паке (там — тонкие столбики).
 const PILLAR_GIRTH := 1.8
+## Фонари тропы в тёмный лес — через столько единиц.
+const TORCH_PATH_STEP := 7.0
 ## Без готовой модели — свои low-poly (LowPoly.hint), чуть крупнее.
 const LOW_POLY := {"burnt_tree": 1.5}
 
@@ -166,6 +175,8 @@ func build(island: IslandMap) -> void:
 			_add_layout(key, LAYOUTS[key], p, yaw)
 			if key == "ruins":
 				_add_layout("village", LAYOUTS["village"], p, yaw)
+			if key == "torch_stub":
+				_add_layout("rockfall", LAYOUTS["rockfall"], p, yaw)
 			if key == "geyser":
 				_add_geyser(p)
 			if key == "glow_mushrooms":
@@ -183,6 +194,8 @@ func build(island: IslandMap) -> void:
 			node.rotation.y = yaw
 			add_child(node)
 			(_parts[key] as Array).append(node)
+	_add_torch_path()
+	_set_visible("torch_path", false) # до «Факела» — темно
 
 
 ## Развалины исчезают, когда на их месте отстроен дом; кострище — когда в нём снова горит огонь.
@@ -194,6 +207,8 @@ func sync(world: Dictionary) -> void:
 	_set_visible("old_hearth", not hearth_lit)
 	for key: String in _sparkles:
 		(_sparkles[key] as CPUParticles3D).emitting = not (world["found"] as Array).has(key)
+	_set_visible("rockfall", (world["pass"] as Dictionary).is_empty())
+	_set_visible("torch_path", int(world["chapter"]) >= 2)
 
 
 func _process(delta: float) -> void:
@@ -229,6 +244,35 @@ func _add_layout(key: String, parts: Array, center: Vector2, yaw: float) -> void
 			node.material_override = _glow
 		add_child(node)
 		(_parts[key] as Array).append(node)
+
+
+## Тропа в тёмный лес: фонари от развалин к старой шахте (горят, когда раскрыт «Факел»). Свет — у нескольких,
+## остальные светятся сами (свечение материала), чтобы не перегружать рендер.
+func _add_torch_path() -> void:
+	if not map.relics.has("ruins") or not map.relics.has("torch_stub"):
+		return
+	var a: Vector2 = map.relics["ruins"]
+	var b: Vector2 = map.relics["torch_stub"]
+	var count := maxi(2, floori(a.distance_to(b) / TORCH_PATH_STEP))
+	var side := (b - a).normalized().orthogonal() * 1.6
+	_parts["torch_path"] = []
+	for i in range(1, count):
+		var p := a.lerp(b, float(i) / count) + side * (1.0 if i % 2 == 0 else -1.0)
+		var r := Regions.region_at(map, p)
+		if r != 1 and r != 2:
+			continue
+		var lantern := Models.instance("town/lantern", 2.6)
+		lantern.position = _ground(p)
+		add_child(lantern)
+		(_parts["torch_path"] as Array).append(lantern)
+		if i % 3 == 1:
+			var light := OmniLight3D.new()
+			light.light_color = Color("#ffb45a")
+			light.omni_range = 9.0
+			light.light_energy = 1.6
+			light.position = _ground(p) + Vector3.UP * 2.4
+			add_child(light)
+			(_parts["torch_path"] as Array).append(light)
 
 
 func _add_geyser(p: Vector2) -> void:

@@ -17,6 +17,8 @@ const PAN_SPEED := 0.9
 const PAN_MIN := 8.0
 ## Протяжка мышью меньше этого (пикселей) — щелчок, а не вращение.
 const CLICK_DRAG := 6.0
+## Скорость плавного перелёта (доля пути за секунду).
+const GLIDE_SPEED := 2.2
 ## Цель камеры не уходит дальше этого от центра острова.
 const LIMIT := 110.0
 const PAN_KEYS := {
@@ -38,6 +40,9 @@ var _distance := 150.0
 var _rotating := false
 var _drag := 0.0
 var _right_down := false
+## Плавный перелёт камеры (focus): куда и на какое расстояние; INF — не летит.
+var _glide_to := Vector3.INF
+var _glide_distance := 0.0
 
 
 func _ready() -> void:
@@ -54,6 +59,7 @@ func _process(delta: float) -> void:
 			input += PAN_KEYS[key]
 	if input != Vector2.ZERO:
 		follow = null
+		_glide_to = Vector3.INF # двигают клавишами — перелёт отменяется
 		input = input.normalized() * maxf(PAN_MIN, _distance * PAN_SPEED) * delta
 		# «Вперёд» — от камеры по горизонтали.
 		var forward := Vector3(-sin(_yaw), 0.0, -cos(_yaw))
@@ -61,7 +67,13 @@ func _process(delta: float) -> void:
 		target += right * input.x - forward * input.y
 		target.x = clampf(target.x, -LIMIT, LIMIT)
 		target.z = clampf(target.z, -LIMIT, LIMIT)
-	if follow:
+	if _glide_to != Vector3.INF:
+		var k := minf(1.0, delta * GLIDE_SPEED)
+		target = target.lerp(_glide_to, k)
+		_distance = lerpf(_distance, _glide_distance, k)
+		if target.distance_to(_glide_to) < 0.2 and absf(_distance - _glide_distance) < 0.2:
+			_glide_to = Vector3.INF
+	elif follow:
 		target = target.lerp(follow.global_position + Vector3.UP, 0.1)
 	elif map:
 		target.y = lerpf(target.y, maxf(0.0, map.height_at_world(target.x, target.z)), minf(1.0, delta * 4.0))
@@ -103,13 +115,13 @@ func _unhandled_input(event: InputEvent) -> void:
 ## Навести камеру на точку с этого расстояния, не меняя угла обзора; слежение снимается.
 func focus(point: Vector3, distance: float) -> void:
 	follow = null
-	target = point
-	_distance = clampf(distance, MIN_DISTANCE, MAX_DISTANCE)
-	_apply()
+	_glide_to = point
+	_glide_distance = clampf(distance, MIN_DISTANCE, MAX_DISTANCE)
 
 
 ## Поставить камеру в заданный ракурс (используется утилитой скриншотов).
 func set_view(yaw: float, pitch: float, distance: float, new_target: Vector3 = Vector3.ZERO) -> void:
+	_glide_to = Vector3.INF
 	target = new_target
 	_yaw = yaw
 	_pitch = clampf(pitch, MIN_PITCH, MAX_PITCH)

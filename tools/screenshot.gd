@@ -40,6 +40,7 @@ func _ready() -> void:
 	views.append(_obelisk_view.bind(main))
 	views.append(_hand_view.bind(main))
 	views.append(_reveal_view.bind(main))
+	views.append(_chapter_view.bind(main))
 	views.append(_intro_view.bind(main))
 	views.append(_menu_view.bind(main))
 	for make_view in views:
@@ -205,6 +206,16 @@ func _obelisk_view(main: Node) -> Array:
 
 
 ## Рука держит ветку недалеко от центра острова.
+## Открытие главы 2: туман над «Землёй предков» рассеивается, заставка главы (снимается сразу).
+func _chapter_view(main: Node) -> Array:
+	var world: Dictionary = main.get("_world")
+	var map := main.get("island_map") as IslandMap
+	world["chapter"] = 1
+	main.call("_open_chapter", 1)
+	var center := Regions.centroid(map, 1)
+	return ["chapter", PI / 4.0, 0.7, 95.0, Vector3(center.x, 0.0, center.y), 20]
+
+
 ## Окно «Тайна раскрыта!» (снимается быстро — окно само закрывается через несколько секунд).
 func _reveal_view(main: Node) -> Array:
 	(main.get("ui") as GameUi).reveal_mystery("house")
