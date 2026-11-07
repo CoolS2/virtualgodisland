@@ -125,6 +125,7 @@ func _ready() -> void:
 	add_child(camera_rig)
 	camera_rig.right_clicked.connect(_on_right_click)
 	hand = Hand.new()
+	hand.map = map
 	add_child(hand)
 	hand.grab_pressed.connect(pick_item_at)
 	hand.grab_released.connect(_on_grab_released)

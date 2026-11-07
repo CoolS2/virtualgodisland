@@ -1,18 +1,25 @@
 class_name RegionVeil
 extends Node3D
-## Туман над закрытыми частями острова: полупрозрачная пелена поверх рельефа, к границе с открытой землёй
-## тает. У каждой части свой оттенок (за рекой — молочный, над лесом — сизо-зелёный, над вершиной — белёсый).
-## Открылась часть — её пелена плавно рассеивается (FADE_SECONDS).
+## «Море облаков» над закрытыми частями острова: три слоя плотных облаков на разной высоте (шейдер
+## `cloud_veil.gdshader`, альфа из шума с прокруткой), к границе с открытой землёй тают в клочья.
+## У каждой части свой оттенок (за рекой — молочный, над лесом — сизо-зелёный, над вершиной — белёсый).
+## Открылась часть — её облака поднимаются и рассеиваются (FADE_SECONDS).
 
-const LIFT := 3.0
-## Плотность внутри и ширина размытого края (в клетках).
-const ALPHA := 0.62
 const EDGE := 6
 const FADE_SECONDS := 3.0
 const COLORS := {1: Color("#d8dde0"), 2: Color("#7f8f88"), 3: Color("#eef2f5")}
+## Слои: высота над рельефом, порог шума (меньше — плотнее), яркость (нижний темнее), масштаб шума, прокрутка.
+const LAYERS := [
+	{"lift": 3.0, "threshold": 0.3, "brightness": 0.78, "scale": 0.05, "scroll": Vector2(0.006, 0.003)},
+	{"lift": 6.5, "threshold": 0.45, "brightness": 0.92, "scale": 0.04, "scroll": Vector2(-0.008, 0.004)},
+	{"lift": 10.0, "threshold": 0.55, "brightness": 1.05, "scale": 0.033, "scroll": Vector2(0.01, -0.005)},
+]
+const MAX_ALPHA := 0.95
+const SHADER := preload("res://game/shaders/cloud_veil.gdshader")
 
 var map: IslandMap
-var _veils := {} # часть -> MeshInstance3D
+var _noise: NoiseTexture2D
+var _veils := {} # часть -> Array[MeshInstance3D]
 var _fading := {} # часть -> оставшееся время
 
 
@@ -20,17 +27,27 @@ func _init() -> void:
 	name = "RegionVeil"
 
 
-## Пелена над всеми частями, которые ещё закрыты.
+## Облака над всеми частями, которые ещё закрыты.
 func build(island: IslandMap, chapter: int) -> void:
 	map = island
+	_noise = _make_noise()
 	for region in range(chapter + 1, Regions.LAST + 1):
-		var veil := _build_region(region)
-		if veil:
-			add_child(veil)
-			_veils[region] = veil
+		var mesh := _build_region(region)
+		if mesh == null:
+			continue
+		var layers: Array[MeshInstance3D] = []
+		for layer: Dictionary in LAYERS:
+			var inst := MeshInstance3D.new()
+			inst.mesh = mesh
+			inst.position.y = layer["lift"]
+			inst.material_override = _material(region, layer)
+			inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			add_child(inst)
+			layers.append(inst)
+		_veils[region] = layers
 
 
-## Открыты части 0..chapter — рассеять пелену над ними.
+## Открыты части 0..chapter — рассеять облака над ними.
 func sync(chapter: int) -> void:
 	for region: int in _veils.keys():
 		if region <= chapter and not _fading.has(region):
@@ -40,22 +57,51 @@ func sync(chapter: int) -> void:
 func _process(delta: float) -> void:
 	for region: int in _fading.keys():
 		_fading[region] -= delta
-		var veil: MeshInstance3D = _veils[region]
-		var mat := veil.material_override as StandardMaterial3D
-		mat.albedo_color.a = clampf(_fading[region] / FADE_SECONDS, 0.0, 1.0)
+		var fade := clampf(_fading[region] / FADE_SECONDS, 0.0, 1.0)
+		for inst: MeshInstance3D in _veils[region]:
+			(inst.material_override as ShaderMaterial).set_shader_parameter("fade", fade)
+			if _fading[region] <= 0.0:
+				inst.queue_free()
 		if _fading[region] <= 0.0:
-			veil.queue_free()
 			_veils.erase(region)
 			_fading.erase(region)
 
 
-func _build_region(region: int) -> MeshInstance3D:
+func _make_noise() -> NoiseTexture2D:
+	var noise := FastNoiseLite.new()
+	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	noise.frequency = 0.012
+	noise.fractal_octaves = 3
+	var tex := NoiseTexture2D.new()
+	tex.noise = noise
+	tex.width = 256
+	tex.height = 256
+	tex.seamless = true
+	tex.normalize = true
+	return tex
+
+
+func _material(region: int, layer: Dictionary) -> ShaderMaterial:
+	var mat := ShaderMaterial.new()
+	mat.shader = SHADER
+	mat.set_shader_parameter("noise_tex", _noise)
+	var tint: Color = COLORS[region]
+	mat.set_shader_parameter("tint", Vector3(tint.r, tint.g, tint.b))
+	mat.set_shader_parameter("max_alpha", MAX_ALPHA)
+	mat.set_shader_parameter("threshold", layer["threshold"])
+	mat.set_shader_parameter("brightness", layer["brightness"])
+	mat.set_shader_parameter("noise_scale", layer["scale"])
+	mat.set_shader_parameter("scroll", layer["scroll"])
+	return mat
+
+
+## Сетка над частью по рельефу (высота слоя добавляется положением узла); альфа вершины — близость к краю.
+func _build_region(region: int) -> ArrayMesh:
 	var size := map.size
 	var depth := _depth(region)
 	var half := map.half_extent()
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var color: Color = COLORS[region]
 	var any := false
 	for y in size - 1:
 		for x in size - 1:
@@ -70,22 +116,11 @@ func _build_region(region: int) -> MeshInstance3D:
 			for k: int in [0, 1, 2, 1, 3, 2]:
 				var c: Vector2i = corners[k]
 				var d: int = depth[c.y * size + c.x]
-				var a := ALPHA * smoothstep(0.0, float(EDGE), float(d))
-				st.set_color(Color(color, a))
-				st.add_vertex(Vector3(c.x - half, maxf(map.height_at(c.x, c.y), 0.0) + LIFT, c.y - half))
+				st.set_color(Color(1, 1, 1, smoothstep(0.0, float(EDGE), float(d))))
+				st.add_vertex(Vector3(c.x - half, maxf(map.height_at(c.x, c.y), 0.0), c.y - half))
 	if not any:
 		return null
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.vertex_color_use_as_albedo = true
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	mat.no_depth_test = false
-	var inst := MeshInstance3D.new()
-	inst.mesh = st.commit()
-	inst.material_override = mat
-	inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	return inst
+	return st.commit()
 
 
 ## Для каждой клетки части — расстояние (в клетках, до EDGE) до клеток вне её; 0 — не эта часть.

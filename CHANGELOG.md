@@ -6,6 +6,7 @@
 ## [Unreleased]
 
 ### Added
+- game: **море облаков** над закрытыми частями острова (3 слоя, шейдер `cloud_veil`, рассеиваются при открытии части); рука бога не заходит в облака — упирается у края с отталкиванием и клубами.
 - repo: **команда агентов** — помощники ведущего в `.claude/agents/` (game-designer, sim-engineer, world-artist —
   Sonnet; code-reviewer — Sonnet; ci-watcher — Haiku), правила вызова в `CLAUDE.md` §3а, спецификации — `docs/design/`;
   `tools/ci_wait.sh` — ожидание CI, итог тестов и превью скриншотов из лога.
