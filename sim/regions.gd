@@ -14,8 +14,8 @@ const NAMES: Array[String] = ["Берег надежды", "Земля пред�
 const LAST := 3
 ## Мост: в этом радиусе от середины моста река проходима.
 const BRIDGE_RADIUS := 2.4
-## Доля дуги вокруг горы (от реки до отрога), отданная «Земле предков»; остальное — «Тёмный лес».
-const ANCESTORS_SHARE := 0.5
+## Клетки не дальше стольких от оси отрога (сверх его ширины) — «у отрога».
+const SPUR_REACH := 1.5
 ## Проверка разметки (valid): не меньше стольких клеток в каждой низинной части, «Берег» — не больше доли низин.
 const MIN_PART := 400
 const MAX_SHORE_SHARE := 0.6
@@ -48,19 +48,43 @@ static func assign(map: IslandMap) -> void:
 					if map.regions[j] == BARRIER and _lowland(map, j):
 						map.regions[j] = 0
 						stack.append(j)
-	# Остальная суша — по углу вокруг вершины: от реки — «Земля предков», дальше — «Тёмный лес».
-	var arc := map.spur_rel # от реки до отрога; дальше по кругу, до реки, — «Берег»
+	# Остальная суша — за рекой или за отрогом: каждая клетка достаётся тому барьеру, что ближе (заливка
+	# от обоих сразу). От реки — «Земля предков», от отрога — «Тёмный лес»; изгибы реки не важны.
+	var queue: Array[int] = []
 	for i in n:
 		if map.regions[i] != BARRIER or not _lowland(map, i):
 			continue
-		var rel := _angle_from_river(map, i % map.size, floori(float(i) / map.size))
-		# Не соединены с берегом — значит, за рекой или за отрогом (в т.ч. карманы со стороны берега по углу).
-		if rel < arc * ANCESTORS_SHARE:
+		var x := i % map.size
+		var y := floori(float(i) / map.size)
+		if _near_river(map, x, y):
 			map.regions[i] = 1
-		else:
+			queue.append(i)
+		elif _near_spur(map, x, y):
 			map.regions[i] = 2
-			if map.biomes[i] == IslandMap.Biome.FIELD:
-				map.biomes[i] = IslandMap.Biome.FOREST # сплошная чаща
+			queue.append(i)
+	var head := 0
+	while head < queue.size():
+		var i: int = queue[head]
+		head += 1
+		var x := i % map.size
+		var y := floori(float(i) / map.size)
+		for dy in range(-1, 2):
+			for dx in range(-1, 2):
+				var nx := x + dx
+				var ny := y + dy
+				if nx < 0 or ny < 0 or nx >= map.size or ny >= map.size:
+					continue
+				var j := ny * map.size + nx
+				if map.regions[j] == BARRIER and _lowland(map, j):
+					map.regions[j] = map.regions[i]
+					queue.append(j)
+	# Карманы, не касающиеся ни реки, ни отрога, — тоже чаща.
+	for i in n:
+		if map.regions[i] == BARRIER and _lowland(map, i):
+			map.regions[i] = 2
+	for i in n:
+		if map.regions[i] == 2 and map.biomes[i] == IslandMap.Biome.FIELD:
+			map.biomes[i] = IslandMap.Biome.FOREST # сплошная чаща
 
 
 ## Часть острова в мировой точке; BARRIER — море, река или вне карты.
@@ -167,10 +191,23 @@ static func _lowland(map: IslandMap, i: int) -> bool:
 	return b == IslandMap.Biome.BEACH or b == IslandMap.Biome.FIELD or b == IslandMap.Biome.FOREST
 
 
-## Угол клетки вокруг вершины, отсчитанный от направления на устье реки против часовой, 0..TAU.
-static func _angle_from_river(map: IslandMap, x: int, y: int) -> float:
-	var a := atan2(float(y - map.peak.y), float(x - map.peak.x)) - map.river_mouth_angle
-	return fposmod(a, TAU)
+## Рядом (по 8 соседям) — русло реки.
+static func _near_river(map: IslandMap, x: int, y: int) -> bool:
+	for dy in range(-1, 2):
+		for dx in range(-1, 2):
+			var nx := clampi(x + dx, 0, map.size - 1)
+			var ny := clampi(y + dy, 0, map.size - 1)
+			if map.biomes[ny * map.size + nx] == IslandMap.Biome.RIVER:
+				return true
+	return false
+
+
+## Рядом с отрогом: у луча от вершины под углом отрога, не дальше его ширины и SPUR_REACH.
+static func _near_spur(map: IslandMap, x: int, y: int) -> bool:
+	var angle := map.river_mouth_angle + map.spur_rel
+	var dir := Vector2(cos(angle), sin(angle))
+	var rel := Vector2(x - map.peak.x, y - map.peak.y)
+	return rel.dot(dir) >= 0.0 and absf(rel.dot(Vector2(-dir.y, dir.x))) <= IslandGenerator.SPUR_WIDTH + SPUR_REACH
 
 
 ## Клетка суши посередине дуги «Берега» (между отрогом и рекой) — откуда заливать.

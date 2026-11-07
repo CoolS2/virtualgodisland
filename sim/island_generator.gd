@@ -37,10 +37,12 @@ const RIVER_ANGLE_STEP := 0.3
 const RIVER_MOUTH_RADIUS := 6
 ## Отрог: под таким углом от направления на устье реки (по часовой), полуширина и высота над ROCK_LINE.
 const SPUR_ANGLE := TAU / 3.0
-## Углы отрога от направления на устье (против часовой): основной (-120°) и запасные, если с ним остров
-## не делится на части (русло петляет навстречу отрогу).
+## Углы отрога от направления на устье (против часовой): основной (-120°) и запасные веером вокруг него, если
+## с ним остров не делится на части (русло петляет навстречу отрогу); не подошёл ни один — основной.
 const SPUR_TRIES: Array[float] = [TAU - SPUR_ANGLE, TAU - SPUR_ANGLE - 0.35, TAU - SPUR_ANGLE + 0.35,
-	TAU - SPUR_ANGLE - 0.7, TAU - SPUR_ANGLE + 0.7, PI, TAU - SPUR_ANGLE / 2.0]
+	TAU - SPUR_ANGLE - 0.7, TAU - SPUR_ANGLE + 0.7, TAU - SPUR_ANGLE - 1.05, TAU - SPUR_ANGLE + 1.05,
+	TAU - SPUR_ANGLE - 1.4, TAU - SPUR_ANGLE + 1.4, TAU - SPUR_ANGLE - 0.175, TAU - SPUR_ANGLE + 0.175,
+	TAU - SPUR_ANGLE - 0.525, TAU - SPUR_ANGLE + 0.525]
 const SPUR_WIDTH := 2.6
 const SPUR_HEIGHT := 3.0
 ## Длина диагонального шага (√2).
@@ -120,14 +122,14 @@ static func generate(map_seed: int, size: int = DEFAULT_SIZE) -> IslandMap:
 	# мешает — пробуем другие углы (рельеф и биомы перед каждой попыткой — исходные).
 	var heights_before := map.heights.duplicate()
 	var biomes_before := map.biomes.duplicate()
+	var found := false
 	for rel: float in SPUR_TRIES:
-		map.heights = heights_before.duplicate()
-		map.biomes = biomes_before.duplicate()
-		map.spur_rel = rel
-		_raise_spur(map)
-		Regions.assign(map)
+		_try_spur(map, heights_before, biomes_before, rel)
 		if Regions.valid(map):
+			found = true
 			break
+	if not found:
+		_try_spur(map, heights_before, biomes_before, SPUR_TRIES[0])
 	map.relics = Hints.place(map)
 	map.caches = Caches.place(map)
 	map.flora = Flora.place(map)
@@ -244,6 +246,15 @@ static func _carve_river(map: IslandMap, rng: VgiRng) -> void:
 		map.river.append(i)
 		map.river_levels.append(beds[k] + RIVER_WATER_DEPTH)
 	map.river_mouth_angle = atan2(floori(float(goal) / size) - py, goal % size - px)
+
+
+## Отрог под углом rel поверх исходного рельефа и разметка частей острова.
+static func _try_spur(map: IslandMap, heights: PackedFloat64Array, biomes: PackedByteArray, rel: float) -> void:
+	map.heights = heights.duplicate()
+	map.biomes = biomes.duplicate()
+	map.spur_rel = rel
+	_raise_spur(map)
+	Regions.assign(map)
 
 
 ## Горный отрог: скальная гряда от вершины до моря под углом map.spur_rel от направления на устье реки. Вместе с рекой

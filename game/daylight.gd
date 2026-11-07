@@ -14,11 +14,14 @@ const STORM := Color("#6d7680")
 ## Настроение глав: оттенок горизонта и солнца, насыщенность кадра. Берег — тёплый песок; земля предков — золотые
 ## закаты; тёмный лес — прохладная зелень; вершина — чистый холодный свет.
 const MOODS := [
-	{"tint": Color("#ffe2b8"), "saturation": 0.9},
-	{"tint": Color("#f2c27a"), "saturation": 0.95},
-	{"tint": Color("#9fc4b0"), "saturation": 0.85},
-	{"tint": Color("#cfe3ff"), "saturation": 1.0},
+	{"tint": Color("#ffe2b8"), "saturation": 0.98, "sun_mix": 0.11, "fog": 0.0},
+	{"tint": Color("#f2c27a"), "saturation": 1.02, "sun_mix": 0.15, "fog": 0.0},
+	{"tint": Color("#9fc4b0"), "saturation": 0.92, "sun_mix": 0.4, "fog": 0.0007},
+	{"tint": Color("#cfe3ff"), "saturation": 1.05, "sun_mix": 0.12, "fog": 0.0},
 ]
+## Туман у земли: дымка гуще на рассвете и закате (фиксированной «высоты» нет — см. set_hour).
+const FOG_BASE := 0.0009
+const FOG_DUSK := 0.0008
 const MOOD_STRENGTH := 0.22
 
 var environment := Environment.new()
@@ -45,10 +48,10 @@ func _init() -> void:
 	environment.glow_intensity = 0.3
 	# Чуть приглушённые цвета и тёплый тон — естественнее, без «кислоты».
 	environment.adjustment_enabled = true
-	environment.adjustment_saturation = 0.9
-	environment.adjustment_contrast = 1.05
+	environment.adjustment_saturation = 0.98
+	environment.adjustment_contrast = 1.1
 	environment.fog_enabled = true
-	environment.fog_density = 0.0009
+	environment.fog_density = FOG_BASE
 	environment.fog_sky_affect = 0.0
 	var world_env := WorldEnvironment.new()
 	world_env.environment = environment
@@ -71,9 +74,10 @@ func set_hour(hour: float) -> void:
 
 	var sun_pos := Vector3(cos(angle), elevation, 0.4) * SUN_DISTANCE
 	_sun.transform = Transform3D(Basis.looking_at(-sun_pos), sun_pos)
-	_sun.light_energy = 1.3 * day * (1.0 - 0.65 * overcast)
 	var mood: Dictionary = MOODS[clampi(chapter, 0, MOODS.size() - 1)]
-	_sun.light_color = SUN_COLOR.lerp(SUNSET, dusk * 0.7).lerp(mood["tint"], MOOD_STRENGTH * 0.5)
+	# Низкое солнце утром и вечером: теплее и чуть ярче; в тёмном лесу свет холоднее (sun_mix).
+	_sun.light_energy = (1.3 + 0.2 * dusk) * day * (1.0 - 0.65 * overcast)
+	_sun.light_color = SUN_COLOR.lerp(SUNSET, dusk * 0.85).lerp(mood["tint"], mood["sun_mix"])
 	environment.adjustment_saturation = lerpf(environment.adjustment_saturation, mood["saturation"], 0.02)
 	_sun.visible = day > 0.01
 	var moon_pos := Vector3(-cos(angle), maxf(0.3, -elevation), -0.3) * SUN_DISTANCE
@@ -89,3 +93,5 @@ func set_hour(hour: float) -> void:
 	_sky_mat.ground_horizon_color = horizon
 	environment.ambient_light_energy = 0.25 + 0.45 * day
 	environment.fog_light_color = horizon
+	environment.fog_density = FOG_BASE + FOG_DUSK * dusk * day + float(mood["fog"])
+	environment.glow_intensity = 0.3 + 0.25 * (1.0 - day) # ночью светящиеся акценты заметнее

@@ -51,6 +51,7 @@ var people_views := {}
 var selected_id := -1
 var structures_view: StructuresView
 var hints_view: HintsView
+var paths_view: PathsView
 var caches_view: CachesView
 var veil: RegionVeil
 var weather: Weather
@@ -142,6 +143,10 @@ func _ready() -> void:
 	hints_view.build(map)
 	add_child(hints_view)
 	hints_view.sync(_world)
+	paths_view = PathsView.new()
+	paths_view.build(map)
+	add_child(paths_view)
+	add_child(Details.build(map)) # мелкие детали мира: от мира не зависят, строятся один раз
 	veil = RegionVeil.new()
 	veil.build(map, int(_world["chapter"]))
 	add_child(veil)

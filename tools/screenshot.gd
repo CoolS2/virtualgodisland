@@ -26,7 +26,9 @@ func _ready() -> void:
 	for view: Array in VIEWS:
 		views.append(func() -> Array: return view)
 	views.append(_river_view.bind(map))
+	views.append(_paths_view.bind(map))
 	views.append(_waterfall_view.bind(map))
+	views.append(_details_view.bind(map))
 	views.append(_relic_view.bind(map, "ruins", 0.45, 26.0))
 	views.append(_relic_view.bind(map, "stone_circle", 0.4, 16.0))
 	views.append(_relic_view.bind(map, "raft_wreck", 0.35, 22.0))
@@ -71,6 +73,27 @@ func _river_view(map: IslandMap) -> Array:
 	var x: float = i % map.size - half
 	var z: float = floori(float(i) / map.size) - half
 	return ["river", atan2(x, z), 0.5, 75.0]
+
+
+## Тропы сверху над стартом: между обломками корабля и обелиском (PathsView должен быть подключён в main).
+func _paths_view(map: IslandMap) -> Array:
+	if map == null or not map.relics.has("raft_wreck") or not map.relics.has("obelisk"):
+		return []
+	var wreck: Vector2 = map.relics["raft_wreck"]
+	var obelisk: Vector2 = map.relics["obelisk"]
+	var mid := (wreck + obelisk) / 2.0
+	return ["paths", atan2(mid.x, mid.y), 1.0, 90.0, Vector3(mid.x, map.height_at_world(mid.x, mid.y), mid.y)]
+
+
+## Крупно берег реки (детали мира: цветы, камни, кувшинки), камера смотрит вдоль течения.
+func _details_view(map: IslandMap) -> Array:
+	if map == null or map.river.size() < 12:
+		return []
+	var points := River.smoothed_points(map)
+	var k := floori(map.river.size() / 3.0)
+	var target := points[k] + Vector3(0.0, 0.5, 0.0)
+	var ahead := points[k + 4]
+	return ["details", atan2(target.x - ahead.x, target.z - ahead.z), 0.3, 14.0, target]
 
 
 ## Ракурс на водопад снизу по течению: камера вращается вокруг середины падения.

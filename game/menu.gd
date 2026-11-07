@@ -64,6 +64,7 @@ func _build_island() -> void:
 	if waterfall:
 		world.add_child(waterfall)
 	world.add_child(Decorations.build(map))
+	world.add_child(Details.build(map))
 	var relics := HintsView.new()
 	relics.build(map)
 	world.add_child(relics)
